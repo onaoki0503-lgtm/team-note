@@ -9,7 +9,6 @@ import {
   Lightbulb,
   PlayCircle,
   ClipboardCheck,
-  Warehouse,
   Send,
   Trash2,
   ChevronRight,
@@ -2064,77 +2063,103 @@ export default function App() {
       {/* ========================================================= */}
       {activeTab === 'warehouse' && (
         <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
-          {/* 🏛️ 倉庫ハブ（イラスト ＆ 3大保管庫へのクリック遷移） */}
+          {/* 🌐 デジタルHヴィレッジ 仮想保管空間（OZメタバースハブ ＆ 3大保管庫へのクリック遷移） */}
           {warehouseActiveView === 'hub' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* 倉庫の「標識」ヘッダー */}
+              {/* クリーンな仮想空間ヘッダー（茶色い標識バーを撤廃し、サマーウォーズの世界観に刷新） */}
               <div
                 style={{
-                  backgroundColor: '#78350f',
-                  color: '#fff',
-                  borderRadius: 16,
-                  padding: '16px 22px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: 20,
+                  padding: '20px 24px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   flexWrap: 'wrap',
-                  gap: 12,
-                  boxShadow: '0 4px 16px rgba(120, 53, 15, 0.25)',
-                  border: '3px solid #b45309'
+                  gap: 16,
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                  border: '1px solid #e2e8f0'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div
                     style={{
-                      backgroundColor: '#f59e0b',
-                      color: '#78350f',
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      fontWeight: 900,
-                      fontSize: 16,
+                      width: 48,
+                      height: 48,
+                      borderRadius: 16,
+                      background: 'linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%)',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.15)'
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      boxShadow: '0 4px 14px rgba(234, 88, 12, 0.3)'
                     }}
                   >
-                    <span>🪧</span>
-                    <span>倉庫</span>
+                    <Archive size={24} strokeWidth={2.4} />
                   </div>
                   <div>
-                    <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0, letterSpacing: 0.5 }}>
-                      H-Village 組織ナレッジ ＆ 資産保管庫
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          color: '#ea580c',
+                          backgroundColor: '#fff7ed',
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          border: '1px solid #fed7aa',
+                          letterSpacing: 0.5
+                        }}
+                      >
+                        DIGITAL H-VILLAGE METAVERSE
+                      </span>
+                    </div>
+                    <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: '4px 0 2px', letterSpacing: -0.3 }}>
+                      保管する
                     </h2>
-                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0' }}>
-                      住人名簿、備品在庫、年度ごとのイベント企画・議事録・惜敗ログを安全に保管中
+                    <p style={{ fontSize: 13, color: '#64748b', margin: 0, fontWeight: 600 }}>
+                      ここはHヴィレッジに関する様々なデータを保管します
                     </p>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, backgroundColor: 'rgba(0,0,0,0.25)', padding: '6px 12px', borderRadius: 20 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e' }} />
-                  <span>管理状態: 正常保管中</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    backgroundColor: '#f8fafc',
+                    color: '#0f172a',
+                    padding: '8px 14px',
+                    borderRadius: 30,
+                    border: '1px solid #e2e8f0'
+                  }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                  <span>仮想寮データ同期中（4棟常時接続）</span>
                 </div>
               </div>
 
-              {/* 🛖 デジタル竪穴式倉庫のインタラクティブ・ビジュアル（直接クリックして保管庫へジャンプ） */}
+              {/* 🌐 デジタル寮仮想空間（サマーウォーズ・OZ風メタバースビジュアル ＆ インタラクティブホットスポット） */}
               <div
                 style={{
                   backgroundColor: '#fff',
-                  border: '2px solid #fed7aa',
-                  borderRadius: 20,
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 24,
                   overflow: 'hidden',
-                  boxShadow: '0 8px 24px rgba(120, 53, 15, 0.08)'
+                  boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)'
                 }}
               >
-                {/* 倉庫画像 ＆ ホットスポットオーバーレイ */}
-                <div style={{ position: 'relative', width: '100%', backgroundColor: '#29180f', overflow: 'hidden' }}>
+                {/* 仮想空間画像 ＆ ホットスポットオーバーレイ */}
+                <div style={{ position: 'relative', width: '100%', backgroundColor: '#f8fafc', overflow: 'hidden' }}>
                   <img
-                    src="./digital_warehouse.jpg"
-                    alt="H-Village デジタル竪穴式保管倉庫（構造内装図）"
+                    src="./digital_dorm_metaverse.jpg"
+                    alt="H-Village デジタル寮 仮想空間（OZメタバースデータコア）"
                     style={{
                       width: '100%',
-                      maxHeight: 460,
+                      maxHeight: 480,
                       objectFit: 'cover',
                       display: 'block'
                     }}
@@ -2145,72 +2170,72 @@ export default function App() {
                     onClick={() => setWarehouseActiveView('roster')}
                     style={{
                       position: 'absolute',
-                      top: '18%',
-                      left: '8%',
-                      width: '26%',
-                      height: '48%',
+                      top: '16%',
+                      left: '6%',
+                      width: '27%',
+                      height: '52%',
                       cursor: 'pointer',
-                      borderRadius: 14,
-                      border: '2px dashed rgba(251, 146, 60, 0.85)',
-                      backgroundColor: 'rgba(234, 88, 12, 0.18)',
-                      backdropFilter: 'blur(1px)',
+                      borderRadius: 18,
+                      border: '2px solid rgba(255, 255, 255, 0.9)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.82)',
+                      backdropFilter: 'blur(8px)',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      padding: 8,
+                      padding: 10,
                       textAlign: 'center',
-                      boxShadow: '0 0 20px rgba(234, 88, 12, 0.35)',
-                      transition: 'all 0.2s ease'
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                     className="hover-scale-box"
                   >
-                    <div style={{ backgroundColor: '#ea580c', color: '#fff', padding: '4px 8px', borderRadius: 8, fontSize: 11, fontWeight: 900, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
-                      <Users size={12} />
+                    <div style={{ backgroundColor: '#ea580c', color: '#fff', padding: '6px 10px', borderRadius: 10, fontSize: 11, fontWeight: 900, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 8px rgba(234, 88, 12, 0.35)' }}>
+                      <Users size={13} />
                       <span>寮生名簿台帳</span>
                     </div>
-                    <span style={{ color: '#fed7aa', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                      どのユニットに誰がいるか
+                    <span style={{ color: '#0f172a', fontSize: 12, fontWeight: 900, lineHeight: 1.3 }}>
+                      どのユニットに<br />誰がいるか
                     </span>
-                    <span style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, marginTop: 4 }}>
-                      タップで全画面開く ➔
+                    <span style={{ backgroundColor: '#ffedd5', color: '#ea580c', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 20, marginTop: 8 }}>
+                      全画面で開く ➔
                     </span>
                   </div>
 
-                  {/* 2. 中央/奥ホットスポット：備品在庫ラック */}
+                  {/* 2. 中央/上部ホットスポット：備品在庫ラック */}
                   <div
                     onClick={() => setWarehouseActiveView('inventory')}
                     style={{
                       position: 'absolute',
                       top: '10%',
-                      left: '38%',
+                      left: '37%',
                       width: '26%',
                       height: '52%',
                       cursor: 'pointer',
-                      borderRadius: 14,
-                      border: '2px dashed rgba(251, 146, 60, 0.85)',
-                      backgroundColor: 'rgba(234, 88, 12, 0.18)',
-                      backdropFilter: 'blur(1px)',
+                      borderRadius: 18,
+                      border: '2px solid rgba(255, 255, 255, 0.9)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.82)',
+                      backdropFilter: 'blur(8px)',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      padding: 8,
+                      padding: 10,
                       textAlign: 'center',
-                      boxShadow: '0 0 20px rgba(234, 88, 12, 0.35)',
-                      transition: 'all 0.2s ease'
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                     className="hover-scale-box"
                   >
-                    <div style={{ backgroundColor: '#ea580c', color: '#fff', padding: '4px 8px', borderRadius: 8, fontSize: 11, fontWeight: 900, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
-                      <Package size={12} />
+                    <div style={{ backgroundColor: '#0284c7', color: '#fff', padding: '6px 10px', borderRadius: 10, fontSize: 11, fontWeight: 900, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)' }}>
+                      <Package size={13} />
                       <span>備品在庫ラック</span>
                     </div>
-                    <span style={{ color: '#fed7aa', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                      ペーパー・ヘッドホン・機材
+                    <span style={{ color: '#0f172a', fontSize: 12, fontWeight: 900, lineHeight: 1.3 }}>
+                      ペーパー・ヘッドホン<br />音響＆BBQ機材
                     </span>
-                    <span style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, marginTop: 4 }}>
-                      タップで全画面開く ➔
+                    <span style={{ backgroundColor: '#e0f2fe', color: '#0284c7', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 20, marginTop: 8 }}>
+                      全画面で開く ➔
                     </span>
                   </div>
 
@@ -2219,68 +2244,69 @@ export default function App() {
                     onClick={() => setWarehouseActiveView('archives')}
                     style={{
                       position: 'absolute',
-                      top: '18%',
-                      right: '8%',
-                      width: '26%',
-                      height: '48%',
+                      top: '16%',
+                      right: '6%',
+                      width: '27%',
+                      height: '52%',
                       cursor: 'pointer',
-                      borderRadius: 14,
-                      border: '2px dashed rgba(251, 146, 60, 0.85)',
-                      backgroundColor: 'rgba(234, 88, 12, 0.18)',
-                      backdropFilter: 'blur(1px)',
+                      borderRadius: 18,
+                      border: '2px solid rgba(255, 255, 255, 0.9)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.82)',
+                      backdropFilter: 'blur(8px)',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      padding: 8,
+                      padding: 10,
                       textAlign: 'center',
-                      boxShadow: '0 0 20px rgba(234, 88, 12, 0.35)',
-                      transition: 'all 0.2s ease'
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                     className="hover-scale-box"
                   >
-                    <div style={{ backgroundColor: '#ea580c', color: '#fff', padding: '4px 8px', borderRadius: 8, fontSize: 11, fontWeight: 900, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
-                      <Archive size={12} />
+                    <div style={{ backgroundColor: '#7c3aed', color: '#fff', padding: '6px 10px', borderRadius: 10, fontSize: 11, fontWeight: 900, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 8px rgba(124, 58, 237, 0.35)' }}>
+                      <FolderOpen size={13} />
                       <span>年度別資料金庫</span>
                     </div>
-                    <span style={{ color: '#fed7aa', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-                      イベント企画・議事録・惜敗ログ
+                    <span style={{ color: '#0f172a', fontSize: 12, fontWeight: 900, lineHeight: 1.3 }}>
+                      過去企画・議事録<br />惜敗ログアーカイブ
                     </span>
-                    <span style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, marginTop: 4 }}>
-                      タップで全画面開く ➔
+                    <span style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 20, marginTop: 8 }}>
+                      全画面で開く ➔
                     </span>
                   </div>
 
-                  {/* 伝統的竪穴倉庫スケッチとの比較トグルバッジ */}
+                  {/* 仮想空間タグ */}
                   <div
                     style={{
                       position: 'absolute',
-                      bottom: 12,
-                      right: 14,
-                      backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                      color: '#fed7aa',
-                      border: '1px solid #ea580c',
-                      borderRadius: 10,
-                      padding: '5px 12px',
+                      bottom: 14,
+                      right: 16,
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      color: '#0f172a',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 12,
+                      padding: '6px 14px',
                       fontSize: 11,
                       fontWeight: 800,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                      backdropFilter: 'blur(6px)',
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6
                     }}
                   >
-                    <span>🛖</span>
-                    <span>H-Village デジタル竪穴式倉庫（内部保管室）</span>
+                    <span>🌐</span>
+                    <span>デジタル上のもうひとつの寮の世界（OZ空間）</span>
                   </div>
                 </div>
 
-                <div style={{ padding: '14px 20px', backgroundColor: '#fff7ed', borderTop: '1px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                  <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontWeight: 700 }}>
-                    ✨ イラスト内の「光る保管エリア」または下のカードをクリックすると、全画面でその項目に切り替わります。
+                <div style={{ padding: '16px 24px', backgroundColor: '#ffffff', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <p style={{ fontSize: 13, color: '#334155', margin: 0, fontWeight: 700 }}>
+                    ✨ 仮想空間内の各保管コア、または下のカードをクリックすると、全画面で詳細データが開きます。
                   </p>
-                  <span style={{ fontSize: 11, color: '#9a3412', fontWeight: 800 }}>
-                    名簿・備品在庫・年度別資料
+                  <span style={{ fontSize: 12, color: '#ea580c', fontWeight: 800 }}>
+                    名簿 ＆ 部屋割り当て / 備品在庫 / 年度別資料・惜敗ログ
                   </span>
                 </div>
               </div>
@@ -2482,7 +2508,7 @@ export default function App() {
                   }}
                 >
                   <ArrowLeft size={16} />
-                  <span>倉庫の標識に戻る</span>
+                  <span>保管ポータルに戻る</span>
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
                   <Building2 size={18} />
@@ -2640,7 +2666,7 @@ export default function App() {
                   }}
                 >
                   <ArrowLeft size={16} />
-                  <span>倉庫の標識に戻る</span>
+                  <span>保管ポータルに戻る</span>
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
                   <Package size={18} />
@@ -2763,7 +2789,7 @@ export default function App() {
                   }}
                 >
                   <ArrowLeft size={16} />
-                  <span>倉庫の標識に戻る</span>
+                  <span>保管ポータルに戻る</span>
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
                   <Archive size={18} />
@@ -3170,6 +3196,7 @@ export default function App() {
         </button>
 
         {/* 4. 倉庫 */}
+        {/* 4. 保管する */}
         <button
           onClick={() => setActiveTab('warehouse')}
           style={{
@@ -3193,9 +3220,9 @@ export default function App() {
               justifyContent: 'center'
             }}
           >
-            <Warehouse size={18} strokeWidth={activeTab === 'warehouse' ? 2.8 : 2} />
+            <Archive size={18} strokeWidth={activeTab === 'warehouse' ? 2.8 : 2} />
           </div>
-          <span style={{ fontSize: 10, fontWeight: 800 }}>倉庫</span>
+          <span style={{ fontSize: 10, fontWeight: 800 }}>保管する</span>
         </button>
       </nav>
 
