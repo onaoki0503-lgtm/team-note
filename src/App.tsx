@@ -21,7 +21,12 @@ import {
   CheckCircle2,
   Calendar,
   MessageSquare,
-  ShieldAlert
+  ShieldAlert,
+  ArrowLeft,
+  Package,
+  Archive,
+  Building2,
+  FolderOpen
 } from 'lucide-react';
 import {
   dbService,
@@ -98,7 +103,6 @@ export default function App() {
   // 4つのボトムナビゲーション項目
   const [activeTab, setActiveTab] = useState<'change' | 'progress' | 'work' | 'warehouse'>('change');
   const [selectedBuilding, setSelectedBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
-  const [warehouseSubTab, setWarehouseSubTab] = useState<'roster' | 'documents'>('roster');
 
   // アイデア運営モーダルの開閉
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -134,9 +138,78 @@ export default function App() {
   const [newResidentUnit, setNewResidentUnit] = useState('Unit 301 - A室');
   const [newResidentRole, setNewResidentRole] = useState('一般寮生');
 
-  // 📖 詳細モーダル表示中のプロジェクトID ＆ 詳細タブ
+  // 📖 全画面表示中のプロジェクトID ＆ 詳細タブ
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProjectTab, setSelectedProjectTab] = useState<'proposal' | 'meeting' | 'members' | 'schedule'>('proposal');
+
+  // 🏛️ 倉庫内の全画面表示セクション
+  const [warehouseActiveView, setWarehouseActiveView] = useState<'hub' | 'roster' | 'inventory' | 'archives'>('hub');
+  const [archiveFilterYear, setArchiveFilterYear] = useState<string>('all');
+
+  // 備品在庫データ
+  const [inventoryList] = useState([
+    { id: 'inv1', name: '吸水ペーパータオルロール（予備）', category: 'キッチン衛生', quantity: 24, unit: '巻', status: '十分', location: 'ローズ1F 倉庫棚A-1', updated: '2026-10-06' },
+    { id: 'inv2', name: 'マグネット式ロールディスペンサー', category: 'キッチン衛生', quantity: 6, unit: '個', status: '配備完了', location: 'ローズ・パプリカ各階', updated: '2026-10-05' },
+    { id: 'inv3', name: 'Bluetooth サイレントヘッドホン', category: 'イベント機材', quantity: 30, unit: '台', status: '整備中', location: 'バジル1F 談話室ロッカー', updated: '2026-10-05' },
+    { id: 'inv4', name: 'デジタル騒音測定器（デシベル計）', category: '実証計測器', quantity: 2, unit: '台', status: '良好', location: 'ローズ3F 事務局保管庫', updated: '2026-10-04' },
+    { id: 'inv5', name: '玄関足型誘導ステッカー（予備）', category: '生活美化', quantity: 45, unit: '枚', status: '十分', location: 'パプリカ1F 棚B-3', updated: '2026-10-03' },
+    { id: 'inv6', name: 'アウトドア大型BBQグリル', category: '共用備品', quantity: 2, unit: '台', status: '清掃済み', location: '中庭用 防火器具庫', updated: '2026-09-28' },
+    { id: 'inv7', name: '折りたたみパイプ椅子', category: 'イベント用', quantity: 50, unit: '脚', status: '良好', location: 'ターメリック1F 倉庫', updated: '2026-09-20' },
+  ]);
+
+  // 年度別イベント資料・惜敗ログ
+  const [yearlyArchives] = useState([
+    {
+      id: 'ya-1',
+      year: '2026年度',
+      title: '共有キッチン使い捨てロール化 導入申請書 ＆ 実証データ一式',
+      category: '衛生・備品',
+      format: 'PDF / Word',
+      date: '2026-10-03',
+      description: '初期費用4,800円の自治会費執行記録、西松建設提出用の器具仕様書、寮生満足度90%アンケート原本。',
+      status: '公認採択'
+    },
+    {
+      id: 'ya-2',
+      year: '2026年度',
+      title: '4棟エントランス認証共通化 学事・西松事前折衝議事録 ＆ 提案書案',
+      category: '施設・防犯',
+      format: 'Markdown / PDF',
+      date: '2026-10-05',
+      description: 'FelicaカードID一括登録によるコモンズ相互利用スキーム案と、防犯面での階段別施錠検証記録。',
+      status: '交渉中'
+    },
+    {
+      id: 'ya-3',
+      year: '2025年度',
+      title: '【惜敗ログ】中庭夜間DJイベント 騒音苦情による中止報告書 ＆ 顛末録',
+      category: '過去の惜敗ログ',
+      format: 'PDF / スライド',
+      date: '2025-11-20',
+      description: '音響スピーカー使用による周辺苦情発生の時系列分析と、「スピーカーを完全ゼロにするサイレント化」への教訓まとめ。',
+      status: '惜敗分析済'
+    },
+    {
+      id: 'ya-4',
+      year: '2025年度',
+      title: '【惜敗ログ】玄関オートロック物理リーダー増設 見積もり頓挫記録',
+      category: '過去の惜敗ログ',
+      format: 'PDF原本',
+      date: '2025-07-15',
+      description: '物理工事見積もり280万円により断念した記録。物理工事ではなく「ソフトウェア・カードID登録での突破」へ舵を切る契機となった重要資料。',
+      status: '惜敗分析済'
+    },
+    {
+      id: 'ya-5',
+      year: '2024年度',
+      title: 'SFC Hヴィレッジ 自治会創設総会議事録 ＆ 初代ハウス規約正本',
+      category: '公式規約',
+      format: 'PDF公認原本',
+      date: '2024-04-10',
+      description: '4棟共通の自治会運営方針、コモンズ利用規約、役員（FL/HL）選出規定のマスターファイル。',
+      status: '永久保存'
+    }
+  ]);
 
   // 1. 進行中プロジェクト一覧（自分のアカウントで管理）
   const [projects, setProjects] = useState<Project[]>([
@@ -351,7 +424,7 @@ export default function App() {
   ]);
 
   // 4. 倉庫：過去の公認資料
-  const [archiveDocs] = useState<ArchiveDoc[]>([
+  const [/* archiveDocs */] = useState<ArchiveDoc[]>([
     {
       id: 'a1',
       title: 'SFC Hヴィレッジ 入寮契約書 ＆ ハウス規約全文2026',
@@ -1378,7 +1451,7 @@ export default function App() {
       })()}
 
       {/* ========================================================= */}
-      {/* 📄 イベント詳細ページ（議事録・企画書・スタッフメンバー） */}
+      {/* 📄 イベント詳細 全画面ページ（議事録・企画書・スタッフメンバー・進行計画） */}
       {/* ========================================================= */}
       {selectedProjectId && (() => {
         const pj = projects.find((p) => p.id === selectedProjectId);
@@ -1398,24 +1471,73 @@ export default function App() {
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              zIndex: 120,
+              backgroundColor: '#fafaf9',
+              zIndex: 90,
+              overflowY: 'auto',
+              paddingBottom: 80,
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '12px'
+              flexDirection: 'column'
             }}
           >
+            {/* 全画面トップナビゲーションバー */}
             <div
               style={{
-                backgroundColor: '#fff',
-                borderRadius: 20,
-                maxWidth: 720,
+                position: 'sticky',
+                top: 0,
+                zIndex: 40,
+                backgroundColor: '#ea580c',
+                color: '#fff',
+                padding: '12px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 2px 10px rgba(234, 88, 12, 0.25)'
+              }}
+            >
+              <button
+                onClick={() => setSelectedProjectId(null)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.35)',
+                  padding: '6px 14px',
+                  borderRadius: 20,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                <ArrowLeft size={16} />
+                <span>一覧に戻る</span>
+              </button>
+              <span style={{ fontSize: 13, fontWeight: 800, opacity: 0.95 }}>
+                {pj.category} • イベント詳細
+              </span>
+              <button
+                onClick={() => setSelectedProjectId(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  padding: 4
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div
+              style={{
+                maxWidth: 880,
                 width: '100%',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                boxShadow: '0 24px 48px rgba(0,0,0,0.25)',
-                position: 'relative',
+                margin: '0 auto',
+                backgroundColor: '#fff',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                minHeight: 'calc(100vh - 54px)',
                 display: 'flex',
                 flexDirection: 'column'
               }}
@@ -1427,26 +1549,7 @@ export default function App() {
                   alt={pj.title}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
-                <button
-                  onClick={() => setSelectedProjectId(null)}
-                  style={{
-                    position: 'absolute',
-                    top: 14,
-                    right: 14,
-                    backgroundColor: 'rgba(0,0,0,0.6)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: 34,
-                    height: 34,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <X size={18} />
-                </button>
+                
                 <div style={{ position: 'absolute', bottom: 12, left: 16 }}>
                   <span
                     style={{
@@ -1956,201 +2059,716 @@ export default function App() {
       )}
 
       {/* ========================================================= */}
-      {/* 4. 「倉庫」（過去の資料 ＆ 部屋割り当て名簿） */}
+      {/* ========================================================= */}
+      {/* 4. 「倉庫」（標識 ＆ 竪穴式倉庫イラスト ＆ 名簿・備品在庫・年度別資料の保管庫） */}
       {/* ========================================================= */}
       {activeTab === 'warehouse' && (
-        <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 16px' }}>
-          {/* 上部サブタブ（名簿 vs 過去資料） */}
-          <div
-            style={{
-              backgroundColor: '#fff',
-              border: '2px solid #fed7aa',
-              borderRadius: 16,
-              padding: '16px 20px',
-              marginBottom: 20,
-              boxShadow: '0 4px 12px rgba(234, 88, 12, 0.06)'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Warehouse size={22} color="#ea580c" />
-                <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1c1917' }}>
-                  📦 倉庫（過去の公認資料 ＆ 部屋割り当て名簿）
-                </h2>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setWarehouseSubTab('roster')}
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
+          {/* 🏛️ 倉庫ハブ（イラスト ＆ 3大保管庫へのクリック遷移） */}
+          {warehouseActiveView === 'hub' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* 倉庫の「標識」ヘッダー */}
+              <div
                 style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  backgroundColor: warehouseSubTab === 'roster' ? '#ea580c' : '#f1f5f9',
-                  color: warehouseSubTab === 'roster' ? '#fff' : '#475569',
-                  cursor: 'pointer'
+                  backgroundColor: '#78350f',
+                  color: '#fff',
+                  borderRadius: 16,
+                  padding: '16px 22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  boxShadow: '0 4px 16px rgba(120, 53, 15, 0.25)',
+                  border: '3px solid #b45309'
                 }}
               >
-                👥 棟・階別 部屋割り当て名簿
-              </button>
-              <button
-                onClick={() => setWarehouseSubTab('documents')}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  backgroundColor: warehouseSubTab === 'documents' ? '#ea580c' : '#f1f5f9',
-                  color: warehouseSubTab === 'documents' ? '#fff' : '#475569',
-                  cursor: 'pointer'
-                }}
-              >
-                📑 過去の資料・規約・惜敗ログ
-              </button>
-            </div>
-          </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      backgroundColor: '#f59e0b',
+                      color: '#78350f',
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      fontWeight: 900,
+                      fontSize: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.15)'
+                    }}
+                  >
+                    <span>🪧</span>
+                    <span>倉庫</span>
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0, letterSpacing: 0.5 }}>
+                      H-Village 組織ナレッジ ＆ 資産保管庫
+                    </h2>
+                    <p style={{ fontSize: 12, opacity: 0.9, margin: '2px 0 0' }}>
+                      住人名簿、備品在庫、年度ごとのイベント企画・議事録・惜敗ログを安全に保管中
+                    </p>
+                  </div>
+                </div>
 
-          {/* 倉庫 - 部屋割り当て名簿 */}
-          {warehouseSubTab === 'roster' && (
-            <div>
-              {/* 4棟切り替え */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-                {[
-                  { key: 'rosemary', label: '🌿 ローズマリー' },
-                  { key: 'basil', label: '🌱 バジル' },
-                  { key: 'turmeric', label: '🟡 ターメリック' },
-                  { key: 'paprika', label: '🌶️ パプリカ' }
-                ].map((b) => {
-                  const isSelected = selectedBuilding === b.key;
-                  return (
-                    <button
-                      key={b.key}
-                      onClick={() => setSelectedBuilding(b.key as any)}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 800,
-                        backgroundColor: isSelected ? '#ea580c' : '#fff',
-                        border: isSelected ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
-                        color: isSelected ? '#fff' : '#475569',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {b.label}
-                    </button>
-                  );
-                })}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, backgroundColor: 'rgba(0,0,0,0.25)', padding: '6px 12px', borderRadius: 20 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e' }} />
+                  <span>管理状態: 正常保管中</span>
+                </div>
               </div>
 
-              {/* 階ごとの一覧 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {[3, 2, 1].map((floorNum) => {
-                  const floorResidents = residents.filter(
-                    (r) => r.building === selectedBuilding && r.floor === floorNum
-                  );
+              {/* 🛖 竪穴式倉庫のイラスト（2枚目の写真） ＆ 空間ビジュアル */}
+              <div
+                style={{
+                  backgroundColor: '#fff',
+                  border: '2px solid #fed7aa',
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.04)'
+                }}
+              >
+                <div style={{ position: 'relative', width: '100%', maxHeight: 340, backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <img
+                    src="./warehouse_sketch.png"
+                    alt="H-Village 竪穴式倉庫の構造図"
+                    style={{
+                      width: '100%',
+                      maxHeight: 340,
+                      objectFit: 'contain',
+                      backgroundColor: '#fff',
+                      padding: 12
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 12,
+                      right: 14,
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      color: '#78350f',
+                      border: '1px solid #d97706',
+                      borderRadius: 10,
+                      padding: '6px 12px',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    🛖 伝統的保管建築（竪穴・高床式倉庫モデル）
+                  </div>
+                </div>
 
-                  return (
-                    <div key={floorNum} style={{ backgroundColor: '#fff', border: '1.5px solid #fed7aa', borderRadius: 14, overflow: 'hidden' }}>
-                      <div style={{ backgroundColor: '#fff7ed', borderBottom: '1px solid #fed7aa', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: '#9a3412' }}>第{floorNum}階 ユニット</span>
-                        <span style={{ fontSize: 11, color: '#78716c' }}>{floorResidents.length}名 入居</span>
-                      </div>
+                <div style={{ padding: '16px 20px', backgroundColor: '#fff7ed', borderTop: '1px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                  <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontWeight: 700 }}>
+                    💡 項目をクリックすると、全画面でその保管エリアに切り替わります。
+                  </p>
+                  <span style={{ fontSize: 11, color: '#9a3412', fontWeight: 800 }}>
+                    全3大保管セクション
+                  </span>
+                </div>
+              </div>
 
-                      <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {floorResidents.length === 0 ? (
-                          <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>
-                            登録なし
-                          </div>
-                        ) : (
-                          floorResidents.map((r) => (
-                            <div
-                              key={r.id}
-                              style={{
-                                backgroundColor: '#fff',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: 10,
-                                padding: '10px 14px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <img src={r.avatar} alt={r.name} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ fontSize: 14, fontWeight: 800 }}>{r.name}</span>
-                                    <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
-                                      {r.role}
-                                    </span>
-                                  </div>
-                                  <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 8, marginTop: 2 }}>
-                                    <span>{r.unit}</span>
-                                    <span>{r.email}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div style={{ fontSize: 11, color: '#ea580c', fontWeight: 700 }}>
-                                {r.memo}
-                              </div>
-                            </div>
-                          ))
-                        )}
+              {/* 📦 倉庫に本当に保管されている3大セクションの選択カード */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                {/* 1. 名簿（どのユニットに誰がいるか） */}
+                <div
+                  onClick={() => setWarehouseActiveView('roster')}
+                  style={{
+                    backgroundColor: '#fff',
+                    border: '2px solid #fed7aa',
+                    borderRadius: 16,
+                    padding: 20,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.borderColor = '#ea580c';
+                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(234, 88, 12, 0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.borderColor = '#fed7aa';
+                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.03)';
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ backgroundColor: '#ffedd5', color: '#ea580c', padding: 10, borderRadius: 12 }}>
+                        <Users size={24} />
                       </div>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
+                        4棟・全3階
+                      </span>
                     </div>
-                  );
-                })}
+                    <h3 style={{ fontSize: 17, fontWeight: 900, color: '#1c1917', marginBottom: 6 }}>
+                      👥 寮生名簿 ＆ 部屋割り当て台帳
+                    </h3>
+                    <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.5, marginBottom: 16 }}>
+                      どの棟のどのユニット・フロアに誰が住んでいるか、役職（FL/HL）や連絡先メモを一目で確認・検索できます。
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #f5f5f4', color: '#ea580c', fontWeight: 800, fontSize: 13 }}>
+                    <span>全画面で名簿を開く</span>
+                    <ChevronRight size={16} />
+                  </div>
+                </div>
+
+                {/* 2. 備品在庫 */}
+                <div
+                  onClick={() => setWarehouseActiveView('inventory')}
+                  style={{
+                    backgroundColor: '#fff',
+                    border: '2px solid #fed7aa',
+                    borderRadius: 16,
+                    padding: 20,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.borderColor = '#ea580c';
+                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(234, 88, 12, 0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.borderColor = '#fed7aa';
+                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.03)';
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ backgroundColor: '#ffedd5', color: '#ea580c', padding: 10, borderRadius: 12 }}>
+                        <Package size={24} />
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
+                        {inventoryList.length}品目
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: 17, fontWeight: 900, color: '#1c1917', marginBottom: 6 }}>
+                      📦 備品在庫 ＆ 機材管理台帳
+                    </h3>
+                    <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.5, marginBottom: 16 }}>
+                      ペーパータオル、ディスペンサー、サイレントヘッドホン、騒音測定器、BBQ機材などの在庫数・保管棚を管理。
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #f5f5f4', color: '#ea580c', fontWeight: 800, fontSize: 13 }}>
+                    <span>全画面で備品在庫を開く</span>
+                    <ChevronRight size={16} />
+                  </div>
+                </div>
+
+                {/* 3. 年度ごとに行ったイベントの資料 */}
+                <div
+                  onClick={() => setWarehouseActiveView('archives')}
+                  style={{
+                    backgroundColor: '#fff',
+                    border: '2px solid #fed7aa',
+                    borderRadius: 16,
+                    padding: 20,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.borderColor = '#ea580c';
+                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(234, 88, 12, 0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.borderColor = '#fed7aa';
+                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.03)';
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ backgroundColor: '#ffedd5', color: '#ea580c', padding: 10, borderRadius: 12 }}>
+                        <Archive size={24} />
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
+                        2024〜2026年度
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: 17, fontWeight: 900, color: '#1c1917', marginBottom: 6 }}>
+                      📑 年度別イベント資料 ＆ 惜敗ログ金庫
+                    </h3>
+                    <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.5, marginBottom: 16 }}>
+                      過去に実施されたイベント企画書原本、承認申請書、そして却下理由と突破法を記録した「惜敗ログ」の保管金庫です。
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #f5f5f4', color: '#ea580c', fontWeight: 800, fontSize: 13 }}>
+                    <span>全画面で年度別資料を開く</span>
+                    <ChevronRight size={16} />
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* 倉庫 - 過去の公認資料 */}
-          {warehouseSubTab === 'documents' && (
-            <div style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 14, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#fff7ed', borderBottom: '1px solid #fed7aa', fontSize: 12, color: '#9a3412' }}>
-                    <th style={{ padding: '12px 18px' }}>資料名</th>
-                    <th style={{ padding: '12px 14px' }}>分類</th>
-                    <th style={{ padding: '12px 14px' }}>更新日</th>
-                    <th style={{ padding: '12px 14px' }}>サイズ</th>
-                    <th style={{ padding: '12px 18px', textAlign: 'right' }}>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {archiveDocs.map((doc) => (
-                    <tr key={doc.id} style={{ borderBottom: '1px solid #f5f5f4', fontSize: 13 }}>
-                      <td style={{ padding: '14px 18px', fontWeight: 700, color: '#1c1917' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <FileText size={16} color="#ea580c" />
-                          <span>{doc.title}</span>
+          {/* ========================================================= */}
+          {/* 👥 全画面：どのユニットに誰がいるか（部屋割り当て名簿） */}
+          {/* ========================================================= */}
+          {warehouseActiveView === 'roster' && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: '#fafaf9',
+                zIndex: 90,
+                overflowY: 'auto',
+                paddingBottom: 80,
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              {/* 全画面ヘッダー */}
+              <div
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 40,
+                  backgroundColor: '#ea580c',
+                  color: '#fff',
+                  padding: '12px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 10px rgba(234, 88, 12, 0.25)'
+                }}
+              >
+                <button
+                  onClick={() => setWarehouseActiveView('hub')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.35)',
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>倉庫の標識に戻る</span>
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
+                  <Building2 size={18} />
+                  <span>4棟・階別 部屋割り当て名簿（全画面）</span>
+                </div>
+                <div style={{ width: 40 }} />
+              </div>
+
+              <div style={{ maxWidth: 880, width: '100%', margin: '0 auto', padding: '24px 16px' }}>
+                {/* 4棟切り替えタブ */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'rosemary', label: '🌿 ローズマリー棟' },
+                    { key: 'basil', label: '🌱 バジル棟' },
+                    { key: 'turmeric', label: '🟡 ターメリック棟' },
+                    { key: 'paprika', label: '🌶️ パプリカ棟' }
+                  ].map((b) => {
+                    const isSelected = selectedBuilding === b.key;
+                    return (
+                      <button
+                        key={b.key}
+                        onClick={() => setSelectedBuilding(b.key as any)}
+                        style={{
+                          padding: '10px 18px',
+                          borderRadius: 12,
+                          fontSize: 14,
+                          fontWeight: 800,
+                          backgroundColor: isSelected ? '#ea580c' : '#fff',
+                          border: isSelected ? '2px solid #ea580c' : '1px solid #d6d3d1',
+                          color: isSelected ? '#fff' : '#44403c',
+                          cursor: 'pointer',
+                          boxShadow: isSelected ? '0 4px 12px rgba(234, 88, 12, 0.25)' : 'none'
+                        }}
+                      >
+                        {b.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* 階ごとの一覧 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {[3, 2, 1].map((floorNum) => {
+                    const floorResidents = residents.filter(
+                      (r) => r.building === selectedBuilding && r.floor === floorNum
+                    );
+
+                    return (
+                      <div key={floorNum} style={{ backgroundColor: '#fff', border: '1.5px solid #fed7aa', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                        <div style={{ backgroundColor: '#fff7ed', borderBottom: '1px solid #fed7aa', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 15, fontWeight: 900, color: '#9a3412' }}>
+                            第 {floorNum} 階 ユニット一覧
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#78716c' }}>
+                            {floorResidents.length}名 入居中
+                          </span>
                         </div>
-                      </td>
-                      <td style={{ padding: '14px 14px' }}>
-                        <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 }}>
-                          {doc.category}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px 14px', color: '#78716c' }}>{doc.updatedAt}</td>
-                      <td style={{ padding: '14px 14px', color: '#78716c' }}>{doc.size}</td>
-                      <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                        <button
-                          style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          閲覧
-                        </button>
-                      </td>
-                    </tr>
+
+                        <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {floorResidents.length === 0 ? (
+                            <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                              この階の登録寮生はいません
+                            </div>
+                          ) : (
+                            floorResidents.map((r) => (
+                              <div
+                                key={r.id}
+                                style={{
+                                  backgroundColor: '#fff',
+                                  border: '1px solid #e7e5e4',
+                                  borderRadius: 12,
+                                  padding: '12px 16px',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  flexWrap: 'wrap',
+                                  gap: 12
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                  <img src={r.avatar} alt={r.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <span style={{ fontSize: 15, fontWeight: 900, color: '#1c1917' }}>{r.name}</span>
+                                      <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                                        {r.role}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#57534e', display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
+                                      <span>🏠 <strong>{r.unit}</strong></span>
+                                      <span>✉️ {r.email}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ backgroundColor: '#fafaf9', padding: '6px 12px', borderRadius: 8, fontSize: 12, color: '#ea580c', fontWeight: 800, border: '1px solid #f5f5f4' }}>
+                                  担当: {r.memo}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 📦 全画面：備品在庫（何がどこに何個あるか） */}
+          {/* ========================================================= */}
+          {warehouseActiveView === 'inventory' && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: '#fafaf9',
+                zIndex: 90,
+                overflowY: 'auto',
+                paddingBottom: 80,
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              {/* 全画面ヘッダー */}
+              <div
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 40,
+                  backgroundColor: '#ea580c',
+                  color: '#fff',
+                  padding: '12px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 10px rgba(234, 88, 12, 0.25)'
+                }}
+              >
+                <button
+                  onClick={() => setWarehouseActiveView('hub')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.35)',
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>倉庫の標識に戻る</span>
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
+                  <Package size={18} />
+                  <span>備品在庫 ＆ 機材管理台帳（全画面）</span>
+                </div>
+                <div style={{ width: 40 }} />
+              </div>
+
+              <div style={{ maxWidth: 880, width: '100%', margin: '0 auto', padding: '24px 16px' }}>
+                <div style={{ backgroundColor: '#fff', border: '1.5px solid #fed7aa', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                  <div style={{ padding: '16px 20px', backgroundColor: '#fff7ed', borderBottom: '1px solid #fed7aa', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                      <h3 style={{ fontSize: 16, fontWeight: 900, color: '#9a3412', margin: 0 }}>
+                        リアルタイム備品・保管棚台帳
+                      </h3>
+                      <p style={{ fontSize: 12, color: '#78716c', margin: '2px 0 0' }}>
+                        業務報告書（はたらくタブ）の提出に合わせて在庫数・補充状況が更新されます
+                      </p>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 800, backgroundColor: '#ea580c', color: '#fff', padding: '4px 10px', borderRadius: 20 }}>
+                      合計 {inventoryList.length} 品目
+                    </span>
+                  </div>
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 640 }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', fontSize: 12, color: '#57534e' }}>
+                          <th style={{ padding: '12px 18px' }}>備品・機材名</th>
+                          <th style={{ padding: '12px 14px' }}>分類</th>
+                          <th style={{ padding: '12px 14px' }}>現在在庫数</th>
+                          <th style={{ padding: '12px 14px' }}>保管場所 / 棚番</th>
+                          <th style={{ padding: '12px 14px' }}>状態</th>
+                          <th style={{ padding: '12px 18px', textAlign: 'right' }}>最終更新</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inventoryList.map((item) => (
+                          <tr key={item.id} style={{ borderBottom: '1px solid #f5f5f4', fontSize: 13 }}>
+                            <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1c1917' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Package size={16} color="#ea580c" />
+                                <span>{item.name}</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '14px 14px' }}>
+                              <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 }}>
+                                {item.category}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 14px', fontWeight: 900, color: '#ea580c', fontSize: 14 }}>
+                              {item.quantity} <span style={{ fontSize: 12, fontWeight: 600, color: '#78716c' }}>{item.unit}</span>
+                            </td>
+                            <td style={{ padding: '14px 14px', color: '#44403c', fontSize: 12, fontWeight: 600 }}>
+                              📍 {item.location}
+                            </td>
+                            <td style={{ padding: '14px 14px' }}>
+                              <span style={{ backgroundColor: '#f0fdf4', color: '#15803d', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                                {item.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', textAlign: 'right', color: '#78716c', fontSize: 12 }}>
+                              {item.updated}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* 📑 全画面：年度別イベント資料 ＆ 惜敗ログ金庫 */}
+          {/* ========================================================= */}
+          {warehouseActiveView === 'archives' && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: '#fafaf9',
+                zIndex: 90,
+                overflowY: 'auto',
+                paddingBottom: 80,
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              {/* 全画面ヘッダー */}
+              <div
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 40,
+                  backgroundColor: '#ea580c',
+                  color: '#fff',
+                  padding: '12px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 10px rgba(234, 88, 12, 0.25)'
+                }}
+              >
+                <button
+                  onClick={() => setWarehouseActiveView('hub')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.35)',
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>倉庫の標識に戻る</span>
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
+                  <Archive size={18} />
+                  <span>年度別イベント資料 ＆ 惜敗ログ金庫（全画面）</span>
+                </div>
+                <div style={{ width: 40 }} />
+              </div>
+
+              <div style={{ maxWidth: 880, width: '100%', margin: '0 auto', padding: '24px 16px' }}>
+                {/* 年度フィルター */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 18, overflowX: 'auto', paddingBottom: 4 }}>
+                  {['all', '2026年度', '2025年度', '2024年度'].map((yr) => (
+                    <button
+                      key={yr}
+                      onClick={() => setArchiveFilterYear(yr)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 20,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        backgroundColor: archiveFilterYear === yr ? '#ea580c' : '#fff',
+                        border: archiveFilterYear === yr ? '1.5px solid #ea580c' : '1px solid #d6d3d1',
+                        color: archiveFilterYear === yr ? '#fff' : '#57534e',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {yr === 'all' ? '全年度の資料' : yr}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                {/* 資料リスト */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {yearlyArchives
+                    .filter((doc) => archiveFilterYear === 'all' || doc.year === archiveFilterYear)
+                    .map((doc) => {
+                      const isLost = doc.category === '過去の惜敗ログ';
+                      return (
+                        <div
+                          key={doc.id}
+                          style={{
+                            backgroundColor: '#fff',
+                            border: isLost ? '1.5px solid #fca5a5' : '1.5px solid #fed7aa',
+                            borderRadius: 16,
+                            padding: '18px 20px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  backgroundColor: isLost ? '#fef2f2' : '#ffedd5',
+                                  color: isLost ? '#b91c1c' : '#9a3412',
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: 6
+                                }}
+                              >
+                                {doc.category}
+                              </span>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#78716c' }}>
+                                {doc.year} ({doc.date})
+                              </span>
+                            </div>
+
+                            <span
+                              style={{
+                                backgroundColor: isLost ? '#fee2e2' : '#ecfdf5',
+                                color: isLost ? '#dc2626' : '#15803d',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: 6
+                              }}
+                            >
+                              {doc.status}
+                            </span>
+                          </div>
+
+                          <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', marginBottom: 6 }}>
+                            {doc.title}
+                          </h3>
+
+                          <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, marginBottom: 14 }}>
+                            {doc.description}
+                          </p>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid #f5f5f4' }}>
+                            <span style={{ fontSize: 12, color: '#78716c' }}>形式: {doc.format}</span>
+                            <button
+                              onClick={() => alert()}
+                              style={{
+                                backgroundColor: '#fff',
+                                border: '1px solid #ea580c',
+                                color: '#ea580c',
+                                padding: '6px 14px',
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6
+                              }}
+                            >
+                              <FolderOpen size={14} />
+                              閲覧・展開
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
             </div>
           )}
         </div>
       )}
+
 
       {/* ========================================================= */}
       {/* 🌟 ぽんっとバウンドして出現するアイデア運営入力モーダル */}
