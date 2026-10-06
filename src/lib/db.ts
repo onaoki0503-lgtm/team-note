@@ -8,6 +8,41 @@ import { supabase, isSupabaseConfigured, checkSupabaseConnection } from './supab
 
 export { isSupabaseConfigured, checkSupabaseConnection }
 
+export interface EventRoleCareer {
+  eventId: string
+  eventTitle: string
+  role: 'PL' | 'GL' | 'メンバー' | 'EA'
+  groupName?: string // イベント班, 装飾班, ディナー班 など
+  yearMonth: string // 例: 2026-12
+  isCertifiedGl?: boolean // ★GL経験者資格フラグ
+}
+
+// 人間（関係者）による手動スコア評価レコード（AI採点完全排除）
+export interface LeaderEvaluationRecord {
+  id: string
+  eventId: string
+  eventTitle: string
+  targetResidentId: string // 被評価者
+  targetResidentName: string
+  targetRole: 'PL' | 'GL' | 'メンバー'
+  evaluatorId: string // 評価者
+  evaluatorName: string
+  evaluatorRole: 'EA' | 'PL' | 'GL' | 'メンバー'
+  createdAt: string
+  
+  // 関係者が手動入力する定性・定量スコア（★1〜5）
+  scores: {
+    facilitation: number // 統率・ファシリテーション力（★1〜5）
+    communication: number // 報連相・レスポンス（★1〜5）
+    safetyExternal: number // 対外折衝（西松・施設ルール）・安全意識（★1〜5）
+    scheduleBudget: number // 期日・予算管理（★1〜5）
+  }
+  goodPoints: string // 👍 いい面・強み（関係者の生の声）
+  badPoints: string // ⚠️ 課題・悪い面・フォロー要（関係者の生の声）
+  aptitudeVerdict: 'PL適格' | 'GL適格' | '専門実務向き' | '要フォロー'
+  isConfidential: boolean // 非公開リーダーカルテ（幹部・EAのみ閲覧可）
+}
+
 export interface ResidentRecord {
   id: string
   name: string
@@ -19,6 +54,8 @@ export interface ResidentRecord {
   roleType: 'fl' | 'hl' | 'member'
   email: string
   memo: string
+  careers?: EventRoleCareer[] // 歴代イベント役職経歴
+  evaluations?: LeaderEvaluationRecord[] // 人事評価・リーダーカルテ
 }
 
 export interface ProjectMemberRecord {
@@ -28,6 +65,19 @@ export interface ProjectMemberRecord {
   role: string
   building: string
   joinedAt: string
+  eventRole?: 'PL' | 'GL' | 'メンバー' | 'EA' // 役職
+  groupName?: string // 所属班（イベント班、装飾班、ディナー班等）
+}
+
+export interface EventGroup {
+  id: string
+  name: string // イベント班、装飾班、ディナー班 など
+  glResidentId?: string // 班GL（リーダー）
+  glName?: string
+  milestoneDeadline?: string // 独自マイルストーン（例: 10/31 ディナーメニュー決定）
+  milestoneTitle?: string
+  milestoneCompleted?: boolean
+  membersCount?: number
 }
 
 export interface ProjectRecord {
@@ -43,6 +93,14 @@ export interface ProjectRecord {
   createdAt: string
   description?: string
   bannerImage?: string
+  
+  // イベント運営フロー連携（スライド実務構造）
+  isEventWorkflow?: boolean // イベント運営フロー適用フラグ
+  workflowStage?: 'planning' | 'ea_review' | 'nishimatsu_review' | 'action_prep' | 'rehearsal_day' | 'retrospective'
+  theme?: string // 今年のテーマ（例: それぞれの層が楽しめる！）
+  groups?: EventGroup[] // 班構成（イベント班、装飾班、ディナー班）
+  evaluations?: LeaderEvaluationRecord[] // 周囲の関係者がスコアリングした人事評価
+  
   members: ProjectMemberRecord[]
   meetingNotes?: {
     date: string
@@ -119,7 +177,30 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     role: '統括リーダー (FL)',
     roleType: 'fl',
     email: 'okamoto@intakingresources.com',
-    memo: 'キッチン布巾改善PJ / 玄関共通化提案'
+    memo: 'キッチン布巾改善PJ / 玄関共通化提案',
+    careers: [
+      { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'PL', yearMonth: '2026-12', isCertifiedGl: true },
+      { eventId: 'pj-summer', eventTitle: '🎋 2026年 七夕・中庭夏祭り', role: 'PL', yearMonth: '2026-07', isCertifiedGl: true }
+    ],
+    evaluations: [
+      {
+        id: 'ev-1',
+        eventId: 'pj-summer',
+        eventTitle: '🎋 2026年 七夕・中庭夏祭り',
+        targetResidentId: 'r1',
+        targetResidentName: '岡本 直樹',
+        targetRole: 'PL',
+        evaluatorId: 'r0-ea',
+        evaluatorName: '次郎さん（EA）',
+        evaluatorRole: 'EA',
+        createdAt: '2026-07-15',
+        scores: { facilitation: 5, communication: 5, safetyExternal: 5, scheduleBudget: 4 },
+        goodPoints: '西松建設との事前折衝が極めて緻密で、安全基準を完全クリアした。各GLへの権限委譲とトラブル対応が迅速。',
+        badPoints: '細かい備品発注の決算確認を直前まで抱え込みがち。副PLへの分担を推奨。',
+        aptitudeVerdict: 'PL適格',
+        isConfidential: true
+      }
+    ]
   },
   {
     id: 'r2',
@@ -131,7 +212,30 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     role: '有志メンバー',
     roleType: 'member',
     email: 'ito.y@intakingresources.com',
-    memo: '夜間イベント企画・サイレントフェス検討'
+    memo: '夜間イベント企画・サイレントフェス検討',
+    careers: [
+      { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL', groupName: 'イベント班', yearMonth: '2026-12', isCertifiedGl: true },
+      { eventId: 'pj-summer', eventTitle: '🎋 2026年 七夕・中庭夏祭り', role: 'メンバー', groupName: '音響企画', yearMonth: '2026-07', isCertifiedGl: false }
+    ],
+    evaluations: [
+      {
+        id: 'ev-2',
+        eventId: 'pj-summer',
+        eventTitle: '🎋 2026年 七夕・中庭夏祭り',
+        targetResidentId: 'r2',
+        targetResidentName: '伊藤 雄吉',
+        targetRole: 'メンバー',
+        evaluatorId: 'r1',
+        evaluatorName: '岡本 直樹',
+        evaluatorRole: 'PL',
+        createdAt: '2026-07-15',
+        scores: { facilitation: 4, communication: 5, safetyExternal: 4, scheduleBudget: 4 },
+        goodPoints: '独自のアイデア力と音響機材への造詣が深く、メンバーを巻き込む熱量が高い。',
+        badPoints: '熱中するとスケジュール報告が少し遅れる時があるが、リマインドで即対応可能。',
+        aptitudeVerdict: 'GL適格',
+        isConfidential: false
+      }
+    ]
   },
   {
     id: 'r3',
@@ -143,7 +247,11 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     role: 'サブリーダー',
     roleType: 'hl',
     email: 'sato.k@sfc.keio.ac.jp',
-    memo: '玄関美化・靴箱プロトタイプ担当'
+    memo: '玄関美化・靴箱プロトタイプ担当',
+    careers: [
+      { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL', groupName: 'ディナー班', yearMonth: '2026-12', isCertifiedGl: true }
+    ],
+    evaluations: []
   },
   {
     id: 'r4',
@@ -155,7 +263,11 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     role: 'パプリカFL',
     roleType: 'fl',
     email: 'ikuma.s@sfc.keio.ac.jp',
-    memo: '布巾改善の申請書連携・西松窓口'
+    memo: '布巾改善の申請書連携・西松窓口',
+    careers: [
+      { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL', groupName: '装飾班', yearMonth: '2026-12', isCertifiedGl: true }
+    ],
+    evaluations: []
   },
   {
     id: 'r5',
@@ -167,7 +279,11 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     role: 'ハウスリーダー (HL)',
     roleType: 'hl',
     email: 'soji.r@sfc.keio.ac.jp',
-    memo: '棟間連携・全体自治会担当'
+    memo: '棟間連携・全体自治会担当',
+    careers: [
+      { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'メンバー', groupName: 'ディナー班', yearMonth: '2026-12', isCertifiedGl: false }
+    ],
+    evaluations: []
   },
   {
     id: 'r6',
@@ -179,7 +295,9 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     role: 'ターメリックFL',
     roleType: 'fl',
     email: 'yamada.d@sfc.keio.ac.jp',
-    memo: 'BBQ大会企画・機材管理'
+    memo: 'BBQ大会企画・機材管理',
+    careers: [],
+    evaluations: []
   },
   {
     id: 'r7',
@@ -191,7 +309,11 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     role: 'バジルFL',
     roleType: 'fl',
     email: 'watanabe.h@sfc.keio.ac.jp',
-    memo: '中庭植栽・ハーブ菜園PJ'
+    memo: '中庭植栽・ハーブ菜園PJ',
+    careers: [
+      { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'メンバー', groupName: '装飾班', yearMonth: '2026-12', isCertifiedGl: false }
+    ],
+    evaluations: []
   }
 ]
 
@@ -352,6 +474,182 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
       { date: '2026-10-03', milestone: '規約矛盾の整理 ＆ 企画骨子作成', completed: true },
       { date: '2026-10-06', milestone: '学事担当者への事前相談', completed: false },
       { date: '2026-10-15', milestone: 'カードキー一括登録トライアル開始', completed: false }
+    ]
+  },
+  {
+    id: 'pj-xmas',
+    title: '🎄 2026年 H-Village クリスマス大感謝祭（12/17開催）',
+    category: 'イベント・交流',
+    status: '進行中',
+    progress: 35,
+    owner: '岡本 直樹',
+    ownerId: 'r1',
+    nextAction: '10/13第2回全体会議（班の決定）＆ 各班GL選定・ディナーメニュー策定',
+    proposalsCount: 3,
+    createdAt: '2026-10-06',
+    description: '「それぞれの層が楽しめる！」をテーマに、イベント班・装飾班・ディナー班の3班体制で企画。EA・西松建設の2段階承認とリハを経て当日成功を目指す公式イベント。',
+    bannerImage: 'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=800&q=80',
+    isEventWorkflow: true,
+    workflowStage: 'planning',
+    theme: '今年のテーマは、それぞれの層が楽しめる！',
+    groups: [
+      {
+        id: 'grp-event',
+        name: 'イベント班',
+        glResidentId: 'r2',
+        glName: '伊藤 雄吉',
+        milestoneDeadline: '2026-10-25',
+        milestoneTitle: 'ステージ企画・音響タイムテーブル確定',
+        milestoneCompleted: false,
+        membersCount: 3
+      },
+      {
+        id: 'grp-decor',
+        name: '装飾班',
+        glResidentId: 'r4',
+        glName: '生熊 翔太',
+        milestoneDeadline: '2026-11-05',
+        milestoneTitle: 'ツリー・LED電飾・会場レイアウト図面完成',
+        milestoneCompleted: false,
+        membersCount: 2
+      },
+      {
+        id: 'grp-dinner',
+        name: 'ディナー班',
+        glResidentId: 'r3',
+        glName: '佐藤 健太',
+        milestoneDeadline: '2026-10-31',
+        milestoneTitle: 'ディナー班メニュー決定（先行締切）',
+        milestoneCompleted: false,
+        membersCount: 4
+      }
+    ],
+    evaluations: [
+      {
+        id: 'ev-xmas-1',
+        eventId: 'pj-xmas',
+        eventTitle: '🎄 2026年 H-Village クリスマス大感謝祭',
+        targetResidentId: 'r2',
+        targetResidentName: '伊藤 雄吉',
+        targetRole: 'GL',
+        evaluatorId: 'r1',
+        evaluatorName: '岡本 直樹',
+        evaluatorRole: 'PL',
+        createdAt: '2026-10-06',
+        scores: { facilitation: 5, communication: 4, safetyExternal: 4, scheduleBudget: 5 },
+        goodPoints: 'サイレント音響ノウハウを活かした独自コンテンツ立案が秀逸。',
+        badPoints: '西松への事前安全申請書のドラフト作成を早めに完了させること。',
+        aptitudeVerdict: 'GL適格',
+        isConfidential: false
+      }
+    ],
+    members: [
+      {
+        residentId: 'r1',
+        name: '岡本 直樹',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        role: '統括リーダー (FL)',
+        building: 'rosemary',
+        joinedAt: '2026-10-06',
+        eventRole: 'PL',
+        groupName: '全体統括'
+      },
+      {
+        residentId: 'r2',
+        name: '伊藤 雄吉',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+        role: '有志メンバー',
+        building: 'rosemary',
+        joinedAt: '2026-10-06',
+        eventRole: 'GL',
+        groupName: 'イベント班'
+      },
+      {
+        residentId: 'r3',
+        name: '佐藤 健太',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+        role: 'サブリーダー',
+        building: 'rosemary',
+        joinedAt: '2026-10-06',
+        eventRole: 'GL',
+        groupName: 'ディナー班'
+      },
+      {
+        residentId: 'r4',
+        name: '生熊 翔太',
+        avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80',
+        role: 'パプリカFL',
+        building: 'paprika',
+        joinedAt: '2026-10-06',
+        eventRole: 'GL',
+        groupName: '装飾班'
+      },
+      {
+        residentId: 'r5',
+        name: '宗司 涼介',
+        avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80',
+        role: 'ハウスリーダー (HL)',
+        building: 'paprika',
+        joinedAt: '2026-10-06',
+        eventRole: 'メンバー',
+        groupName: 'ディナー班'
+      },
+      {
+        residentId: 'r7',
+        name: '渡辺 陽奈',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
+        role: 'バジルFL',
+        building: 'basil',
+        joinedAt: '2026-10-06',
+        eventRole: 'メンバー',
+        groupName: '装飾班'
+      }
+    ],
+    meetingNotes: [
+      {
+        date: '2026-10-06',
+        title: '第1回 クリスマス企画 全体キックオフ会議',
+        attendees: ['岡本 直樹（PL）', '伊藤 雄吉（GL）', '佐藤 健太（GL）', '生熊 翔太（GL）', '宗司 涼介', '渡辺 陽奈'],
+        summary: '初回全体会議を実施。今年のテーマ「それぞれの層が楽しめる！」を採択。10/13第2回全体会議までにイベント・装飾・ディナーの3班編成を固めることを決定。',
+        decisions: [
+          'PL: 岡本直樹（全体監督・西松連絡担当）',
+          'GL選任: イベント班（伊藤）、装飾班（生熊）、ディナー班（佐藤）',
+          'GL参加ルール確認: 「GL経験者が班にいない場合、初参加者はGL不可」を厳守',
+          'ディナー班の先行締切: 食材衛生と発注のため10/31までにメニュー確定'
+        ],
+        nextTodos: [
+          '10/13: 第2回全体会議（各班メンバー確定・アイデア具体化）',
+          '10/31: ディナー班メニュー最終決定',
+          '11/10: EA（次郎さん）への企画書提出',
+          '11/17: 西松建設への企画書・施設利用申請書提出'
+        ]
+      }
+    ],
+    proposalDoc: {
+      title: 'Hヴィレッジ 2026年度 クリスマス大感謝祭 企画書',
+      purpose: '学期末における全4棟の寮生交流と、新入生・留学生・上級生それぞれの層が安心して楽しめる祝祭空間の創出。',
+      background: '年末の帰省前に寮生全員の絆を深める伝統行事。今年は単一の騒がしいパーティーではなく、ディナー・静かな装飾空間・体験型イベントの3班で多様な居場所を設計する。',
+      hackStrategy: '西松建設への申請にあたり、「火気厳禁」を徹底するためIH調理および保温ジャー配備方式を採用。中庭装飾は21時消灯・自棟電源確保で共用部負荷をゼロにする論理で一発承認を狙う。',
+      budget: '総予算 48,000円（自治会費補助 30,000円 ＋ 参加費カンパ 18,000円）',
+      steps: [
+        '【企画フェーズ（1ヶ月）】: 10/6アイデア ➔ 10/13班決定 ➔ 10/31メニュー決定 ➔ 11/10 EA提出 ➔ 11/17 西松提出',
+        '【承認後】: 決算書作成 ＆ 購入品の正式注文開始',
+        '【実働フェーズ（2週間）】: 制作・広報・会場準備・各班当日の動き確認 ➔ 12/16全体リハ ➔ 12/17当日実施 ➔ 12/18片付け',
+        '【振り返りフェーズ（1週間）】: 目的達成度・良かった点・改善点（惜敗ログ）の整理 ＆ 関係者スコア人事評価蓄積'
+      ]
+    },
+    schedule: [
+      { date: '2026-10-06', milestone: '初回全体会議（アイデア出し）', completed: true },
+      { date: '2026-10-13', milestone: '第2回全体会議（班の決定）', completed: false },
+      { date: '2026-10-31', milestone: 'ディナー班メニュー決定（先行締切）', completed: false },
+      { date: '2026-11-10', milestone: '企画書提出（EAチェック）', completed: false },
+      { date: '2026-11-17', milestone: '企画書提出（西松建設 承認申請）', completed: false },
+      { date: '2026-11-25', milestone: '承認後：決算書作成・購入品の注文開始', completed: false },
+      { date: '2026-12-05', milestone: '実働フェーズ開始（制作・広報・会場準備）', completed: false },
+      { date: '2026-12-16', milestone: '全体リハーサル（第1回・第2回）', completed: false },
+      { date: '2026-12-17', milestone: '★ イベント当日！', completed: false },
+      { date: '2026-12-18', milestone: 'お片付け ＆ 原状復帰', completed: false },
+      { date: '2026-12-25', milestone: '振り返りフェーズ（惜敗ログ・関係者スコア人事評価）', completed: false }
     ]
   },
   {
@@ -808,5 +1106,113 @@ export const dbService = {
     }
     localStorage.setItem(STORAGE_KEYS.ARCHIVES, JSON.stringify(INITIAL_ARCHIVES))
     return INITIAL_ARCHIVES
+  },
+
+  // --- 人間（関係者）による直接スコアリング人事評価の保存 ＆ 名簿連携 ---
+  async addEvaluation(evaluation: Omit<LeaderEvaluationRecord, 'id' | 'createdAt'>): Promise<LeaderEvaluationRecord> {
+    const newEval: LeaderEvaluationRecord = {
+      ...evaluation,
+      id: `ev-${Date.now()}`,
+      createdAt: new Date().toISOString().slice(0, 10)
+    }
+
+    // 1. プロジェクト側に評価を蓄積
+    const projects = await this.getProjects()
+    const updatedProjects = projects.map((p) => {
+      if (p.id === newEval.eventId) {
+        return {
+          ...p,
+          evaluations: [...(p.evaluations || []), newEval]
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updatedProjects))
+
+    // 2. 被評価者の名簿（ResidentRecord）に人事カルテを蓄積
+    const residents = await this.getResidents()
+    const updatedResidents = residents.map((r) => {
+      if (r.id === newEval.targetResidentId) {
+        return {
+          ...r,
+          evaluations: [...(r.evaluations || []), newEval]
+        }
+      }
+      return r
+    })
+    localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(updatedResidents))
+
+    return newEval
+  },
+
+  // --- イベント運営フェーズ（ワークフローステージ）の更新 ---
+  async updateEventWorkflowStage(
+    projectId: string,
+    stage: 'planning' | 'ea_review' | 'nishimatsu_review' | 'action_prep' | 'rehearsal_day' | 'retrospective',
+    progress: number
+  ): Promise<void> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          workflowStage: stage,
+          progress
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+  },
+
+  // --- 役職任命 ＆ 個人の名簿（経歴バッジ）への自動記録 ---
+  async assignEventRole(
+    projectId: string,
+    residentId: string,
+    eventRole: 'PL' | 'GL' | 'メンバー' | 'EA',
+    groupName?: string
+  ): Promise<void> {
+    const projects = await this.getProjects()
+    const targetProject = projects.find((p) => p.id === projectId)
+    if (!targetProject) return
+
+    // 1. プロジェクト内メンバーの役職を更新
+    const updatedProjects = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          members: p.members.map((m) =>
+            m.residentId === residentId ? { ...m, eventRole, groupName } : m
+          )
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updatedProjects))
+
+    // 2. 名簿（ResidentRecord）に経歴（EventRoleCareer）を自動追記
+    const residents = await this.getResidents()
+    const updatedResidents = residents.map((r) => {
+      if (r.id === residentId) {
+        const existingCareers = r.careers || []
+        const alreadyLogged = existingCareers.some((c) => c.eventId === projectId && c.role === eventRole)
+        if (alreadyLogged) return r
+
+        const newCareer: EventRoleCareer = {
+          eventId: projectId,
+          eventTitle: targetProject.title,
+          role: eventRole,
+          groupName,
+          yearMonth: targetProject.createdAt.slice(0, 7),
+          isCertifiedGl: eventRole === 'PL' || eventRole === 'GL'
+        }
+        return {
+          ...r,
+          careers: [...existingCareers, newCareer]
+        }
+      }
+      return r
+    })
+    localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(updatedResidents))
   }
 }
