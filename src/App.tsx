@@ -2117,53 +2117,170 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 🛖 竪穴式倉庫のイラスト（2枚目の写真） ＆ 空間ビジュアル */}
+              {/* 🛖 デジタル竪穴式倉庫のインタラクティブ・ビジュアル（直接クリックして保管庫へジャンプ） */}
               <div
                 style={{
                   backgroundColor: '#fff',
                   border: '2px solid #fed7aa',
                   borderRadius: 20,
                   overflow: 'hidden',
-                  boxShadow: '0 6px 20px rgba(0,0,0,0.04)'
+                  boxShadow: '0 8px 24px rgba(120, 53, 15, 0.08)'
                 }}
               >
-                <div style={{ position: 'relative', width: '100%', maxHeight: 340, backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {/* 倉庫画像 ＆ ホットスポットオーバーレイ */}
+                <div style={{ position: 'relative', width: '100%', backgroundColor: '#29180f', overflow: 'hidden' }}>
                   <img
-                    src="./warehouse_sketch.png"
-                    alt="H-Village 竪穴式倉庫の構造図"
+                    src="./digital_warehouse.jpg"
+                    alt="H-Village デジタル竪穴式保管倉庫（構造内装図）"
                     style={{
                       width: '100%',
-                      maxHeight: 340,
-                      objectFit: 'contain',
-                      backgroundColor: '#fff',
-                      padding: 12
+                      maxHeight: 460,
+                      objectFit: 'cover',
+                      display: 'block'
                     }}
                   />
+
+                  {/* 1. 左側ホットスポット：名簿・ユニット台帳 */}
+                  <div
+                    onClick={() => setWarehouseActiveView('roster')}
+                    style={{
+                      position: 'absolute',
+                      top: '18%',
+                      left: '8%',
+                      width: '26%',
+                      height: '48%',
+                      cursor: 'pointer',
+                      borderRadius: 14,
+                      border: '2px dashed rgba(251, 146, 60, 0.85)',
+                      backgroundColor: 'rgba(234, 88, 12, 0.18)',
+                      backdropFilter: 'blur(1px)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 8,
+                      textAlign: 'center',
+                      boxShadow: '0 0 20px rgba(234, 88, 12, 0.35)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    className="hover-scale-box"
+                  >
+                    <div style={{ backgroundColor: '#ea580c', color: '#fff', padding: '4px 8px', borderRadius: 8, fontSize: 11, fontWeight: 900, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
+                      <Users size={12} />
+                      <span>寮生名簿台帳</span>
+                    </div>
+                    <span style={{ color: '#fed7aa', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                      どのユニットに誰がいるか
+                    </span>
+                    <span style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, marginTop: 4 }}>
+                      タップで全画面開く ➔
+                    </span>
+                  </div>
+
+                  {/* 2. 中央/奥ホットスポット：備品在庫ラック */}
+                  <div
+                    onClick={() => setWarehouseActiveView('inventory')}
+                    style={{
+                      position: 'absolute',
+                      top: '10%',
+                      left: '38%',
+                      width: '26%',
+                      height: '52%',
+                      cursor: 'pointer',
+                      borderRadius: 14,
+                      border: '2px dashed rgba(251, 146, 60, 0.85)',
+                      backgroundColor: 'rgba(234, 88, 12, 0.18)',
+                      backdropFilter: 'blur(1px)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 8,
+                      textAlign: 'center',
+                      boxShadow: '0 0 20px rgba(234, 88, 12, 0.35)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    className="hover-scale-box"
+                  >
+                    <div style={{ backgroundColor: '#ea580c', color: '#fff', padding: '4px 8px', borderRadius: 8, fontSize: 11, fontWeight: 900, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
+                      <Package size={12} />
+                      <span>備品在庫ラック</span>
+                    </div>
+                    <span style={{ color: '#fed7aa', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                      ペーパー・ヘッドホン・機材
+                    </span>
+                    <span style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, marginTop: 4 }}>
+                      タップで全画面開く ➔
+                    </span>
+                  </div>
+
+                  {/* 3. 右側ホットスポット：年度別資料・惜敗ログ金庫 */}
+                  <div
+                    onClick={() => setWarehouseActiveView('archives')}
+                    style={{
+                      position: 'absolute',
+                      top: '18%',
+                      right: '8%',
+                      width: '26%',
+                      height: '48%',
+                      cursor: 'pointer',
+                      borderRadius: 14,
+                      border: '2px dashed rgba(251, 146, 60, 0.85)',
+                      backgroundColor: 'rgba(234, 88, 12, 0.18)',
+                      backdropFilter: 'blur(1px)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 8,
+                      textAlign: 'center',
+                      boxShadow: '0 0 20px rgba(234, 88, 12, 0.35)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    className="hover-scale-box"
+                  >
+                    <div style={{ backgroundColor: '#ea580c', color: '#fff', padding: '4px 8px', borderRadius: 8, fontSize: 11, fontWeight: 900, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
+                      <Archive size={12} />
+                      <span>年度別資料金庫</span>
+                    </div>
+                    <span style={{ color: '#fed7aa', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                      イベント企画・議事録・惜敗ログ
+                    </span>
+                    <span style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, marginTop: 4 }}>
+                      タップで全画面開く ➔
+                    </span>
+                  </div>
+
+                  {/* 伝統的竪穴倉庫スケッチとの比較トグルバッジ */}
                   <div
                     style={{
                       position: 'absolute',
                       bottom: 12,
                       right: 14,
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      color: '#78350f',
-                      border: '1px solid #d97706',
+                      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                      color: '#fed7aa',
+                      border: '1px solid #ea580c',
                       borderRadius: 10,
-                      padding: '6px 12px',
+                      padding: '5px 12px',
                       fontSize: 11,
                       fontWeight: 800,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
                     }}
                   >
-                    🛖 伝統的保管建築（竪穴・高床式倉庫モデル）
+                    <span>🛖</span>
+                    <span>H-Village デジタル竪穴式倉庫（内部保管室）</span>
                   </div>
                 </div>
 
-                <div style={{ padding: '16px 20px', backgroundColor: '#fff7ed', borderTop: '1px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ padding: '14px 20px', backgroundColor: '#fff7ed', borderTop: '1px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                   <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontWeight: 700 }}>
-                    💡 項目をクリックすると、全画面でその保管エリアに切り替わります。
+                    ✨ イラスト内の「光る保管エリア」または下のカードをクリックすると、全画面でその項目に切り替わります。
                   </p>
                   <span style={{ fontSize: 11, color: '#9a3412', fontWeight: 800 }}>
-                    全3大保管セクション
+                    名簿・備品在庫・年度別資料
                   </span>
                 </div>
               </div>
