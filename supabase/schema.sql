@@ -138,12 +138,25 @@ CREATE TABLE IF NOT EXISTS team_order_meta (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 10. プロジェクト参加スタッフテーブル (project_members)
+-- プロジェクトごとにスタッフが検索・参加（ジョイン）する
+CREATE TABLE IF NOT EXISTS project_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    resident_id UUID NOT NULL REFERENCES residents(id) ON DELETE CASCADE,
+    role VARCHAR(50) DEFAULT 'staff', -- 'leader', 'staff', 'supporter'
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (project_id, resident_id)
+);
+
 -- インデックス作成
 CREATE INDEX IF NOT EXISTS idx_residents_bldg_floor ON residents(building, floor);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_work_reports_submitted ON work_reports(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_team_assets_category ON team_assets(category);
 CREATE INDEX IF NOT EXISTS idx_project_nodes_proj ON project_nodes(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_members_proj ON project_members(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_members_resident ON project_members(resident_id);
 
 -- 更新日時自動更新トリガー関数
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -171,6 +184,7 @@ ALTER TABLE work_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_asset_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_order_meta ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 
 -- 開発・プロトタイプ用パブリック閲覧・書き込みポリシー (Supabase Anon Key 用)
 CREATE POLICY "Public Read for Organisations" ON organisations FOR SELECT USING (true);
@@ -182,3 +196,4 @@ CREATE POLICY "Public Read/Write for Work Reports" ON work_reports FOR ALL USING
 CREATE POLICY "Public Read/Write for Team Assets" ON team_assets FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Read/Write for Team Asset Files" ON team_asset_files FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Read/Write for Team Order Meta" ON team_order_meta FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Read/Write for Project Members" ON project_members FOR ALL USING (true) WITH CHECK (true);

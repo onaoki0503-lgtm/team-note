@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Flame,
-  Building,
   Camera,
   FileSpreadsheet,
   X,
@@ -15,9 +14,20 @@ import {
   Trash2,
   ChevronRight,
   FileText,
-  Database
+  Database,
+  Search,
+  Users,
+  UserPlus,
+  CheckCircle2
 } from 'lucide-react';
-import { dbService, isSupabaseConfigured, checkSupabaseConnection } from './lib/db';
+import {
+  dbService,
+  isSupabaseConfigured,
+  checkSupabaseConnection,
+  type CurrentUser,
+  type ResidentRecord,
+  type ProjectMemberRecord
+} from './lib/db';
 
 interface MapNode {
   id: string;
@@ -28,11 +38,15 @@ interface MapNode {
 interface Project {
   id: string;
   title: string;
-  description: string;
+  category: string;
+  description?: string;
   progress: number;
   owner: string;
+  ownerId?: string;
   status: 'planning' | 'testing' | 'negotiating' | 'completed';
   nextAction: string;
+  createdAt?: string;
+  members: ProjectMemberRecord[];
 }
 
 interface Report {
@@ -45,18 +59,7 @@ interface Report {
   status: 'submitted' | 'approved';
 }
 
-interface Resident {
-  id: string;
-  name: string;
-  avatar: string;
-  building: 'rosemary' | 'basil' | 'turmeric' | 'paprika';
-  floor: 1 | 2 | 3;
-  unit: string;
-  role: string;
-  roleType: 'fl' | 'hl' | 'member';
-  email: string;
-  memo: string;
-}
+type Resident = ResidentRecord;
 
 interface ArchiveDoc {
   id: string;
@@ -91,34 +94,120 @@ export default function App() {
   const [reportContent, setReportContent] = useState('');
   const [reportCategory, setReportCategory] = useState<'見回り' | '清掃' | '設備点検' | 'イベント運営'>('見回り');
 
+  // 👤 ログイン中H生アカウント
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(() => dbService.getCurrentUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // 🔍 プロジェクト検索 ＆ 絞り込みフィルター
+  const [projectSearch, setProjectSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [projectFilterMode, setProjectFilterMode] = useState<'all' | 'joined' | 'owned'>('all');
+
+  // 新規寮生登録ステート
+  const [newResidentName, setNewResidentName] = useState('');
+  const [newResidentBuilding, setNewResidentBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
+  const [newResidentUnit, setNewResidentUnit] = useState('Unit 301 - A室');
+  const [newResidentRole, setNewResidentRole] = useState('一般寮生');
+
   // 1. 進行中プロジェクト一覧（自分のアカウントで管理）
   const [projects, setProjects] = useState<Project[]>([
     {
       id: 'p1',
       title: '🏡 ローズ・パプリカ・ターメリック 玄関共通化 ＆ コモンズ相互開放',
+      category: '施設・防犯',
       description: '全寮生利用可能規約の矛盾を解消し、物理工事なしで昼間限定スマホワンタイム認証運用を提案中。',
       progress: 65,
       owner: '岡本 直樹 (FL)',
+      ownerId: 'r1',
       status: 'negotiating',
-      nextAction: '西松建設・学事への提案書（代替案）提出'
+      nextAction: '西松建設・学事への提案書（代替案）提出',
+      createdAt: '2026-10-03',
+      members: [
+        {
+          residentId: 'r1',
+          name: '岡本 直樹',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+          role: '統括リーダー (FL)',
+          building: 'rosemary',
+          joinedAt: '2026-10-03'
+        },
+        {
+          residentId: 'r3',
+          name: '佐藤 健太',
+          avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+          role: 'サブリーダー',
+          building: 'rosemary',
+          joinedAt: '2026-10-04'
+        }
+      ]
     },
     {
       id: 'p2',
       title: '🧻 キッチン布巾のペーパータオル化（フードコート方式）',
+      category: '衛生・備品',
       description: '濡れた布巾を廃止し、衛生的なペーパータオルディスペンサーを試験導入。',
       progress: 85,
       owner: '岡本 直樹 ＆ 宗司 (HL)',
+      ownerId: 'r1',
       status: 'testing',
-      nextAction: 'ローズ3Fでの1週間試用アンケート回収'
+      nextAction: 'ローズ3Fでの1週間試用アンケート回収',
+      createdAt: '2026-10-01',
+      members: [
+        {
+          residentId: 'r1',
+          name: '岡本 直樹',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+          role: '統括リーダー (FL)',
+          building: 'rosemary',
+          joinedAt: '2026-10-01'
+        },
+        {
+          residentId: 'r4',
+          name: '生熊 翔太',
+          avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80',
+          role: 'パプリカFL',
+          building: 'paprika',
+          joinedAt: '2026-10-02'
+        },
+        {
+          residentId: 'r5',
+          name: '宗司 涼介',
+          avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80',
+          role: 'ハウスリーダー (HL)',
+          building: 'paprika',
+          joinedAt: '2026-10-03'
+        }
+      ]
     },
     {
       id: 'p3',
       title: '🎧 夜間キャンパス企画（サイレントフェス方式）',
+      category: '生活文化・交流',
       description: '騒音問題をクリアするため、Bluetoothヘッドホンを用いた屋外音楽イベントの思考実験。',
       progress: 30,
       owner: '伊藤 雄吉 ＆ 有志',
+      ownerId: 'r2',
       status: 'planning',
-      nextAction: 'ヘッドホン調達見積もり・次郎さんへの壁打ち'
+      nextAction: 'ヘッドホン調達見積もり・次郎さんへの壁打ち',
+      createdAt: '2026-10-05',
+      members: [
+        {
+          residentId: 'r2',
+          name: '伊藤 雄吉',
+          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+          role: '有志メンバー',
+          building: 'rosemary',
+          joinedAt: '2026-10-05'
+        },
+        {
+          residentId: 'r7',
+          name: '渡辺 陽奈',
+          avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
+          role: 'バジルFL',
+          building: 'basil',
+          joinedAt: '2026-10-05'
+        }
+      ]
     }
   ]);
 
@@ -145,7 +234,7 @@ export default function App() {
   ]);
 
   // 3. 倉庫：寮生名簿データ
-  const [residents] = useState<Resident[]>([
+  const [residents, setResidents] = useState<Resident[]>([
     {
       id: 'r1',
       name: '岡本 直樹',
@@ -287,11 +376,15 @@ export default function App() {
             loadedProjects.map((p) => ({
               id: p.id,
               title: p.title,
+              category: p.category || '企画',
               description: p.description || '',
               progress: p.progress,
               owner: p.owner,
+              ownerId: p.ownerId,
               status: (p.status === '進行中' ? 'planning' : 'testing') as any,
-              nextAction: p.nextAction
+              nextAction: p.nextAction,
+              createdAt: p.createdAt,
+              members: p.members || []
             }))
           );
         }
@@ -309,6 +402,11 @@ export default function App() {
               status: r.status === '報告完了' ? 'submitted' : 'approved'
             }))
           );
+        }
+
+        const loadedResidents = await dbService.getResidents();
+        if (loadedResidents && loadedResidents.length > 0) {
+          setResidents(loadedResidents);
         }
       } catch (err) {
         console.warn('DB initialization notice:', err);
@@ -336,24 +434,39 @@ export default function App() {
 
     // 進行中プロジェクトにも自動登録 & DB保存
     const newProject: Project = {
-      id: Date.now().toString(),
+      id: `pj-${Date.now()}`,
       title: ideaTitle || '新規改善プロジェクト',
+      category: 'アイデア運営',
       description: ideaContent,
       progress: 15,
-      owner: '岡本 直樹 (FL)',
+      owner: `${currentUser.name} (${currentUser.role})`,
+      ownerId: currentUser.id,
       status: 'planning',
-      nextAction: '思考マッピングの整理・関係者ヒアリング'
+      nextAction: '思考マッピングの整理・関係者ヒアリング',
+      createdAt: new Date().toISOString().slice(0, 10),
+      members: [
+        {
+          residentId: currentUser.id,
+          name: currentUser.name,
+          avatar: currentUser.avatar,
+          role: currentUser.role,
+          building: currentUser.building,
+          joinedAt: new Date().toISOString().slice(0, 10)
+        }
+      ]
     };
     setProjects([newProject, ...projects]);
     dbService.addProject({
       title: newProject.title,
-      category: 'アイデア運営',
+      category: newProject.category,
       status: '進行中',
       progress: 15,
       owner: newProject.owner,
+      ownerId: newProject.ownerId,
       nextAction: newProject.nextAction,
       proposalsCount: 1,
-      description: newProject.description
+      description: newProject.description,
+      members: newProject.members
     });
   };
 
@@ -366,7 +479,7 @@ export default function App() {
       id: Date.now().toString(),
       title: reportTitle,
       date: 'たった今',
-      author: '岡本 直樹 (FL)',
+      author: `${currentUser.name} (${currentUser.role})`,
       category: reportCategory,
       content: reportContent,
       status: 'submitted'
@@ -376,7 +489,7 @@ export default function App() {
     dbService.addWorkReport({
       type: reportCategory === '見回り' ? 'patrol' : reportCategory === '清掃' ? 'cleaning' : 'facility',
       title: newReport.title,
-      location: 'Hヴィレッジ内',
+      location: `${currentUser.building}棟`,
       content: newReport.content,
       status: '報告完了',
       reporter: newReport.author
@@ -384,6 +497,73 @@ export default function App() {
     setReportTitle('');
     setReportContent('');
     alert('業務報告書を提出しました！（データベースに保存完了）');
+  };
+
+  // スタッフ参加 / 離脱トグル
+  const handleToggleJoin = async (projectId: string) => {
+    const target = projects.find((p) => p.id === projectId);
+    if (!target) return;
+    const isJoined = target.members.some((m) => m.residentId === currentUser.id);
+
+    if (isJoined) {
+      const updated = await dbService.leaveProject(projectId, currentUser.id);
+      setProjects(
+        updated.map((p) => ({
+          ...p,
+          status: (p.status === '進行中' ? 'planning' : 'testing') as any,
+          members: p.members || []
+        }))
+      );
+    } else {
+      const updated = await dbService.joinProject(projectId, currentUser);
+      setProjects(
+        updated.map((p) => ({
+          ...p,
+          status: (p.status === '進行中' ? 'planning' : 'testing') as any,
+          members: p.members || []
+        }))
+      );
+    }
+  };
+
+  // H生アカウント切り替え
+  const handleSwitchUser = (resident: ResidentRecord) => {
+    const user: CurrentUser = {
+      id: resident.id,
+      name: resident.name,
+      avatar: resident.avatar,
+      building: resident.building,
+      floor: resident.floor,
+      unit: resident.unit,
+      role: resident.role,
+      roleType: resident.roleType,
+      email: resident.email
+    };
+    setCurrentUser(user);
+    dbService.setCurrentUser(user);
+    setIsAuthModalOpen(false);
+  };
+
+  // 新規H生登録
+  const handleCreateNewResident = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newResidentName.trim()) return;
+
+    const newRes = await dbService.addResident({
+      name: newResidentName.trim(),
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      building: newResidentBuilding,
+      floor: 2,
+      unit: newResidentUnit || 'Unit 201 - A室',
+      role: newResidentRole || '一般寮生',
+      roleType: 'member',
+      email: `${newResidentName.toLowerCase().replace(/\s+/g, '')}@sfc.keio.ac.jp`,
+      memo: '新規登録寮生'
+    });
+
+    setResidents([...residents, newRes]);
+    handleSwitchUser(newRes);
+    setNewResidentName('');
   };
 
   const handleAddNode = (e: React.FormEvent) => {
@@ -478,10 +658,32 @@ export default function App() {
             <span style={{ fontSize: 10 }}>{dbStatus}</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
-            <Building size={14} />
-            <span>ローズ棟 ｜ 岡本直樹 (FL)</span>
-          </div>
+          {/* 👤 H生ログイン・切替ボタン */}
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: 800,
+              backgroundColor: '#fff',
+              color: '#ea580c',
+              padding: '4px 10px',
+              borderRadius: 20,
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+            }}
+          >
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }}
+            />
+            <span>{currentUser.name} ({currentUser.roleType.toUpperCase()})</span>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>切替▼</span>
+          </button>
         </div>
       </header>
 
@@ -808,116 +1010,386 @@ export default function App() {
       )}
 
       {/* ========================================================= */}
-      {/* 2. 「進行中」（自分のアカウントで管理しているプロジェクト） */}
+      {/* 2. 「進行中」（プロジェクト検索 ＆ スタッフ参加） */}
       {/* ========================================================= */}
-      {activeTab === 'progress' && (
-        <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917' }}>
-                🚀 進行中プロジェクト（岡本直樹アカウント）
-              </h2>
-              <p style={{ fontSize: 13, color: '#78716c', marginTop: 2 }}>
-                自分が関わっているプロジェクトの進捗と、次にやるアクションを管理できます。
-              </p>
-            </div>
-            <button
-              onClick={() => setActiveTab('change')}
-              style={{
-                backgroundColor: '#fff',
-                border: '1px solid #fdba74',
-                color: '#ea580c',
-                padding: '8px 14px',
-                borderRadius: 10,
-                fontSize: 13,
-                fontWeight: 700
-              }}
-            >
-              ＋ 新しいアイデアを出す
-            </button>
-          </div>
+      {activeTab === 'progress' && (() => {
+        const filteredProjects = projects.filter((pj) => {
+          // 検索語フィルター
+          const q = projectSearch.toLowerCase().trim();
+          const matchQuery =
+            !q ||
+            pj.title.toLowerCase().includes(q) ||
+            (pj.description ? pj.description.toLowerCase().includes(q) : false) ||
+            pj.owner.toLowerCase().includes(q) ||
+            (pj.category && pj.category.toLowerCase().includes(q)) ||
+            pj.members.some((m) => m.name.toLowerCase().includes(q));
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {projects.map((pj) => (
-              <div
-                key={pj.id}
+          // カテゴリフィルター
+          const matchCategory = selectedCategory === 'all' || pj.category === selectedCategory;
+
+          // 参加モードフィルター
+          let matchMode = true;
+          if (projectFilterMode === 'joined') {
+            matchMode = pj.members.some((m) => m.residentId === currentUser.id);
+          } else if (projectFilterMode === 'owned') {
+            matchMode = pj.ownerId === currentUser.id || pj.owner.includes(currentUser.name);
+          }
+
+          return matchQuery && matchCategory && matchMode;
+        });
+
+        const myJoinedCount = projects.filter((p) => p.members.some((m) => m.residentId === currentUser.id)).length;
+        const myOwnedCount = projects.filter((p) => p.ownerId === currentUser.id || p.owner.includes(currentUser.name)).length;
+
+        return (
+          <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 16px' }}>
+            {/* ヘッダー部 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917' }}>
+                  🚀 プロジェクト検索 ＆ スタッフ参加
+                </h2>
+                <p style={{ fontSize: 13, color: '#78716c', marginTop: 2 }}>
+                  H生が立ち上げたプロジェクトを検索し、スタッフとして自由に参加（ジョイン）できます。
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('change')}
                 style={{
-                  backgroundColor: '#fff',
-                  border: '1.5px solid #fed7aa',
-                  borderRadius: 16,
-                  padding: '18px 20px',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.03)'
+                  backgroundColor: '#ea580c',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                  <div>
-                    <span
-                      style={{
-                        backgroundColor:
-                          pj.status === 'testing'
-                            ? '#dbeafe'
-                            : pj.status === 'negotiating'
-                            ? '#ffedd5'
-                            : '#fef3c7',
-                        color:
-                          pj.status === 'testing'
-                            ? '#1d4ed8'
-                            : pj.status === 'negotiating'
-                            ? '#c2410c'
-                            : '#b45309',
-                        fontSize: 11,
-                        fontWeight: 800,
-                        padding: '2px 8px',
-                        borderRadius: 6
-                      }}
-                    >
-                      {pj.status === 'testing'
-                        ? '🧪 実証テスト中'
-                        : pj.status === 'negotiating'
-                        ? '📑 交渉・申請中'
-                        : '💡 構想・企画中'}
-                    </span>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1c1917', marginTop: 4 }}>
-                      {pj.title}
-                    </h3>
-                  </div>
+                <Lightbulb size={16} />
+                ＋ 新しいアイデアを出す
+              </button>
+            </div>
 
-                  <span style={{ fontSize: 13, fontWeight: 800, color: '#ea580c' }}>
-                    進捗 {pj.progress}%
-                  </span>
-                </div>
-
-                <p style={{ fontSize: 13, color: '#44403c', lineHeight: 1.5, marginBottom: 12 }}>
-                  {pj.description}
-                </p>
-
-                {/* プログレスバー */}
-                <div style={{ width: '100%', height: 7, backgroundColor: '#f5f5f4', borderRadius: 999, overflow: 'hidden', marginBottom: 12 }}>
-                  <div style={{ width: `${pj.progress}%`, height: '100%', backgroundColor: '#ea580c', borderRadius: 999 }} />
-                </div>
-
-                {/* 次のアクション */}
-                <div
+            {/* 🔍 リアルタイム検索バー */}
+            <div style={{ marginBottom: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor: '#fff',
+                  border: '1.5px solid #fed7aa',
+                  borderRadius: 12,
+                  padding: '10px 14px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                }}
+              >
+                <Search size={18} color="#ea580c" />
+                <input
+                  type="text"
+                  placeholder="プロジェクト名、発起人、参加スタッフ、キーワードで検索..."
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
                   style={{
-                    backgroundColor: '#fff7ed',
-                    border: '1px solid #fed7aa',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontSize: 12
+                    border: 'none',
+                    outline: 'none',
+                    width: '100%',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    backgroundColor: 'transparent'
+                  }}
+                />
+                {projectSearch && (
+                  <button
+                    onClick={() => setProjectSearch('')}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#a8a29e' }}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 🏷️ 絞り込みフィルター（参加状態 ＆ カテゴリ） */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+              {/* 所属・参加状態タブ */}
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+                <button
+                  onClick={() => setProjectFilterMode('all')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    backgroundColor: projectFilterMode === 'all' ? '#1c1917' : '#fff',
+                    color: projectFilterMode === 'all' ? '#fff' : '#57534e',
+                    borderColor: projectFilterMode === 'all' ? '#1c1917' : '#e7e5e4',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  <ChevronRight size={14} color="#ea580c" />
-                  <span style={{ fontWeight: 800, color: '#9a3412' }}>次やること:</span>
-                  <span style={{ color: '#1c1917' }}>{pj.nextAction}</span>
-                </div>
+                  すべてのプロジェクト ({projects.length})
+                </button>
+                <button
+                  onClick={() => setProjectFilterMode('joined')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    backgroundColor: projectFilterMode === 'joined' ? '#ea580c' : '#fff',
+                    color: projectFilterMode === 'joined' ? '#fff' : '#57534e',
+                    borderColor: projectFilterMode === 'joined' ? '#ea580c' : '#e7e5e4',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  👥 自分が参加中 ({myJoinedCount})
+                </button>
+                <button
+                  onClick={() => setProjectFilterMode('owned')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    backgroundColor: projectFilterMode === 'owned' ? '#f97316' : '#fff',
+                    color: projectFilterMode === 'owned' ? '#fff' : '#57534e',
+                    borderColor: projectFilterMode === 'owned' ? '#f97316' : '#e7e5e4',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  👑 自分が発起 ({myOwnedCount})
+                </button>
               </div>
-            ))}
+
+              {/* カテゴリ別タグ */}
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+                {['all', '衛生・備品', '施設・防犯', '生活文化・交流', '自治運営', 'アイデア運営'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: 'none',
+                      backgroundColor: selectedCategory === cat ? '#ffedd5' : '#f5f5f4',
+                      color: selectedCategory === cat ? '#9a3412' : '#78716c',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {cat === 'all' ? '全カテゴリ' : cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* プロジェクト一覧 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {filteredProjects.length === 0 ? (
+                <div
+                  style={{
+                    backgroundColor: '#fff',
+                    border: '1px dashed #d6d3d1',
+                    borderRadius: 16,
+                    padding: '36px 20px',
+                    textAlign: 'center',
+                    color: '#78716c'
+                  }}
+                >
+                  <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>一致するプロジェクトが見つかりませんでした</p>
+                  <p style={{ fontSize: 12, color: '#a8a29e', marginBottom: 14 }}>検索条件を変えるか、新しいアイデアを発起してみましょう。</p>
+                  <button
+                    onClick={() => { setProjectSearch(''); setSelectedCategory('all'); setProjectFilterMode('all'); }}
+                    style={{
+                      backgroundColor: '#f5f5f4',
+                      border: '1px solid #d6d3d1',
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    検索フィルターをリセット
+                  </button>
+                </div>
+              ) : (
+                filteredProjects.map((pj) => {
+                  const isJoined = pj.members.some((m) => m.residentId === currentUser.id);
+                  const isOwner = pj.ownerId === currentUser.id || pj.owner.includes(currentUser.name);
+
+                  return (
+                    <div
+                      key={pj.id}
+                      style={{
+                        backgroundColor: '#fff',
+                        border: isJoined ? '2px solid #ea580c' : '1.5px solid #fed7aa',
+                        borderRadius: 16,
+                        padding: '18px 20px',
+                        boxShadow: isJoined ? '0 4px 14px rgba(234, 88, 12, 0.12)' : '0 4px 10px rgba(0,0,0,0.03)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {/* カード上部 */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              backgroundColor:
+                                pj.status === 'testing' ? '#dbeafe' : pj.status === 'negotiating' ? '#ffedd5' : '#fef3c7',
+                              color:
+                                pj.status === 'testing' ? '#1d4ed8' : pj.status === 'negotiating' ? '#c2410c' : '#b45309',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: 6
+                            }}
+                          >
+                            {pj.category || '企画'}
+                          </span>
+                          {isOwner && (
+                            <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 6 }}>
+                              👑 発起人
+                            </span>
+                          )}
+                          {isJoined && (
+                            <span style={{ backgroundColor: '#ecfdf5', color: '#047857', fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 6 }}>
+                              ✅ スタッフ参加中
+                            </span>
+                          )}
+                        </div>
+
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#ea580c' }}>
+                          進捗 {pj.progress}%
+                        </span>
+                      </div>
+
+                      <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1c1917', marginBottom: 6 }}>
+                        {pj.title}
+                      </h3>
+
+                      <p style={{ fontSize: 13, color: '#44403c', lineHeight: 1.5, marginBottom: 12 }}>
+                        {pj.description}
+                      </p>
+
+                      {/* 発起人 ＆ プログレスバー */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#78716c', marginBottom: 6 }}>
+                        <span>発起: <strong>{pj.owner}</strong></span>
+                        <span>作成: {pj.createdAt || '2026-10-06'}</span>
+                      </div>
+
+                      <div style={{ width: '100%', height: 7, backgroundColor: '#f5f5f4', borderRadius: 999, overflow: 'hidden', marginBottom: 12 }}>
+                        <div style={{ width: `${pj.progress}%`, height: '100%', backgroundColor: '#ea580c', borderRadius: 999 }} />
+                      </div>
+
+                      {/* 次のアクション */}
+                      <div
+                        style={{
+                          backgroundColor: '#fff7ed',
+                          border: '1px solid #fed7aa',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          fontSize: 12,
+                          marginBottom: 14
+                        }}
+                      >
+                        <ChevronRight size={14} color="#ea580c" />
+                        <span style={{ fontWeight: 800, color: '#9a3412', whiteSpace: 'nowrap' }}>次やること:</span>
+                        <span style={{ color: '#1c1917' }}>{pj.nextAction}</span>
+                      </div>
+
+                      {/* 👥 参加スタッフ一覧 ＆ 参加ボタン */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingTop: 12,
+                          borderTop: '1px solid #f5f5f4',
+                          flexWrap: 'wrap',
+                          gap: 10
+                        }}
+                      >
+                        {/* スタッフ一覧 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            {pj.members.slice(0, 5).map((m, idx) => (
+                              <img
+                                key={m.residentId}
+                                src={m.avatar}
+                                alt={m.name}
+                                title={`${m.name} (${m.role})`}
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: '50%',
+                                  border: '2px solid #fff',
+                                  marginLeft: idx === 0 ? 0 : -8,
+                                  objectFit: 'cover'
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#57534e' }}>
+                            スタッフ {pj.members.length}名
+                          </span>
+                        </div>
+
+                        {/* 参加/離脱ボタン */}
+                        <button
+                          onClick={() => handleToggleJoin(pj.id)}
+                          style={{
+                            backgroundColor: isJoined ? '#f0fdf4' : '#ea580c',
+                            color: isJoined ? '#15803d' : '#fff',
+                            border: isJoined ? '1.5px solid #86efac' : 'none',
+                            padding: '8px 16px',
+                            borderRadius: 10,
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            boxShadow: isJoined ? 'none' : '0 2px 8px rgba(234, 88, 12, 0.25)',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {isJoined ? (
+                            <>
+                              <CheckCircle2 size={16} />
+                              参加中（離脱する）
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus size={16} />
+                              スタッフとして参加する
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================= */}
       {/* 3. 「はたらく」（業務報告書を提出する） */}
@@ -1555,9 +2027,233 @@ export default function App() {
           >
             <Warehouse size={18} strokeWidth={activeTab === 'warehouse' ? 2.8 : 2} />
           </div>
-          <span style={{ fontSize: 10, fontWeight: 800 }}>倉庫</span>
         </button>
       </nav>
+
+      {/* ========================================================= */}
+      {/* 👤 H生ログイン ＆ アカウント切替モーダル */}
+      {/* ========================================================= */}
+      {isAuthModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 20,
+              maxWidth: 500,
+              width: '100%',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              padding: 24,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+            }}
+          >
+            {/* モーダルヘッダー */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ backgroundColor: '#ffedd5', color: '#ea580c', padding: 6, borderRadius: 8 }}>
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: '#1c1917' }}>H生ログイン ＆ 切替</h3>
+                  <p style={{ fontSize: 11, color: '#78716c' }}>Hヴィレッジ寮生としてログインし、プロジェクトに参加・発起します</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAuthModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#78716c' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* 現在ログイン中のユーザー */}
+            <div
+              style={{
+                backgroundColor: '#fff7ed',
+                border: '1.5px solid #fed7aa',
+                borderRadius: 14,
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 20
+              }}
+            >
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid #ea580c' }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 15, fontWeight: 900, color: '#1c1917' }}>{currentUser.name}</span>
+                  <span style={{ backgroundColor: '#ea580c', color: '#fff', fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4 }}>
+                    ログイン中
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>
+                  {currentUser.building.toUpperCase()}棟 ｜ {currentUser.unit} ｜ {currentUser.role}
+                </div>
+              </div>
+            </div>
+
+            {/* 寮生を選択してワンクリックログイン */}
+            <h4 style={{ fontSize: 13, fontWeight: 800, color: '#44403c', marginBottom: 10 }}>
+              🏡 登録済みH生からワンタップ切替:
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {residents.map((r) => {
+                const isCurrent = r.id === currentUser.id;
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => handleSwitchUser(r)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: isCurrent ? '2px solid #ea580c' : '1px solid #e7e5e4',
+                      backgroundColor: isCurrent ? '#fff7ed' : '#fafaf9',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img
+                        src={r.avatar}
+                        alt={r.name}
+                        style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#1c1917' }}>
+                          {r.name}
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', marginLeft: 6 }}>
+                            ({r.role})
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#a8a29e' }}>
+                          {r.building}棟 {r.unit}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      style={{
+                        backgroundColor: isCurrent ? '#ea580c' : '#fff',
+                        color: isCurrent ? '#fff' : '#ea580c',
+                        border: isCurrent ? 'none' : '1px solid #fed7aa',
+                        padding: '5px 12px',
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {isCurrent ? '選択中' : 'ログイン'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ＋ 新規H生として参加・登録 */}
+            <div style={{ borderTop: '1px solid #e7e5e4', paddingTop: 16 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 800, color: '#44403c', marginBottom: 10 }}>
+                ＋ 新しいH生として登録・ログイン:
+              </h4>
+              <form onSubmit={handleCreateNewResident} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <input
+                    type="text"
+                    placeholder="氏名（例: 中村 蓮）"
+                    value={newResidentName}
+                    onChange={(e) => setNewResidentName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #d6d3d1',
+                      fontSize: 13
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <select
+                    value={newResidentBuilding}
+                    onChange={(e) => setNewResidentBuilding(e.target.value as any)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid #d6d3d1',
+                      fontSize: 12,
+                      backgroundColor: '#fff'
+                    }}
+                  >
+                    <option value="rosemary">ローズマリー棟</option>
+                    <option value="basil">バジル棟</option>
+                    <option value="turmeric">ターメリック棟</option>
+                    <option value="paprika">パプリカ棟</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="部屋番号（例: Unit 202 - B室）"
+                    value={newResidentUnit}
+                    onChange={(e) => setNewResidentUnit(e.target.value)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid #d6d3d1',
+                      fontSize: 12
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="役職（例: 一般寮生 / 広報担当）"
+                    value={newResidentRole}
+                    onChange={(e) => setNewResidentRole(e.target.value)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid #d6d3d1',
+                      fontSize: 12
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    style={{
+                      backgroundColor: '#ea580c',
+                      color: '#fff',
+                      padding: '9px 14px',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    登録＆ログイン
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

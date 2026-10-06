@@ -1,6 +1,7 @@
 // ==============================================================================
 // チームノート (Team Note) - データベースサービス層 (db.ts)
 // Supabase クラウド ＆ LocalStorage ハイブリッド永続化
+// H生ログイン・スタッフ参加・プロジェクト検索・台帳管理
 // ==============================================================================
 
 import { supabase, isSupabaseConfigured, checkSupabaseConnection } from './supabase'
@@ -20,6 +21,15 @@ export interface ResidentRecord {
   memo: string
 }
 
+export interface ProjectMemberRecord {
+  residentId: string
+  name: string
+  avatar: string
+  role: string
+  building: string
+  joinedAt: string
+}
+
 export interface ProjectRecord {
   id: string
   title: string
@@ -27,10 +37,12 @@ export interface ProjectRecord {
   status: string
   progress: number
   owner: string
+  ownerId?: string
   nextAction: string
   proposalsCount: number
   createdAt: string
   description?: string
+  members: ProjectMemberRecord[]
 }
 
 export interface WorkReportRecord {
@@ -53,14 +65,27 @@ export interface ArchiveDocRecord {
   url?: string
 }
 
+export interface CurrentUser {
+  id: string
+  name: string
+  avatar: string
+  building: 'rosemary' | 'basil' | 'turmeric' | 'paprika'
+  floor: number
+  unit: string
+  role: string
+  roleType: 'fl' | 'hl' | 'member'
+  email: string
+}
+
 const STORAGE_KEYS = {
   RESIDENTS: 'tn_db_residents',
   PROJECTS: 'tn_db_projects',
   WORK_REPORTS: 'tn_db_work_reports',
-  ARCHIVES: 'tn_db_archives'
+  ARCHIVES: 'tn_db_archives',
+  CURRENT_USER: 'tn_db_current_user'
 }
 
-// 初期デフォルトデータ
+// 初期デフォルト住人データ
 export const INITIAL_RESIDENTS: ResidentRecord[] = [
   {
     id: 'r1',
@@ -148,6 +173,7 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
   }
 ]
 
+// 初期プロジェクトデータ（スタッフ参加リスト付き）
 export const INITIAL_PROJECTS: ProjectRecord[] = [
   {
     id: 'pj-1',
@@ -156,9 +182,37 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     status: '進行中',
     progress: 75,
     owner: '岡本 直樹',
+    ownerId: 'r1',
     nextAction: '西松建設・大学窓口への修繕申請書の最終提出',
     proposalsCount: 3,
-    createdAt: '2026-10-01'
+    createdAt: '2026-10-01',
+    description: '共用キッチンの布巾の生乾き臭と衛生リスクを解消し、使い捨てペーパーロールディスペンサーを自治会費で試験導入する。',
+    members: [
+      {
+        residentId: 'r1',
+        name: '岡本 直樹',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        role: '統括リーダー (FL)',
+        building: 'rosemary',
+        joinedAt: '2026-10-01'
+      },
+      {
+        residentId: 'r4',
+        name: '生熊 翔太',
+        avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80',
+        role: 'パプリカFL',
+        building: 'paprika',
+        joinedAt: '2026-10-02'
+      },
+      {
+        residentId: 'r5',
+        name: '宗司 涼介',
+        avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80',
+        role: 'ハウスリーダー (HL)',
+        building: 'paprika',
+        joinedAt: '2026-10-03'
+      }
+    ]
   },
   {
     id: 'pj-2',
@@ -167,9 +221,29 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     status: '進行中',
     progress: 40,
     owner: '岡本 直樹',
+    ownerId: 'r1',
     nextAction: 'セキュリティカードキーの追加登録費用の見積もり確認',
     proposalsCount: 2,
-    createdAt: '2026-10-03'
+    createdAt: '2026-10-03',
+    description: '各棟1Fコモンズは規約上全員利用可能なのに玄関で弾かれる既存システムの矛盾を、昼間限定の認証共通化で突破する。',
+    members: [
+      {
+        residentId: 'r1',
+        name: '岡本 直樹',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        role: '統括リーダー (FL)',
+        building: 'rosemary',
+        joinedAt: '2026-10-03'
+      },
+      {
+        residentId: 'r3',
+        name: '佐藤 健太',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+        role: 'サブリーダー',
+        building: 'rosemary',
+        joinedAt: '2026-10-04'
+      }
+    ]
   },
   {
     id: 'pj-3',
@@ -178,9 +252,29 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     status: '進行中',
     progress: 20,
     owner: '伊藤 雄吉',
+    ownerId: 'r2',
     nextAction: 'Bluetoothヘッドホン手配と騒音シミュレーション計画書の作成',
     proposalsCount: 1,
-    createdAt: '2026-10-05'
+    createdAt: '2026-10-05',
+    description: '過去に騒音問題で却下された中庭イベントを、参加者全員ヘッドホン着用のサイレントフェス形式で再挑戦する。',
+    members: [
+      {
+        residentId: 'r2',
+        name: '伊藤 雄吉',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+        role: '有志メンバー',
+        building: 'rosemary',
+        joinedAt: '2026-10-05'
+      },
+      {
+        residentId: 'r7',
+        name: '渡辺 陽奈',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
+        role: 'バジルFL',
+        building: 'basil',
+        joinedAt: '2026-10-05'
+      }
+    ]
   }
 ]
 
@@ -240,6 +334,36 @@ export const INITIAL_ARCHIVES: ArchiveDocRecord[] = [
 
 // データベースサービスクラス
 export const dbService = {
+  // --- ログインユーザー管理 ---
+  getCurrentUser(): CurrentUser {
+    const local = localStorage.getItem(STORAGE_KEYS.CURRENT_USER)
+    if (local) {
+      try {
+        return JSON.parse(local)
+      } catch {
+        // ignore
+      }
+    }
+    // デフォルト: 岡本直樹 (FL)
+    const defaultUser: CurrentUser = {
+      id: 'r1',
+      name: '岡本 直樹',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      building: 'rosemary',
+      floor: 3,
+      unit: 'Unit 301 - A室',
+      role: '統括リーダー (FL)',
+      roleType: 'fl',
+      email: 'okamoto@intakingresources.com'
+    }
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(defaultUser))
+    return defaultUser
+  },
+
+  setCurrentUser(user: CurrentUser): void {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user))
+  },
+
   // --- 住人名簿 ---
   async getResidents(): Promise<ResidentRecord[]> {
     if (isSupabaseConfigured) {
@@ -275,6 +399,17 @@ export const dbService = {
     return INITIAL_RESIDENTS
   },
 
+  async addResident(resident: Omit<ResidentRecord, 'id'>): Promise<ResidentRecord> {
+    const newResident: ResidentRecord = {
+      ...resident,
+      id: `r-${Date.now()}`
+    }
+    const current = await this.getResidents()
+    const updated = [...current, newResident]
+    localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(updated))
+    return newResident
+  },
+
   // --- プロジェクト ---
   async getProjects(): Promise<ProjectRecord[]> {
     if (isSupabaseConfigured) {
@@ -288,10 +423,12 @@ export const dbService = {
             status: p.status,
             progress: p.progress,
             owner: p.owner_name,
+            ownerId: p.owner_id || undefined,
             nextAction: p.next_action,
             proposalsCount: p.proposals_count,
             createdAt: p.created_at ? p.created_at.slice(0, 10) : '2026-10-06',
-            description: p.description || ''
+            description: p.description || '',
+            members: p.members || []
           }))
         }
       } catch (e) {
@@ -351,6 +488,70 @@ export const dbService = {
     const current = await this.getProjects()
     const updated = current.map((p) => (p.id === id ? { ...p, progress } : p))
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+  },
+
+  // --- スタッフのプロジェクト参加 ＆ 離脱 ---
+  async joinProject(projectId: string, user: CurrentUser): Promise<ProjectRecord[]> {
+    const current = await this.getProjects()
+    const updated = current.map((p) => {
+      if (p.id === projectId) {
+        const alreadyMember = p.members.some((m) => m.residentId === user.id)
+        if (alreadyMember) return p
+        const newMember: ProjectMemberRecord = {
+          residentId: user.id,
+          name: user.name,
+          avatar: user.avatar,
+          role: user.role,
+          building: user.building,
+          joinedAt: new Date().toISOString().slice(0, 10)
+        }
+        return {
+          ...p,
+          members: [...p.members, newMember]
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+
+    if (isSupabaseConfigured) {
+      try {
+        await (supabase as any).from('project_members').insert({
+          project_id: projectId,
+          resident_id: user.id,
+          role: user.role
+        })
+      } catch (e) {
+        console.warn('Supabase joinProject error:', e)
+      }
+    }
+    return updated
+  },
+
+  async leaveProject(projectId: string, userId: string): Promise<ProjectRecord[]> {
+    const current = await this.getProjects()
+    const updated = current.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          members: p.members.filter((m) => m.residentId !== userId)
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+
+    if (isSupabaseConfigured) {
+      try {
+        await (supabase as any).from('project_members').delete().match({
+          project_id: projectId,
+          resident_id: userId
+        })
+      } catch (e) {
+        console.warn('Supabase leaveProject error:', e)
+      }
+    }
+    return updated
   },
 
   // --- 業務報告書 ---
