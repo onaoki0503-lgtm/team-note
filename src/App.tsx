@@ -18,7 +18,10 @@ import {
   Search,
   Users,
   UserPlus,
-  CheckCircle2
+  CheckCircle2,
+  Calendar,
+  MessageSquare,
+  ShieldAlert
 } from 'lucide-react';
 import {
   dbService,
@@ -40,6 +43,7 @@ interface Project {
   title: string;
   category: string;
   description?: string;
+  bannerImage?: string;
   progress: number;
   owner: string;
   ownerId?: string;
@@ -47,6 +51,27 @@ interface Project {
   nextAction: string;
   createdAt?: string;
   members: ProjectMemberRecord[];
+  meetingNotes?: {
+    date: string;
+    title: string;
+    attendees: string[];
+    summary: string;
+    decisions: string[];
+    nextTodos: string[];
+  }[];
+  proposalDoc?: {
+    title: string;
+    purpose: string;
+    background: string;
+    hackStrategy: string;
+    budget: string;
+    steps: string[];
+  };
+  schedule?: {
+    date: string;
+    milestone: string;
+    completed: boolean;
+  }[];
 }
 
 interface Report {
@@ -108,6 +133,10 @@ export default function App() {
   const [newResidentBuilding, setNewResidentBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
   const [newResidentUnit, setNewResidentUnit] = useState('Unit 301 - A室');
   const [newResidentRole, setNewResidentRole] = useState('一般寮生');
+
+  // 📖 詳細モーダル表示中のプロジェクトID ＆ 詳細タブ
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectTab, setSelectedProjectTab] = useState<'proposal' | 'meeting' | 'members' | 'schedule'>('proposal');
 
   // 1. 進行中プロジェクト一覧（自分のアカウントで管理）
   const [projects, setProjects] = useState<Project[]>([
@@ -378,13 +407,17 @@ export default function App() {
               title: p.title,
               category: p.category || '企画',
               description: p.description || '',
+              bannerImage: p.bannerImage,
               progress: p.progress,
               owner: p.owner,
               ownerId: p.ownerId,
               status: (p.status === '進行中' ? 'planning' : 'testing') as any,
               nextAction: p.nextAction,
               createdAt: p.createdAt,
-              members: p.members || []
+              members: p.members || [],
+              meetingNotes: p.meetingNotes,
+              proposalDoc: p.proposalDoc,
+              schedule: p.schedule
             }))
           );
         }
@@ -1228,164 +1261,564 @@ export default function App() {
               ) : (
                 filteredProjects.map((pj) => {
                   const isJoined = pj.members.some((m) => m.residentId === currentUser.id);
-                  const isOwner = pj.ownerId === currentUser.id || pj.owner.includes(currentUser.name);
+                  // isOwner check
 
                   return (
                     <div
                       key={pj.id}
+                      onClick={() => {
+                        setSelectedProjectId(pj.id);
+                        setSelectedProjectTab('proposal');
+                      }}
                       style={{
                         backgroundColor: '#fff',
                         border: isJoined ? '2px solid #ea580c' : '1.5px solid #fed7aa',
-                        borderRadius: 16,
-                        padding: '18px 20px',
-                        boxShadow: isJoined ? '0 4px 14px rgba(234, 88, 12, 0.12)' : '0 4px 10px rgba(0,0,0,0.03)',
-                        transition: 'all 0.2s ease'
+                        borderRadius: 18,
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        boxShadow: isJoined ? '0 6px 18px rgba(234, 88, 12, 0.16)' : '0 4px 14px rgba(0,0,0,0.04)',
+                        transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 8px 22px rgba(234, 88, 12, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = isJoined ? '0 6px 18px rgba(234, 88, 12, 0.16)' : '0 4px 14px rgba(0,0,0,0.04)';
                       }}
                     >
-                      {/* カード上部 */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {/* 🎨 イベントイラスト（バナー） */}
+                      <div style={{ position: 'relative', width: '100%', height: 160, backgroundColor: '#fed7aa', overflow: 'hidden' }}>
+                        <img
+                          src={
+                            pj.bannerImage ||
+                            (pj.category === '衛生・備品'
+                              ? 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80'
+                              : pj.category === '施設・防犯'
+                              ? 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&w=800&q=80'
+                              : 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=80')
+                          }
+                          alt={pj.title}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                        {/* オーバーレイバッジ */}
+                        <div style={{ position: 'absolute', top: 10, left: 12, display: 'flex', gap: 6 }}>
                           <span
                             style={{
-                              backgroundColor:
-                                pj.status === 'testing' ? '#dbeafe' : pj.status === 'negotiating' ? '#ffedd5' : '#fef3c7',
-                              color:
-                                pj.status === 'testing' ? '#1d4ed8' : pj.status === 'negotiating' ? '#c2410c' : '#b45309',
+                              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                              color: '#ea580c',
                               fontSize: 11,
                               fontWeight: 800,
-                              padding: '2px 8px',
-                              borderRadius: 6
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
                             }}
                           >
-                            {pj.category || '企画'}
+                            {pj.category || 'イベント'}
                           </span>
-                          {isOwner && (
-                            <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 6 }}>
-                              👑 発起人
-                            </span>
-                          )}
                           {isJoined && (
-                            <span style={{ backgroundColor: '#ecfdf5', color: '#047857', fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 6 }}>
-                              ✅ スタッフ参加中
+                            <span
+                              style={{
+                                backgroundColor: '#15803d',
+                                color: '#fff',
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: '3px 8px',
+                                borderRadius: 6
+                              }}
+                            >
+                              ✅ 参加中
                             </span>
                           )}
                         </div>
-
-                        <span style={{ fontSize: 13, fontWeight: 800, color: '#ea580c' }}>
-                          進捗 {pj.progress}%
-                        </span>
-                      </div>
-
-                      <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1c1917', marginBottom: 6 }}>
-                        {pj.title}
-                      </h3>
-
-                      <p style={{ fontSize: 13, color: '#44403c', lineHeight: 1.5, marginBottom: 12 }}>
-                        {pj.description}
-                      </p>
-
-                      {/* 発起人 ＆ プログレスバー */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#78716c', marginBottom: 6 }}>
-                        <span>発起: <strong>{pj.owner}</strong></span>
-                        <span>作成: {pj.createdAt || '2026-10-06'}</span>
-                      </div>
-
-                      <div style={{ width: '100%', height: 7, backgroundColor: '#f5f5f4', borderRadius: 999, overflow: 'hidden', marginBottom: 12 }}>
-                        <div style={{ width: `${pj.progress}%`, height: '100%', backgroundColor: '#ea580c', borderRadius: 999 }} />
-                      </div>
-
-                      {/* 次のアクション */}
-                      <div
-                        style={{
-                          backgroundColor: '#fff7ed',
-                          border: '1px solid #fed7aa',
-                          padding: '8px 12px',
-                          borderRadius: 8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          fontSize: 12,
-                          marginBottom: 14
-                        }}
-                      >
-                        <ChevronRight size={14} color="#ea580c" />
-                        <span style={{ fontWeight: 800, color: '#9a3412', whiteSpace: 'nowrap' }}>次やること:</span>
-                        <span style={{ color: '#1c1917' }}>{pj.nextAction}</span>
-                      </div>
-
-                      {/* 👥 参加スタッフ一覧 ＆ 参加ボタン */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          paddingTop: 12,
-                          borderTop: '1px solid #f5f5f4',
-                          flexWrap: 'wrap',
-                          gap: 10
-                        }}
-                      >
-                        {/* スタッフ一覧 */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ display: 'flex', alignItems: 'center' }}>
-                            {pj.members.slice(0, 5).map((m, idx) => (
-                              <img
-                                key={m.residentId}
-                                src={m.avatar}
-                                alt={m.name}
-                                title={`${m.name} (${m.role})`}
-                                style={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: '50%',
-                                  border: '2px solid #fff',
-                                  marginLeft: idx === 0 ? 0 : -8,
-                                  objectFit: 'cover'
-                                }}
-                              />
-                            ))}
-                          </div>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#57534e' }}>
+                        <div style={{ position: 'absolute', bottom: 10, right: 12 }}>
+                          <span
+                            style={{
+                              backgroundColor: 'rgba(0,0,0,0.7)',
+                              color: '#fff',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Users size={12} />
                             スタッフ {pj.members.length}名
                           </span>
                         </div>
+                      </div>
 
-                        {/* 参加/離脱ボタン */}
-                        <button
-                          onClick={() => handleToggleJoin(pj.id)}
-                          style={{
-                            backgroundColor: isJoined ? '#f0fdf4' : '#ea580c',
-                            color: isJoined ? '#15803d' : '#fff',
-                            border: isJoined ? '1.5px solid #86efac' : 'none',
-                            padding: '8px 16px',
-                            borderRadius: 10,
-                            fontSize: 13,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            boxShadow: isJoined ? 'none' : '0 2px 8px rgba(234, 88, 12, 0.25)',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          {isJoined ? (
-                            <>
-                              <CheckCircle2 size={16} />
-                              参加中（離脱する）
-                            </>
-                          ) : (
-                            <>
-                              <UserPlus size={16} />
-                              スタッフとして参加する
-                            </>
-                          )}
-                        </button>
+                      {/* 🏷️ イベントタイトル ＆ タップ導線 */}
+                      <div style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', lineHeight: 1.35 }}>
+                            {pj.title}
+                          </h3>
+                          <span style={{ fontSize: 11, color: '#78716c', marginTop: 3, display: 'block' }}>
+                            タップして企画書・議事録・スタッフ詳細を開く ➔
+                          </span>
+                        </div>
+                        <ChevronRight size={18} color="#ea580c" />
                       </div>
                     </div>
                   );
                 })
               )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ========================================================= */}
+      {/* 📄 イベント詳細ページ（議事録・企画書・スタッフメンバー） */}
+      {/* ========================================================= */}
+      {selectedProjectId && (() => {
+        const pj = projects.find((p) => p.id === selectedProjectId);
+        if (!pj) return null;
+        const isJoined = pj.members.some((m) => m.residentId === currentUser.id);
+
+        const banner =
+          pj.bannerImage ||
+          (pj.category === '衛生・備品'
+            ? 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80'
+            : pj.category === '施設・防犯'
+            ? 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&w=800&q=80'
+            : 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=80');
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              zIndex: 120,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '12px'
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: 20,
+                maxWidth: 720,
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 24px 48px rgba(0,0,0,0.25)',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              {/* トップバナー画像 */}
+              <div style={{ position: 'relative', width: '100%', height: 200, backgroundColor: '#fed7aa', flexShrink: 0 }}>
+                <img
+                  src={banner}
+                  alt={pj.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <button
+                  onClick={() => setSelectedProjectId(null)}
+                  style={{
+                    position: 'absolute',
+                    top: 14,
+                    right: 14,
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 34,
+                    height: 34,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+                <div style={{ position: 'absolute', bottom: 12, left: 16 }}>
+                  <span
+                    style={{
+                      backgroundColor: '#ea580c',
+                      color: '#fff',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '4px 10px',
+                      borderRadius: 8
+                    }}
+                  >
+                    {pj.category}
+                  </span>
+                </div>
+              </div>
+
+              {/* タイトル ＆ 参加ボタンヘッダー */}
+              <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid #f5f5f4' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 260 }}>
+                    <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917', lineHeight: 1.35, marginBottom: 6 }}>
+                      {pj.title}
+                    </h2>
+                    <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#78716c', flexWrap: 'wrap' }}>
+                      <span>発起人: <strong>{pj.owner}</strong></span>
+                      <span>作成: {pj.createdAt || '2026-10-06'}</span>
+                      <span style={{ color: '#ea580c', fontWeight: 800 }}>進捗: {pj.progress}%</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleToggleJoin(pj.id)}
+                    style={{
+                      backgroundColor: isJoined ? '#f0fdf4' : '#ea580c',
+                      color: isJoined ? '#15803d' : '#fff',
+                      border: isJoined ? '1.5px solid #86efac' : 'none',
+                      padding: '9px 18px',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      boxShadow: isJoined ? 'none' : '0 2px 8px rgba(234, 88, 12, 0.25)'
+                    }}
+                  >
+                    {isJoined ? (
+                      <>
+                        <CheckCircle2 size={16} />
+                        参加中（離脱する）
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={16} />
+                        スタッフとして参加する
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* タブナビゲーション（企画書 / 議事録 / スタッフ / スケジュール） */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 16, borderBottom: '1px solid #e7e5e4', paddingBottom: 2 }}>
+                  <button
+                    onClick={() => setSelectedProjectTab('proposal')}
+                    style={{
+                      padding: '8px 14px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderBottom: selectedProjectTab === 'proposal' ? '3px solid #ea580c' : '3px solid transparent',
+                      color: selectedProjectTab === 'proposal' ? '#ea580c' : '#78716c',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <FileText size={15} />
+                    企画書
+                  </button>
+                  <button
+                    onClick={() => setSelectedProjectTab('meeting')}
+                    style={{
+                      padding: '8px 14px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderBottom: selectedProjectTab === 'meeting' ? '3px solid #ea580c' : '3px solid transparent',
+                      color: selectedProjectTab === 'meeting' ? '#ea580c' : '#78716c',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <MessageSquare size={15} />
+                    議事録 ({pj.meetingNotes?.length || 1})
+                  </button>
+                  <button
+                    onClick={() => setSelectedProjectTab('members')}
+                    style={{
+                      padding: '8px 14px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderBottom: selectedProjectTab === 'members' ? '3px solid #ea580c' : '3px solid transparent',
+                      color: selectedProjectTab === 'members' ? '#ea580c' : '#78716c',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Users size={15} />
+                    スタッフ ({pj.members.length})
+                  </button>
+                  <button
+                    onClick={() => setSelectedProjectTab('schedule')}
+                    style={{
+                      padding: '8px 14px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      borderBottom: selectedProjectTab === 'schedule' ? '3px solid #ea580c' : '3px solid transparent',
+                      color: selectedProjectTab === 'schedule' ? '#ea580c' : '#78716c',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Calendar size={15} />
+                    進行計画
+                  </button>
+                </div>
+              </div>
+
+              {/* タブコンテンツ */}
+              <div style={{ padding: '20px', flex: 1 }}>
+                {/* 1. 企画書タブ */}
+                {selectedProjectTab === 'proposal' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', padding: 14, borderRadius: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <Sparkles size={16} color="#ea580c" />
+                        <h4 style={{ fontSize: 14, fontWeight: 900, color: '#9a3412' }}>企画の目的・目指す状態</h4>
+                      </div>
+                      <p style={{ fontSize: 13, color: '#431407', lineHeight: 1.6 }}>
+                        {pj.proposalDoc?.purpose || pj.description || '寮生同士の快適な生活と新しい体験を創出する。'}
+                      </p>
+                    </div>
+
+                    <div style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', padding: 14, borderRadius: 12 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', marginBottom: 6 }}>
+                        📋 現状の課題と背景
+                      </h4>
+                      <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
+                        {pj.proposalDoc?.background || pj.description || '既存の仕組みやルールでは解決できなかった課題を整理。'}
+                      </p>
+                    </div>
+
+                    <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 14, borderRadius: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <ShieldAlert size={16} color="#dc2626" />
+                        <h4 style={{ fontSize: 13, fontWeight: 900, color: '#991b1b' }}>規約の抜け道・突破戦略（HACK）</h4>
+                      </div>
+                      <p style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 1.6 }}>
+                        {pj.proposalDoc?.hackStrategy || '工事や高額予算を発生させず、運用ルールや既存設備の代替利用で解決する。'}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>必要予算</span>
+                        <p style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                          {pj.proposalDoc?.budget || '自己資金・有志カンパまたは自治会費'}
+                        </p>
+                      </div>
+                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>次やること</span>
+                        <p style={{ fontSize: 13, fontWeight: 800, color: '#ea580c', marginTop: 4 }}>
+                          {pj.nextAction}
+                        </p>
+                      </div>
+                    </div>
+
+                    {pj.proposalDoc?.steps && (
+                      <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', padding: 14, borderRadius: 12 }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', marginBottom: 8 }}>
+                          📌 具体的な実行ステップ
+                        </h4>
+                        <ol style={{ paddingLeft: 20, margin: 0, fontSize: 13, color: '#44403c', lineHeight: 1.8 }}>
+                          {pj.proposalDoc.steps.map((st, i) => (
+                            <li key={i}>{st}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. 議事録タブ */}
+                {selectedProjectTab === 'meeting' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {(pj.meetingNotes && pj.meetingNotes.length > 0 ? pj.meetingNotes : [
+                      {
+                        date: pj.createdAt || '2026-10-06',
+                        title: `${pj.title} キックオフMTG`,
+                        attendees: pj.members.map((m) => m.name),
+                        summary: pj.description || 'プロジェクトの方向性と直近のネクストアクションを合意。',
+                        decisions: ['プロジェクトの正式立ち上げ', `次回アクション: ${pj.nextAction}`],
+                        nextTodos: [`${pj.owner}: 関係者への連絡と資料準備`]
+                      }
+                    ]).map((mn, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          backgroundColor: '#fff',
+                          border: '1.5px solid #fed7aa',
+                          borderRadius: 14,
+                          padding: 18,
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                          <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                            📅 {mn.date}
+                          </span>
+                          <span style={{ fontSize: 12, color: '#78716c' }}>
+                            参加者: {mn.attendees.join('、 ')}
+                          </span>
+                        </div>
+
+                        <h4 style={{ fontSize: 15, fontWeight: 800, color: '#1c1917', marginBottom: 8 }}>
+                          {mn.title}
+                        </h4>
+
+                        <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, marginBottom: 12 }}>
+                          {mn.summary}
+                        </p>
+
+                        <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'block', marginBottom: 4 }}>
+                            ✅ 決定・合意事項
+                          </span>
+                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#14532d', lineHeight: 1.6 }}>
+                            {mn.decisions.map((d, i) => (
+                              <li key={i}>{d}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#9a3412', display: 'block', marginBottom: 4 }}>
+                            📝 次のTODO
+                          </span>
+                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
+                            {mn.nextTodos.map((t, i) => (
+                              <li key={i}>{t}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 3. スタッフメンバータブ */}
+                {selectedProjectTab === 'members' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#1c1917' }}>
+                        参加スタッフ一覧（{pj.members.length}名）
+                      </span>
+                      <span style={{ fontSize: 11, color: '#78716c' }}>
+                        H生なら誰でも自由に参加・協力できます
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                      {pj.members.map((m) => (
+                        <div
+                          key={m.residentId}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: '10px 14px',
+                            backgroundColor: '#fff',
+                            border: '1px solid #e7e5e4',
+                            borderRadius: 12
+                          }}
+                        >
+                          <img
+                            src={m.avatar}
+                            alt={m.name}
+                            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <strong style={{ fontSize: 14, color: '#1c1917' }}>{m.name}</strong>
+                              {m.residentId === pj.ownerId && (
+                                <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
+                                  発起人
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 12, color: '#78716c', display: 'block', marginTop: 2 }}>
+                              {m.role} • {m.building}棟
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. 進行計画（スケジュール）タブ */}
+                {selectedProjectTab === 'schedule' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {(pj.schedule && pj.schedule.length > 0 ? pj.schedule : [
+                      { date: pj.createdAt || '2026-10-06', milestone: '企画立ち上げ・課題の整理', completed: true },
+                      { date: '2026-10-10', milestone: pj.nextAction, completed: false },
+                      { date: '2026-10-20', milestone: '寮内実証・トライアル運用', completed: false }
+                    ]).map((sc, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 14,
+                          padding: '12px 16px',
+                          backgroundColor: sc.completed ? '#f0fdf4' : '#fff',
+                          border: sc.completed ? '1px solid #86efac' : '1px solid #e7e5e4',
+                          borderRadius: 12
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            backgroundColor: sc.completed ? '#15803d' : '#e7e5e4',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: 12,
+                            flexShrink: 0
+                          }}
+                        >
+                          {sc.completed ? '✓' : `${i + 1}`}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: sc.completed ? '#15803d' : '#ea580c' }}>
+                            {sc.date}
+                          </span>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '2px 0 0' }}>
+                            {sc.milestone}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -2027,6 +2460,7 @@ export default function App() {
           >
             <Warehouse size={18} strokeWidth={activeTab === 'warehouse' ? 2.8 : 2} />
           </div>
+          <span style={{ fontSize: 10, fontWeight: 800 }}>倉庫</span>
         </button>
       </nav>
 

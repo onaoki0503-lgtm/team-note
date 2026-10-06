@@ -42,7 +42,29 @@ export interface ProjectRecord {
   proposalsCount: number
   createdAt: string
   description?: string
+  bannerImage?: string
   members: ProjectMemberRecord[]
+  meetingNotes?: {
+    date: string
+    title: string
+    attendees: string[]
+    summary: string
+    decisions: string[]
+    nextTodos: string[]
+  }[]
+  proposalDoc?: {
+    title: string
+    purpose: string
+    background: string
+    hackStrategy: string
+    budget: string
+    steps: string[]
+  }
+  schedule?: {
+    date: string
+    milestone: string
+    completed: boolean
+  }[]
 }
 
 export interface WorkReportRecord {
@@ -187,6 +209,7 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     proposalsCount: 3,
     createdAt: '2026-10-01',
     description: '共用キッチンの布巾の生乾き臭と衛生リスクを解消し、使い捨てペーパーロールディスペンサーを自治会費で試験導入する。',
+    bannerImage: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80',
     members: [
       {
         residentId: 'r1',
@@ -212,6 +235,57 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
         building: 'paprika',
         joinedAt: '2026-10-03'
       }
+    ],
+    meetingNotes: [
+      {
+        date: '2026-10-02',
+        title: 'ローズ3Fキッチン現状調査 ＆ 衛生改善キックオフ',
+        attendees: ['岡本 直樹', '生熊 翔太', '宗司 涼介'],
+        summary: '布巾の煮沸消毒当番制は形骸化しており、悪臭の原因となっていることを全会一致で確認。使い捨てロール式への完全移行を決定。',
+        decisions: [
+          '従来の綿布巾を全面撤去し、吸水ペーパータオルホルダーを壁面にマグネット設置',
+          '初期費用（ディスペンサー＋ロール3ヶ月分）は自治会雑費から拠出（約4,800円）',
+          'ローズ3Fで1週間の先行トライアルを実施し寮生アンケートを集計'
+        ],
+        nextTodos: [
+          '岡本: Amazonでマグネットディスペンサーの発注手配',
+          '生熊: パプリカ棟への説明用掲示ポスター作成',
+          '宗司: ハウスリーダー会議での周知'
+        ]
+      },
+      {
+        date: '2026-10-04',
+        title: '先行トライアル中間レビュー ＆ 西松建設への申請確認',
+        attendees: ['岡本 直樹', '生熊 翔太'],
+        summary: '3F利用者から「シンク周りが劇的に清潔になった」と高評価。西松建設への壁面器具設置に関する相談事項を整理。',
+        decisions: [
+          '両面テープ等による壁面破損を回避するため、冷蔵庫側面のマグネット吸着方式を標準仕様とする',
+          '他棟（バジル・ターメリック）への横展開スケジュールを策定'
+        ],
+        nextTodos: [
+          '岡本: 施設修繕・改善申請書の大学窓口提出',
+          '生熊: 消耗品ロールの補充運用マニュアル作成'
+        ]
+      }
+    ],
+    proposalDoc: {
+      title: 'Hヴィレッジ 共用キッチン衛生向上プロジェクト企画書',
+      purpose: '共用キッチンの布巾による雑菌繁殖・生乾き臭の根本解決と、全寮生の調理衛生環境の向上。',
+      background: '各ユニットの綿布巾は濡れたまま放置されがちで、衛生面での不満が多数報告されていた。洗濯・漂白のルール化は持続性に欠けるため、物理的に使い捨て方式へ切り替える。',
+      hackStrategy: '共用部への固定器具工事申請（学事・西松）を回避するため、「既存の金属面（冷蔵庫・レンジフード）への強力マグネット固定」を採用し、現状復旧不要な備品運用として即時実装する。',
+      budget: '初期費用 4,800円（ディスペンサー2個＋ロール6本） / 月額維持費 約1,200円（自治会費充当）',
+      steps: [
+        'ローズ3Fでの先行実証実験（1週間）完了',
+        '寮生フィードバックアンケート回収 ＆ 満足度90%確認',
+        '4棟全キッチンスペースへの一斉配備',
+        '業務報告（はたらくタブ）での定期残量チェック体制の確立'
+      ]
+    },
+    schedule: [
+      { date: '2026-10-01', milestone: '課題抽出 ＆ プロジェクト立ち上げ', completed: true },
+      { date: '2026-10-03', milestone: 'ディスペンサー試作機設置（ローズ3F）', completed: true },
+      { date: '2026-10-07', milestone: '寮生アンケート集計 ＆ 改善要望反映', completed: false },
+      { date: '2026-10-10', milestone: '4棟全フロアへのロール配備完了', completed: false }
     ]
   },
   {
@@ -226,6 +300,7 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     proposalsCount: 2,
     createdAt: '2026-10-03',
     description: '各棟1Fコモンズは規約上全員利用可能なのに玄関で弾かれる既存システムの矛盾を、昼間限定の認証共通化で突破する。',
+    bannerImage: 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&w=800&q=80',
     members: [
       {
         residentId: 'r1',
@@ -243,6 +318,40 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
         building: 'rosemary',
         joinedAt: '2026-10-04'
       }
+    ],
+    meetingNotes: [
+      {
+        date: '2026-10-03',
+        title: 'エントランス施錠規約の矛盾点洗い出し会議',
+        attendees: ['岡本 直樹', '佐藤 健太'],
+        summary: '規約上「コモンズは4棟の全寮生が自由利用可」と明記されているにもかかわらず、カードキーが自棟しか開かないためインターホン呼び出しが必要な問題を議論。',
+        decisions: [
+          '物理カードリーダーの改修は莫大な費用がかかるため、西松建設に頼らず学事のカード登録DBで全棟カードIDを相互付与する方針を策定',
+          '防犯懸念に対応するため、居住階（2〜3F）への侵入は各階段ドアの別施錠で防ぐ案を提示'
+        ],
+        nextTodos: [
+          '岡本: 学事・西松建設の担当者へのヒアリング日程調整',
+          '佐藤: 各棟居住者へのヒアリングと懸念事項の整理'
+        ]
+      }
+    ],
+    proposalDoc: {
+      title: 'Hヴィレッジ 4棟コモンズ相互利用・エントランス認証共通化企画書',
+      purpose: 'コモンズスペースの相互開放を実現し、棟間の交流活性化と勉強・作業環境の選択肢を拡大する。',
+      background: '4棟それぞれに個性あるコモンズスペース（学習室、キッチンスペース、ラウンジ）が整備されているが、自棟以外の出入りが物理的に制限されているため、有効活用されていない。',
+      hackStrategy: '機器交換などの高額工事を行わず、現行のFelicaカードキー管理システムにおいて、全寮生のカードIDに4棟の玄関リーダアクセス権を一括追加登録するシステム運用のみで突破する。',
+      budget: '初期工事費 0円 / カード登録管理事務費 0円（学事システム内作業）',
+      steps: [
+        'コモンズ相互利用規約案の作成',
+        '防犯カメラ配置と居住階セキュリティ担保策の確認',
+        'ハウスリーダー会議および大学学事への公式提案書の提出',
+        '秋学期中のトライアル運用開始'
+      ]
+    },
+    schedule: [
+      { date: '2026-10-03', milestone: '規約矛盾の整理 ＆ 企画骨子作成', completed: true },
+      { date: '2026-10-06', milestone: '学事担当者への事前相談', completed: false },
+      { date: '2026-10-15', milestone: 'カードキー一括登録トライアル開始', completed: false }
     ]
   },
   {
@@ -257,6 +366,7 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     proposalsCount: 1,
     createdAt: '2026-10-05',
     description: '過去に騒音問題で却下された中庭イベントを、参加者全員ヘッドホン着用のサイレントフェス形式で再挑戦する。',
+    bannerImage: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=80',
     members: [
       {
         residentId: 'r2',
@@ -274,6 +384,39 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
         building: 'basil',
         joinedAt: '2026-10-05'
       }
+    ],
+    meetingNotes: [
+      {
+        date: '2026-10-05',
+        title: 'サイレントフェス構想 ＆ 過去惜敗ログの検証',
+        attendees: ['伊藤 雄吉', '渡辺 陽奈'],
+        summary: '過去に中庭DJイベントが「近隣住民・寮生への騒音苦情」により即日中止となったログを倉庫から発掘。外部スピーカーを完全ゼロにするサイレントディスコ方式を構想。',
+        decisions: [
+          '外に漏れる音はゼロにするため、送信機とワイヤレスヘッドホンのみを使用',
+          '客観的な安全証明のため、騒音計（デシベル測定器）で環境音と同等（40dB以下）を実証'
+        ],
+        nextTodos: [
+          '伊藤: 機材レンタル見積もり（30台セット）の調査',
+          '渡辺: バジル棟住民への事前ヒアリング'
+        ]
+      }
+    ],
+    proposalDoc: {
+      title: 'Hヴィレッジ 中庭サイレントフェス企画書',
+      purpose: '騒音ゼロで近隣に迷惑をかけず、寮生同士が音と夜風を楽しむ新しいコミュニティイベントの創出。',
+      background: '過去の中庭イベントは騒音クレームにより全面禁止となったが、交流の場を求める声は根強い。最新のサイレントフェス技術を活用することで課題を根底からクリアする。',
+      hackStrategy: '「屋外での音響機器使用禁止」という規約に対し、「スピーカーを使用せず、各自の個人用受信用ヘッドホンで聴取するため、騒音規制の対象外である」という論理構成で許可申請を行う。',
+      budget: '機材レンタル費 15,000円（参加費カンパおよび有志拠出）',
+      steps: [
+        'デシベル測定器による夜間基準値の計測テスト',
+        '企画書および実証テスト計画の学事窓口への提出',
+        '20名限定のパイロットテスト開催'
+      ]
+    },
+    schedule: [
+      { date: '2026-10-05', milestone: '惜敗ログ分析 ＆ サイレント方式採択', completed: true },
+      { date: '2026-10-12', milestone: '機材テスト ＆ 騒音測定検証', completed: false },
+      { date: '2026-10-25', milestone: '中庭サイレントフェス開催', completed: false }
     ]
   }
 ]
@@ -428,7 +571,11 @@ export const dbService = {
             proposalsCount: p.proposals_count,
             createdAt: p.created_at ? p.created_at.slice(0, 10) : '2026-10-06',
             description: p.description || '',
-            members: p.members || []
+            bannerImage: p.banner_image || undefined,
+            members: p.members || [],
+            meetingNotes: p.meeting_notes || undefined,
+            proposalDoc: p.proposal_doc || undefined,
+            schedule: p.schedule || undefined
           }))
         }
       } catch (e) {
@@ -438,7 +585,22 @@ export const dbService = {
     const local = localStorage.getItem(STORAGE_KEYS.PROJECTS)
     if (local) {
       try {
-        return JSON.parse(local)
+        const parsed = JSON.parse(local)
+        // 初期データに画像や議事録が追加された場合にマージして反映
+        return parsed.map((p: ProjectRecord) => {
+          const init = INITIAL_PROJECTS.find((ip) => ip.id === p.id)
+          if (init) {
+            return {
+              ...init,
+              ...p,
+              bannerImage: p.bannerImage || init.bannerImage,
+              meetingNotes: p.meetingNotes || init.meetingNotes,
+              proposalDoc: p.proposalDoc || init.proposalDoc,
+              schedule: p.schedule || init.schedule
+            }
+          }
+          return p
+        })
       } catch {
         // ignore
       }
