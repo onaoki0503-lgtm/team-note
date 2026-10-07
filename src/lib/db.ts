@@ -80,6 +80,15 @@ export interface EventGroup {
   membersCount?: number
 }
 
+export interface EventWorkflowStep {
+  id: string
+  step: string
+  title: string
+  date: string
+  active: boolean
+  done: boolean
+}
+
 export interface ProjectRecord {
   id: string
   title: string
@@ -97,9 +106,10 @@ export interface ProjectRecord {
   // イベント運営フロー連携（スライド実務構造）
   isEventWorkflow?: boolean // イベント運営フロー適用フラグ
   workflowStage?: 'planning' | 'ea_review' | 'nishimatsu_review' | 'action_prep' | 'rehearsal_day' | 'retrospective'
+  workflowSteps?: EventWorkflowStep[] // 自由に追加・カスタマイズ可能な運営ステップ
   theme?: string // 今年のテーマ（例: それぞれの層が楽しめる！）
-  groups?: EventGroup[] // 班構成（イベント班、装飾班、ディナー班）
-  evaluations?: LeaderEvaluationRecord[] // 周囲の関係者がスコアリングした人事評価
+  groups?: EventGroup[] // 班・チーム構成（小規模時は空でも可、自由に追加）
+  evaluations?: LeaderEvaluationRecord[] // 周囲の関係者がスコアリングした振り返り・評価ログ
   
   members: ProjectMemberRecord[]
   meetingNotes?: {
@@ -1214,5 +1224,92 @@ export const dbService = {
       return r
     })
     localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(updatedResidents))
+  },
+
+  // --- 班・チームの追加・削除（企画規模に応じて柔軟に変更可能） ---
+  async addGroupToProject(
+    projectId: string,
+    group: Omit<EventGroup, 'id'>
+  ): Promise<EventGroup> {
+    const newGroup: EventGroup = {
+      ...group,
+      id: `grp-${Date.now()}`
+    }
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          groups: [...(p.groups || []), newGroup]
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return newGroup
+  },
+
+  async removeGroupFromProject(projectId: string, groupId: string): Promise<void> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          groups: (p.groups || []).filter((g) => g.id !== groupId)
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+  },
+
+  // --- 業務フローステップの追加・更新（企画ごとの進行ステップにカスタマイズ） ---
+  async addWorkflowStepToProject(
+    projectId: string,
+    step: Omit<EventWorkflowStep, 'id'>
+  ): Promise<EventWorkflowStep> {
+    const newStep: EventWorkflowStep = {
+      ...step,
+      id: `step-${Date.now()}`
+    }
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        const currentSteps = p.workflowSteps || [
+          { id: 'st-1', step: '1', title: 'アイデア・班決定', date: '10/6〜10/13', active: true, done: true },
+          { id: 'st-2', step: '2', title: '先行締切・要件確定', date: '〜10/31', active: true, done: false },
+          { id: 'st-3', step: '3', title: 'EA企画書提出', date: '11/10', active: false, done: false },
+          { id: 'st-4', step: '4', title: '西松建設 承認申請', date: '11/17', active: false, done: false },
+          { id: 'st-5', step: '5', title: '決算書・注文/実働', date: '11月下旬〜', active: false, done: false },
+          { id: 'st-6', step: '6', title: '全体リハ ＆ 当日', date: '12/16・17', active: false, done: false },
+          { id: 'st-7', step: '7', title: '振り返り・次回への教訓', date: '12/18〜', active: false, done: false }
+        ]
+        return {
+          ...p,
+          workflowSteps: [...currentSteps, newStep]
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return newStep
+  },
+
+  async updateWorkflowStep(
+    projectId: string,
+    stepId: string,
+    updates: Partial<EventWorkflowStep>
+  ): Promise<void> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId && p.workflowSteps) {
+        return {
+          ...p,
+          workflowSteps: p.workflowSteps.map((st) => (st.id === stepId ? { ...st, ...updates } : st))
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
   }
 }

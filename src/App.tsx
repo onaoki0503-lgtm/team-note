@@ -29,7 +29,8 @@ import {
   Star,
   Award,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Plus
 } from 'lucide-react';
 import {
   dbService,
@@ -39,7 +40,8 @@ import {
   type ResidentRecord,
   type ProjectMemberRecord,
   type LeaderEvaluationRecord,
-  type EventGroup
+  type EventGroup,
+  type EventWorkflowStep
 } from './lib/db';
 
 interface MapNode {
@@ -62,6 +64,7 @@ interface Project {
   createdAt?: string;
   isEventWorkflow?: boolean;
   workflowStage?: string;
+  workflowSteps?: EventWorkflowStep[];
   theme?: string;
   groups?: EventGroup[];
   evaluations?: LeaderEvaluationRecord[];
@@ -152,14 +155,26 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProjectTab, setSelectedProjectTab] = useState<'workflow' | 'proposal' | 'meeting' | 'members' | 'evaluation' | 'schedule'>('workflow');
 
-  // 📝 人事評価（手動スコアリング）入力モーダル
+  // 📝 振り返り（関係者手動スコアリング）入力モーダル
   const [evalTargetResident, setEvalTargetResident] = useState<{ id: string; name: string; role: 'PL' | 'GL' | 'メンバー' } | null>(null);
   const [evalScores, setEvalScores] = useState({ facilitation: 5, communication: 5, safetyExternal: 5, scheduleBudget: 5 });
   const [evalGoodPoints, setEvalGoodPoints] = useState('');
   const [evalBadPoints, setEvalBadPoints] = useState('');
   const [evalVerdict, setEvalVerdict] = useState<'PL適格' | 'GL適格' | '専門実務向き' | '要フォロー'>('GL適格');
 
-  // 👤 名簿詳細・リーダーカルテ閲覧モーダル
+  // 🚩 班・チーム追加モーダルステート
+  const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupGlName, setNewGroupGlName] = useState('');
+  const [newGroupMilestoneTitle, setNewGroupMilestoneTitle] = useState('');
+  const [newGroupMilestoneDeadline, setNewGroupMilestoneDeadline] = useState('');
+
+  // 🎯 業務フローステップ追加モーダルステート
+  const [isAddStepModalOpen, setIsAddStepModalOpen] = useState(false);
+  const [newStepTitle, setNewStepTitle] = useState('');
+  const [newStepDate, setNewStepDate] = useState('');
+
+  // 👤 名簿詳細・活動振り返りカルテ閲覧モーダル
   const [selectedRosterResident, setSelectedRosterResident] = useState<ResidentRecord | null>(null);
 
   // 🏛️ 倉庫内の全画面表示セクション
@@ -1731,7 +1746,7 @@ export default function App() {
                     }}
                   >
                     <Star size={15} />
-                    人事・関係者評価 ({pj.evaluations?.length || 0})
+                    みんなの振り返り ({pj.evaluations?.length || 0})
                   </button>
                   <button
                     onClick={() => setSelectedProjectTab('schedule')}
@@ -1782,7 +1797,7 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* ⏱️ 3大フェーズ プログレスステップバー */}
+                    {/* ⏱️ 3大フェーズ プログレスステップバー（追加・カスタマイズ可能） */}
                     <div
                       style={{
                         backgroundColor: '#fff',
@@ -1792,28 +1807,58 @@ export default function App() {
                         boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                        <span style={{ fontSize: 13, fontWeight: 900, color: '#1c1917' }}>
-                          🎯 運営タイムライン（3大フェーズ ＆ 承認パイプライン）
-                        </span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6 }}>
-                          現在: ① 企画フェーズ進行中
-                        </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', display: 'block' }}>
+                            🎯 運営タイムライン（フェーズ ＆ 承認パイプライン）
+                          </span>
+                          <span style={{ fontSize: 11, color: '#78716c' }}>
+                            ※企画の規模や進行に合わせてステップを自由に追加・カスタマイズできます
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6 }}>
+                            進行中
+                          </span>
+                          <button
+                            onClick={() => {
+                              setNewStepTitle('');
+                              setNewStepDate('');
+                              setIsAddStepModalOpen(true);
+                            }}
+                            style={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #fed7aa',
+                              color: '#ea580c',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Plus size={12} />
+                            ステップを追加
+                          </button>
+                        </div>
                       </div>
 
                       {/* ステップバー */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
-                        {[
-                          { step: '1', title: 'アイデア・班決定', date: '10/6〜10/13', active: true, done: true },
-                          { step: '2', title: 'ディナー先行締切', date: '〜10/31', active: true, done: false },
-                          { step: '3', title: 'EA企画書提出', date: '11/10', active: false, done: false },
-                          { step: '4', title: '西松建設 承認申請', date: '11/17', active: false, done: false },
-                          { step: '5', title: '決算書・注文/実働', date: '11月下旬〜', active: false, done: false },
-                          { step: '6', title: '全体リハ ＆ 当日', date: '12/16・17', active: false, done: false },
-                          { step: '7', title: '振り返り・人事評価', date: '12/18〜', active: false, done: false }
-                        ].map((st, i) => (
+                        {(pj.workflowSteps || [
+                          { id: 'st-1', step: '1', title: 'アイデア・班決定', date: '10/6〜10/13', active: true, done: true },
+                          { id: 'st-2', step: '2', title: '先行締切・要件確定', date: '〜10/31', active: true, done: false },
+                          { id: 'st-3', step: '3', title: 'EA企画書提出', date: '11/10', active: false, done: false },
+                          { id: 'st-4', step: '4', title: '西松建設 承認申請', date: '11/17', active: false, done: false },
+                          { id: 'st-5', step: '5', title: '決算書・注文/実働', date: '11月下旬〜', active: false, done: false },
+                          { id: 'st-6', step: '6', title: '全体リハ ＆ 当日', date: '12/16・17', active: false, done: false },
+                          { id: 'st-7', step: '7', title: '振り返り・次回への教訓', date: '12/18〜', active: false, done: false }
+                        ]).map((st) => (
                           <div
-                            key={i}
+                            key={st.id || st.step}
                             style={{
                               padding: '10px 8px',
                               borderRadius: 10,
@@ -1874,146 +1919,231 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* 🚩 班構成（イベント班 / 装飾班 / ディナー班）とGL一覧 */}
+                    {/* 🚩 班・チーム構成 ＆ 役職リーダー（GL / PL） */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                         <div>
                           <h4 style={{ fontSize: 15, fontWeight: 900, color: '#1c1917', margin: 0 }}>
-                            🚩 班構成 ＆ 役職リーダー（GL / PL）
+                            🚩 班・チーム構成 ＆ 役職リーダー（GL / PL）
                           </h4>
                           <span style={{ fontSize: 11, color: '#78716c' }}>
-                            ※スライドルール: 「GL経験者が班にいない場合、初めて参加するメンバーはGL不可」
+                            ※小規模企画はチームを作らず全体進行可能。必要に応じて「班・チームを追加」できます。
                           </span>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
-                          全3班編成
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
+                            {(!pj.groups || pj.groups.length === 0) ? 'チームなし（単一進行）' : `全${pj.groups.length}班編成`}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setNewGroupName('');
+                              setNewGroupGlName('');
+                              setNewGroupMilestoneTitle('');
+                              setNewGroupMilestoneDeadline('');
+                              setIsAddGroupModalOpen(true);
+                            }}
+                            style={{
+                              backgroundColor: '#ea580c',
+                              color: '#fff',
+                              border: 'none',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              padding: '5px 12px',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Plus size={13} />
+                            チーム・班を追加
+                          </button>
+                        </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
-                        {(pj.groups || [
-                          { id: 'grp-event', name: 'イベント班', glName: '伊藤 雄吉', milestoneTitle: 'ステージ・音響計画', milestoneDeadline: '10/25', membersCount: 3 },
-                          { id: 'grp-decor', name: '装飾班', glName: '生熊 翔太', milestoneTitle: '会場レイアウト図', milestoneDeadline: '11/05', membersCount: 2 },
-                          { id: 'grp-dinner', name: 'ディナー班', glName: '佐藤 健太', milestoneTitle: 'ディナーメニュー決定', milestoneDeadline: '10/31', membersCount: 4 }
-                        ]).map((grp) => {
-                          const glMember = residents.find((r) => r.name === grp.glName);
-                          const isCertifiedGl = glMember?.careers?.some((c) => c.isCertifiedGl) ?? false;
+                      {(!pj.groups || pj.groups.length === 0) ? (
+                        <div
+                          style={{
+                            backgroundColor: '#fafaf9',
+                            border: '1.5px dashed #cbd5e1',
+                            borderRadius: 14,
+                            padding: '24px 20px',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <div style={{ fontSize: 24, marginBottom: 6 }}>👥</div>
+                          <strong style={{ fontSize: 14, color: '#1c1917', display: 'block', marginBottom: 4 }}>
+                            この企画はチーム分けなしで全体で進めています
+                          </strong>
+                          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px' }}>
+                            少人数の有志企画やスモールプロジェクトではチーム編成不要です。規模が大きくなったら班を追加できます。
+                          </p>
+                          <button
+                            onClick={() => {
+                              setNewGroupName('');
+                              setNewGroupGlName('');
+                              setNewGroupMilestoneTitle('');
+                              setNewGroupMilestoneDeadline('');
+                              setIsAddGroupModalOpen(true);
+                            }}
+                            style={{
+                              backgroundColor: '#fff',
+                              border: '1.5px solid #ea580c',
+                              color: '#ea580c',
+                              padding: '6px 14px',
+                              borderRadius: 8,
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Plus size={14} />
+                            分科会・班を作成する
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+                          {pj.groups.map((grp) => {
+                            const glMember = residents.find((r) => r.name === grp.glName);
+                            const isCertifiedGl = glMember?.careers?.some((c) => c.isCertifiedGl) ?? false;
 
-                          return (
-                            <div
-                              key={grp.id}
-                              style={{
-                                backgroundColor: '#fff',
-                                border: '1.5px solid #fed7aa',
-                                borderRadius: 14,
-                                padding: '16px',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between'
-                              }}
-                            >
-                              <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                  <span style={{ fontSize: 15, fontWeight: 900, color: '#1c1917' }}>
-                                    {grp.name}
-                                  </span>
-                                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
-                                    メンバー {grp.membersCount || 2}名
-                                  </span>
-                                </div>
-
-                                {/* GL情報 */}
-                                <div
-                                  style={{
-                                    backgroundColor: '#fff7ed',
-                                    border: '1px solid #fed7aa',
-                                    borderRadius: 10,
-                                    padding: '10px 12px',
-                                    marginBottom: 10,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between'
-                                  }}
-                                >
-                                  <div>
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: '#ea580c', display: 'block' }}>
-                                      班のまとめ役（GL）
+                            return (
+                              <div
+                                key={grp.id}
+                                style={{
+                                  backgroundColor: '#fff',
+                                  border: '1.5px solid #fed7aa',
+                                  borderRadius: 14,
+                                  padding: '16px',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between'
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <span style={{ fontSize: 15, fontWeight: 900, color: '#1c1917' }}>
+                                      {grp.name}
                                     </span>
-                                    <strong style={{ fontSize: 14, color: '#1c1917' }}>
-                                      {grp.glName || '未任命'}
-                                    </strong>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
+                                        メンバー {grp.membersCount || 1}名
+                                      </span>
+                                      <button
+                                        onClick={async () => {
+                                          if (confirm(`班「${grp.name}」を削除しますか？`)) {
+                                            if (selectedProjectId) {
+                                              await dbService.removeGroupFromProject(selectedProjectId, grp.id);
+                                              const updated = await dbService.getProjects();
+                                              setProjects(updated);
+                                            }
+                                          }
+                                        }}
+                                        title="班を削除"
+                                        style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
                                   </div>
-                                  {isCertifiedGl ? (
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                      <UserCheck size={12} />
-                                      ★GL経験者
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: 10, fontWeight: 800, color: '#b45309', backgroundColor: '#fef3c7', padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                      初GL挑戦
-                                    </span>
+
+                                  {/* GL情報 */}
+                                  <div
+                                    style={{
+                                      backgroundColor: '#fff7ed',
+                                      border: '1px solid #fed7aa',
+                                      borderRadius: 10,
+                                      padding: '10px 12px',
+                                      marginBottom: 10,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between'
+                                    }}
+                                  >
+                                    <div>
+                                      <span style={{ fontSize: 10, fontWeight: 800, color: '#ea580c', display: 'block' }}>
+                                        班のまとめ役（GL）
+                                      </span>
+                                      <strong style={{ fontSize: 14, color: '#1c1917' }}>
+                                        {grp.glName || '未任命'}
+                                      </strong>
+                                    </div>
+                                    {isCertifiedGl ? (
+                                      <span style={{ fontSize: 10, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                        <UserCheck size={12} />
+                                        ★GL経験者
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: 10, fontWeight: 800, color: '#b45309', backgroundColor: '#fef3c7', padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                        初GL挑戦
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* 班独自マイルストーン */}
+                                  {grp.milestoneTitle && (
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: 8, fontSize: 11, color: '#475569', border: '1px solid #e2e8f0' }}>
+                                      <span style={{ color: '#ea580c', fontWeight: 800, display: 'block' }}>
+                                        先行締切: {grp.milestoneDeadline}
+                                      </span>
+                                      <span>{grp.milestoneTitle}</span>
+                                    </div>
                                   )}
                                 </div>
 
-                                {/* 班独自マイルストーン */}
-                                {grp.milestoneTitle && (
-                                  <div style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: 8, fontSize: 11, color: '#475569', border: '1px solid #e2e8f0' }}>
-                                    <span style={{ color: '#ea580c', fontWeight: 800, display: 'block' }}>
-                                      先行締切: {grp.milestoneDeadline}
-                                    </span>
-                                    <span>{grp.milestoneTitle}</span>
-                                  </div>
-                                )}
+                                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <button
+                                    onClick={() => {
+                                      if (glMember) setSelectedRosterResident(glMember);
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#ea580c',
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      cursor: 'pointer',
+                                      padding: 0
+                                    }}
+                                  >
+                                    GLの活動カルテを見る ➔
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEvalTargetResident({
+                                        id: glMember?.id || 'r2',
+                                        name: grp.glName || 'GL',
+                                        role: 'GL'
+                                      });
+                                    }}
+                                    style={{
+                                      backgroundColor: '#ea580c',
+                                      color: '#fff',
+                                      border: 'none',
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      padding: '4px 10px',
+                                      borderRadius: 6,
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 3
+                                    }}
+                                  >
+                                    <Star size={11} />
+                                    振り返りを記録する
+                                  </button>
+                                </div>
                               </div>
-
-                              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <button
-                                  onClick={() => {
-                                    if (glMember) setSelectedRosterResident(glMember);
-                                  }}
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: '#ea580c',
-                                    fontSize: 11,
-                                    fontWeight: 800,
-                                    cursor: 'pointer',
-                                    padding: 0
-                                  }}
-                                >
-                                  GLの経歴・適性カルテを見る ➔
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEvalTargetResident({
-                                      id: glMember?.id || 'r2',
-                                      name: grp.glName || 'GL',
-                                      role: 'GL'
-                                    });
-                                  }}
-                                  style={{
-                                    backgroundColor: '#ea580c',
-                                    color: '#fff',
-                                    border: 'none',
-                                    fontSize: 11,
-                                    fontWeight: 800,
-                                    padding: '4px 10px',
-                                    borderRadius: 6,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 3
-                                  }}
-                                >
-                                  <Star size={11} />
-                                  手動評価する
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2196,7 +2326,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 3.5. 人事・関係者評価タブ（AI自動採点完全排除・人間による直接スコアリング） */}
+                {/* 3.5. みんなの振り返りタブ（AI自動採点完全排除・人間による直接スコアリング） */}
                 {selectedProjectTab === 'evaluation' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* ポリシーバナー */}
@@ -2205,7 +2335,7 @@ export default function App() {
                         <ShieldCheck size={20} color="#ea580c" />
                         <div>
                           <strong style={{ fontSize: 13, color: '#9a3412', display: 'block' }}>
-                            🛡️ 人間（関係者）による手動評価ポリシー
+                            🛡️ 人間（関係者）による振り返りポリシー
                           </strong>
                           <span style={{ fontSize: 12, color: '#7c2d12' }}>
                             AIによる自動採点は行いません。現場で共に汗を流した関係者（EA・PL・GL・メンバー）が直接星（★1〜5）とコメントを入力し、個人の名簿カルテへ統合されます。
@@ -2217,7 +2347,7 @@ export default function App() {
                     {/* 被評価者クイック選択カード */}
                     <div>
                       <h4 style={{ fontSize: 14, fontWeight: 900, color: '#1c1917', marginBottom: 10 }}>
-                        👥 役職者を直接評価する（スコアリング）
+                        👥 役職者・メンバーの振り返りを記録する
                       </h4>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
                         {pj.members.map((m) => (
@@ -2266,7 +2396,7 @@ export default function App() {
                               }}
                             >
                               <Star size={12} />
-                              評価
+                              振り返り
                             </button>
                           </div>
                         ))}
@@ -2277,7 +2407,7 @@ export default function App() {
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                         <h4 style={{ fontSize: 14, fontWeight: 900, color: '#1c1917', margin: 0 }}>
-                          📊 蓄積された関係者評価ログ（{pj.evaluations?.length || 0}件）
+                          📊 蓄積された振り返りログ（{pj.evaluations?.length || 0}件）
                         </h4>
                         <span style={{ fontSize: 11, color: '#64748b' }}>
                           🔒 課題・非公開メモはリーダーカルテとして保護
@@ -2286,7 +2416,7 @@ export default function App() {
 
                       {(!pj.evaluations || pj.evaluations.length === 0) ? (
                         <div style={{ backgroundColor: '#f8fafc', padding: 24, textAlign: 'center', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 13 }}>
-                          まだこのイベントの関係者評価は記録されていません。上のボタンから手動評価を入力できます。
+                          まだこのイベントの振り返りは記録されていません。上のボタンから手動で振り返りを入力できます。
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -4037,10 +4167,10 @@ export default function App() {
             >
               <div>
                 <span style={{ fontSize: 11, fontWeight: 800, opacity: 0.9 }}>
-                  HUMAN EVALUATION FORM (AI自動採点完全排除)
+                  REFLECTION & REVIEW (AI自動採点完全排除・関係者手動入力)
                 </span>
                 <h3 style={{ fontSize: 17, fontWeight: 900, margin: '2px 0 0' }}>
-                  ⭐ {evalTargetResident.name} さんへの関係者評価
+                  ⭐ {evalTargetResident.name} さんへの振り返りを記録
                 </h3>
               </div>
               <button
@@ -4078,12 +4208,12 @@ export default function App() {
                 setEvalTargetResident(null);
                 setEvalGoodPoints('');
                 setEvalBadPoints('');
-                alert(`${evalTargetResident.name}さんへの関係者評価を保存し、名簿カルテへ統合しました！`);
+                alert(`${evalTargetResident.name}さんへの振り返りを保存し、活動カルテへ統合しました！`);
               }}
               style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}
             >
               <div style={{ backgroundColor: '#fff7ed', padding: '10px 14px', borderRadius: 10, border: '1px solid #fed7aa', fontSize: 12, color: '#9a3412' }}>
-                💡 <strong>評価者:</strong> あなた（{currentUser.name} / {currentUser.role}）として記録されます。現場の生の声と星を直接入力してください。
+                💡 <strong>振り返り記録者:</strong> あなた（{currentUser.name} / {currentUser.role}）として記録されます。現場の生の声と星を直接入力してください。
               </div>
 
               {/* 4指標手動スライダー/セレクター */}
@@ -4197,7 +4327,7 @@ export default function App() {
                   type="submit"
                   style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#ea580c', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 800 }}
                 >
-                  評価を名簿へ登録
+                  振り返りを活動カルテへ登録
                 </button>
               </div>
             </form>
@@ -4206,7 +4336,7 @@ export default function App() {
       )}
 
       {/* ========================================================= */}
-      {/* 👤 名簿詳細・歴代役職ポートフォリオ ＆ リーダーカルテ モーダル */}
+      {/* 👤 名簿詳細・歴代役職ポートフォリオ ＆ 活動振り返りカルテ モーダル */}
       {/* ========================================================= */}
       {selectedRosterResident && (
         <div
@@ -4247,7 +4377,7 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Award size={22} />
                 <h3 style={{ fontSize: 17, fontWeight: 900, margin: 0 }}>
-                  👤 寮生ポートフォリオ ＆ リーダーカルテ
+                  👤 寮生ポートフォリオ ＆ 活動振り返りカルテ
                 </h3>
               </div>
               <button
@@ -4336,14 +4466,14 @@ export default function App() {
                 )}
               </div>
 
-              {/* 📊 人事評価・リーダーカルテ（周囲の関係者によるスコアログ） */}
+              {/* 📊 活動・リーダーシップ振り返りカルテ（周囲の関係者によるスコアログ） */}
               <div>
                 <span style={{ fontSize: 13, fontWeight: 900, color: '#0f172a', display: 'block', marginBottom: 8 }}>
-                  📊 リーダー適性カルテ（関係者直接評価ログ）
+                  📊 活動・リーダーシップ振り返りカルテ（関係者直接スコアログ）
                 </span>
                 {(!selectedRosterResident.evaluations || selectedRosterResident.evaluations.length === 0) ? (
                   <div style={{ backgroundColor: '#f8fafc', padding: 16, borderRadius: 12, border: '1px dashed #cbd5e1', fontSize: 12, color: '#64748b', textAlign: 'center' }}>
-                    蓄積された評価カルテはまだありません
+                    蓄積された振り返りカルテはまだありません
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -4366,7 +4496,7 @@ export default function App() {
                           </span>
                         </div>
                         <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>
-                          評価者: {ev.evaluatorName} ({ev.evaluatorRole}) • 記録日: {ev.createdAt}
+                          振り返り記録者: {ev.evaluatorName} ({ev.evaluatorRole}) • 記録日: {ev.createdAt}
                         </div>
 
                         {/* スコア */}
@@ -4410,6 +4540,293 @@ export default function App() {
                 閉じる
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 🚩 新しいチーム・班を追加するモーダル */}
+      {/* ========================================================= */}
+      {isAddGroupModalOpen && selectedProjectId && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 110,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 20,
+              maxWidth: 480,
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.25)'
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#ea580c',
+                color: '#fff',
+                padding: '16px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Users size={20} />
+                <h3 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>
+                  新しいチーム・班を追加
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsAddGroupModalOpen(false)}
+                style={{ background: 'transparent', color: '#fff', border: 'none', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newGroupName.trim()) {
+                  alert('チーム・班の名前を入力してください');
+                  return;
+                }
+                const selectedGlResident = residents.find((r) => r.name === newGroupGlName);
+                await dbService.addGroupToProject(selectedProjectId, {
+                  name: newGroupName.trim(),
+                  glName: newGroupGlName.trim() || undefined,
+                  glResidentId: selectedGlResident?.id,
+                  milestoneTitle: newGroupMilestoneTitle.trim() || undefined,
+                  milestoneDeadline: newGroupMilestoneDeadline.trim() || undefined,
+                  milestoneCompleted: false,
+                  membersCount: newGroupGlName.trim() ? 1 : 0
+                });
+                const updated = await dbService.getProjects();
+                setProjects(updated);
+                setIsAddGroupModalOpen(false);
+                setNewGroupName('');
+                setNewGroupGlName('');
+                setNewGroupMilestoneTitle('');
+                setNewGroupMilestoneDeadline('');
+              }}
+              style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}
+            >
+              <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: 8, fontSize: 12, color: '#9a3412', border: '1px solid #fed7aa' }}>
+                💡 小規模企画から大規模企画まで、必要になったタイミングでチーム（買い出し班、広報班、音響班など）を追加できます。
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
+                  チーム・班の名前 <span style={{ color: '#ea580c' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  placeholder="例: 買い出し班、広報・デザイン班、音響班"
+                  required
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
+                  班のまとめ役（GL / リーダー）
+                </label>
+                <select
+                  value={newGroupGlName}
+                  onChange={(e) => setNewGroupGlName(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                >
+                  <option value="">未任命（後で決める）</option>
+                  {residents.map((r) => (
+                    <option key={r.id} value={r.name}>
+                      {r.name}（{r.role} / {r.building}棟）
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
+                    班の先行目標・マイルストーン
+                  </label>
+                  <input
+                    type="text"
+                    value={newGroupMilestoneTitle}
+                    onChange={(e) => setNewGroupMilestoneTitle(e.target.value)}
+                    placeholder="例: 会場レイアウト図完成"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
+                    先行締切日
+                  </label>
+                  <input
+                    type="text"
+                    value={newGroupMilestoneDeadline}
+                    onChange={(e) => setNewGroupMilestoneDeadline(e.target.value)}
+                    placeholder="例: 11/05"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddGroupModalOpen(false)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 700 }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#ea580c', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 800 }}
+                >
+                  チームを追加する
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 🎯 業務フローステップを追加するモーダル */}
+      {/* ========================================================= */}
+      {isAddStepModalOpen && selectedProjectId && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 110,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 20,
+              maxWidth: 440,
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.25)'
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#ea580c',
+                color: '#fff',
+                padding: '16px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Calendar size={20} />
+                <h3 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>
+                  運営ステップを追加
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsAddStepModalOpen(false)}
+                style={{ background: 'transparent', color: '#fff', border: 'none', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newStepTitle.trim()) {
+                  alert('ステップ名を入力してください');
+                  return;
+                }
+                const pj = projects.find((p) => p.id === selectedProjectId);
+                const currentCount = (pj?.workflowSteps?.length || 7) + 1;
+                await dbService.addWorkflowStepToProject(selectedProjectId, {
+                  step: String(currentCount),
+                  title: newStepTitle.trim(),
+                  date: newStepDate.trim() || '随時',
+                  active: true,
+                  done: false
+                });
+                const updated = await dbService.getProjects();
+                setProjects(updated);
+                setIsAddStepModalOpen(false);
+                setNewStepTitle('');
+                setNewStepDate('');
+              }}
+              style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}
+            >
+              <div style={{ backgroundColor: '#fff7ed', padding: '10px 12px', borderRadius: 8, fontSize: 12, color: '#9a3412', border: '1px solid #fed7aa' }}>
+                💡 企画独自のマイルストーン（例: チラシ配り、材料買い出し、試作会など）をタイムラインに追加できます。
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
+                  ステップ名 <span style={{ color: '#ea580c' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newStepTitle}
+                  onChange={(e) => setNewStepTitle(e.target.value)}
+                  placeholder="例: 試作会・味見チェック、フライヤー配布"
+                  required
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
+                  実施予定日・期間
+                </label>
+                <input
+                  type="text"
+                  value={newStepDate}
+                  onChange={(e) => setNewStepDate(e.target.value)}
+                  placeholder="例: 11/20〜11/25、12/10"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsAddStepModalOpen(false)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 700 }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#ea580c', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 800 }}
+                >
+                  ステップを追加
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
