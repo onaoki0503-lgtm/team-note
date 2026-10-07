@@ -502,6 +502,15 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     isEventWorkflow: true,
     workflowStage: 'planning',
     theme: '今年のテーマは、それぞれの層が楽しめる！',
+    workflowSteps: [
+      { id: 'st-1', step: '1', title: 'アイデア・班決定', date: '10/6〜10/13', active: true, done: true },
+      { id: 'st-2', step: '2', title: '先行締切・要件確定', date: '〜10/31', active: true, done: false },
+      { id: 'st-3', step: '3', title: 'EA企画書提出', date: '11/10', active: false, done: false },
+      { id: 'st-4', step: '4', title: '西松建設 承認申請', date: '11/17', active: false, done: false },
+      { id: 'st-5', step: '5', title: '決算書・注文/実働', date: '11月下旬〜', active: false, done: false },
+      { id: 'st-6', step: '6', title: '全体リハ ＆ 当日', date: '12/16・17', active: false, done: false },
+      { id: 'st-7', step: '7', title: '振り返り・次回への教訓', date: '12/18〜', active: false, done: false }
+    ],
     groups: [
       {
         id: 'grp-event',
@@ -1263,7 +1272,37 @@ export const dbService = {
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
   },
 
-  // --- 業務フローステップの追加・更新（企画ごとの進行ステップにカスタマイズ） ---
+  // --- 業務フローステップの追加・更新・白紙作成（企画ごとの進行ステップにカスタマイズ） ---
+  async createWorkflowFromScratch(
+    projectId: string,
+    initialSteps?: Omit<EventWorkflowStep, 'id'>[]
+  ): Promise<EventWorkflowStep[]> {
+    const defaultInitial: EventWorkflowStep[] = (initialSteps || [
+      { step: '1', title: 'アイデア・班決定', date: '初期フェーズ', active: true, done: false },
+      { step: '2', title: '企画書・要件チェック', date: '企画フェーズ', active: false, done: false },
+      { step: '3', title: '実働準備・リハ', date: '準備フェーズ', active: false, done: false },
+      { step: '4', title: 'イベント当日', date: '本番', active: false, done: false },
+      { step: '5', title: 'みんなの振り返り', date: '完了フェーズ', active: false, done: false }
+    ]).map((s, idx) => ({
+      ...s,
+      id: `step-${Date.now()}-${idx}`
+    }))
+
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          isEventWorkflow: true,
+          workflowSteps: defaultInitial
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return defaultInitial
+  },
+
   async addWorkflowStepToProject(
     projectId: string,
     step: Omit<EventWorkflowStep, 'id'>
@@ -1275,17 +1314,10 @@ export const dbService = {
     const projects = await this.getProjects()
     const updated = projects.map((p) => {
       if (p.id === projectId) {
-        const currentSteps = p.workflowSteps || [
-          { id: 'st-1', step: '1', title: 'アイデア・班決定', date: '10/6〜10/13', active: true, done: true },
-          { id: 'st-2', step: '2', title: '先行締切・要件確定', date: '〜10/31', active: true, done: false },
-          { id: 'st-3', step: '3', title: 'EA企画書提出', date: '11/10', active: false, done: false },
-          { id: 'st-4', step: '4', title: '西松建設 承認申請', date: '11/17', active: false, done: false },
-          { id: 'st-5', step: '5', title: '決算書・注文/実働', date: '11月下旬〜', active: false, done: false },
-          { id: 'st-6', step: '6', title: '全体リハ ＆ 当日', date: '12/16・17', active: false, done: false },
-          { id: 'st-7', step: '7', title: '振り返り・次回への教訓', date: '12/18〜', active: false, done: false }
-        ]
+        const currentSteps = p.workflowSteps || []
         return {
           ...p,
+          isEventWorkflow: true,
           workflowSteps: [...currentSteps, newStep]
         }
       }
@@ -1293,6 +1325,20 @@ export const dbService = {
     })
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
     return newStep
+  },
+
+  async removeWorkflowStep(projectId: string, stepId: string): Promise<void> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId && p.workflowSteps) {
+        return {
+          ...p,
+          workflowSteps: p.workflowSteps.filter((s) => s.id !== stepId)
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
   },
 
   async updateWorkflowStep(
@@ -1306,6 +1352,31 @@ export const dbService = {
         return {
           ...p,
           workflowSteps: p.workflowSteps.map((st) => (st.id === stepId ? { ...st, ...updates } : st))
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+  },
+
+  // --- 議事録の追加（各フェーズ・会議ステップから直接格納可能） ---
+  async addMeetingNote(
+    projectId: string,
+    note: {
+      title: string
+      date: string
+      attendees: string[]
+      summary: string
+      decisions: string[]
+      nextTodos: string[]
+    }
+  ): Promise<void> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          meetingNotes: [note, ...(p.meetingNotes || [])]
         }
       }
       return p

@@ -19,7 +19,7 @@ import {
   UserPlus,
   CheckCircle2,
   Calendar,
-  MessageSquare,
+  Home,
   ShieldAlert,
   ArrowLeft,
   Package,
@@ -151,9 +151,9 @@ export default function App() {
   const [newResidentUnit, setNewResidentUnit] = useState('Unit 301 - A室');
   const [newResidentRole, setNewResidentRole] = useState('一般寮生');
 
-  // 📖 全画面表示中のプロジェクトID ＆ 詳細タブ
+  // 📖 全画面表示中のプロジェクトID ＆ 詳細タブ（ホーム / 企画書 / スタッフ）
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [selectedProjectTab, setSelectedProjectTab] = useState<'workflow' | 'proposal' | 'meeting' | 'members' | 'evaluation' | 'schedule'>('workflow');
+  const [selectedProjectTab, setSelectedProjectTab] = useState<'home' | 'proposal' | 'members'>('home');
 
   // 📝 振り返り（関係者手動スコアリング）入力モーダル
   const [evalTargetResident, setEvalTargetResident] = useState<{ id: string; name: string; role: 'PL' | 'GL' | 'メンバー' } | null>(null);
@@ -173,6 +173,15 @@ export default function App() {
   const [isAddStepModalOpen, setIsAddStepModalOpen] = useState(false);
   const [newStepTitle, setNewStepTitle] = useState('');
   const [newStepDate, setNewStepDate] = useState('');
+
+  // 📋 議事録追加モーダルステート（会議ステップから直接格納可能）
+  const [isAddMeetingModalOpen, setIsAddMeetingModalOpen] = useState(false);
+  const [newMeetingTitle, setNewMeetingTitle] = useState('');
+  const [newMeetingDate, setNewMeetingDate] = useState('');
+  const [newMeetingAttendees, setNewMeetingAttendees] = useState('');
+  const [newMeetingSummary, setNewMeetingSummary] = useState('');
+  const [newMeetingDecisions, setNewMeetingDecisions] = useState('');
+  const [newMeetingTodos, setNewMeetingTodos] = useState('');
 
   // 👤 名簿詳細・活動振り返りカルテ閲覧モーダル
   const [selectedRosterResident, setSelectedRosterResident] = useState<ResidentRecord | null>(null);
@@ -523,6 +532,12 @@ export default function App() {
               nextAction: p.nextAction,
               createdAt: p.createdAt,
               members: p.members || [],
+              isEventWorkflow: p.isEventWorkflow,
+              workflowStage: p.workflowStage,
+              workflowSteps: p.workflowSteps,
+              theme: p.theme,
+              groups: p.groups,
+              evaluations: p.evaluations,
               meetingNotes: p.meetingNotes,
               proposalDoc: p.proposalDoc,
               schedule: p.schedule
@@ -1376,7 +1391,7 @@ export default function App() {
                       key={pj.id}
                       onClick={() => {
                         setSelectedProjectId(pj.id);
-                        setSelectedProjectTab('proposal');
+                        setSelectedProjectTab('home');
                       }}
                       style={{
                         backgroundColor: '#fff',
@@ -1646,32 +1661,32 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* タブナビゲーション（運営フロー / 企画書 / 議事録 / スタッフ / 関係者評価 / 進行計画） */}
-                <div style={{ display: 'flex', gap: 6, marginTop: 16, borderBottom: '1px solid #e7e5e4', paddingBottom: 2, overflowX: 'auto' }}>
+                {/* タブナビゲーション（ホーム / 企画書 / スタッフ）※3項目にシンプル化 */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 16, borderBottom: '1px solid #e7e5e4', paddingBottom: 2, overflowX: 'auto' }}>
                   <button
-                    onClick={() => setSelectedProjectTab('workflow')}
+                    onClick={() => setSelectedProjectTab('home')}
                     style={{
-                      padding: '8px 12px',
+                      padding: '8px 16px',
                       fontSize: 13,
                       fontWeight: 800,
                       background: 'transparent',
                       border: 'none',
                       cursor: 'pointer',
-                      borderBottom: selectedProjectTab === 'workflow' ? '3px solid #ea580c' : '3px solid transparent',
-                      color: selectedProjectTab === 'workflow' ? '#ea580c' : '#78716c',
+                      borderBottom: selectedProjectTab === 'home' ? '3px solid #ea580c' : '3px solid transparent',
+                      color: selectedProjectTab === 'home' ? '#ea580c' : '#78716c',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 5,
+                      gap: 6,
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    <Award size={15} />
-                    運営フロー・班
+                    <Home size={15} />
+                    ホーム
                   </button>
                   <button
                     onClick={() => setSelectedProjectTab('proposal')}
                     style={{
-                      padding: '8px 12px',
+                      padding: '8px 16px',
                       fontSize: 13,
                       fontWeight: 800,
                       background: 'transparent',
@@ -1681,7 +1696,7 @@ export default function App() {
                       color: selectedProjectTab === 'proposal' ? '#ea580c' : '#78716c',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 5,
+                      gap: 6,
                       whiteSpace: 'nowrap'
                     }}
                   >
@@ -1689,29 +1704,9 @@ export default function App() {
                     企画書
                   </button>
                   <button
-                    onClick={() => setSelectedProjectTab('meeting')}
-                    style={{
-                      padding: '8px 12px',
-                      fontSize: 13,
-                      fontWeight: 800,
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      borderBottom: selectedProjectTab === 'meeting' ? '3px solid #ea580c' : '3px solid transparent',
-                      color: selectedProjectTab === 'meeting' ? '#ea580c' : '#78716c',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <MessageSquare size={15} />
-                    議事録 ({pj.meetingNotes?.length || 1})
-                  </button>
-                  <button
                     onClick={() => setSelectedProjectTab('members')}
                     style={{
-                      padding: '8px 12px',
+                      padding: '8px 16px',
                       fontSize: 13,
                       fontWeight: 800,
                       background: 'transparent',
@@ -1721,60 +1716,20 @@ export default function App() {
                       color: selectedProjectTab === 'members' ? '#ea580c' : '#78716c',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 5,
+                      gap: 6,
                       whiteSpace: 'nowrap'
                     }}
                   >
                     <Users size={15} />
                     スタッフ ({pj.members.length})
                   </button>
-                  <button
-                    onClick={() => setSelectedProjectTab('evaluation')}
-                    style={{
-                      padding: '8px 12px',
-                      fontSize: 13,
-                      fontWeight: 800,
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      borderBottom: selectedProjectTab === 'evaluation' ? '3px solid #ea580c' : '3px solid transparent',
-                      color: selectedProjectTab === 'evaluation' ? '#ea580c' : '#78716c',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Star size={15} />
-                    みんなの振り返り ({pj.evaluations?.length || 0})
-                  </button>
-                  <button
-                    onClick={() => setSelectedProjectTab('schedule')}
-                    style={{
-                      padding: '8px 12px',
-                      fontSize: 13,
-                      fontWeight: 800,
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      borderBottom: selectedProjectTab === 'schedule' ? '3px solid #ea580c' : '3px solid transparent',
-                      color: selectedProjectTab === 'schedule' ? '#ea580c' : '#78716c',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Calendar size={15} />
-                    進行計画
-                  </button>
                 </div>
               </div>
 
               {/* タブコンテンツ */}
               <div style={{ padding: '20px', flex: 1 }}>
-                {/* 0. 運営フロー・班編成タブ（スライド実務構造） */}
-                {selectedProjectTab === 'workflow' && (
+                {/* 0. ホームタブ（運営フロー・タイムライン・班編成） */}
+                {selectedProjectTab === 'home' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                     {/* テーマバナー */}
                     <div
@@ -1797,7 +1752,7 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* ⏱️ 3大フェーズ プログレスステップバー（追加・カスタマイズ可能） */}
+                    {/* ⏱️ 運営タイムライン（白紙からの作成 ＆ 各ステップボタンからのダイレクト連動） */}
                     <div
                       style={{
                         backgroundColor: '#fff',
@@ -1809,11 +1764,16 @@ export default function App() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                         <div>
-                          <span style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', display: 'block' }}>
-                            🎯 運営タイムライン（フェーズ ＆ 承認パイプライン）
-                          </span>
-                          <span style={{ fontSize: 11, color: '#78716c' }}>
-                            ※企画の規模や進行に合わせてステップを自由に追加・カスタマイズできます
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 14, fontWeight: 900, color: '#1c1917' }}>
+                              🎯 運営タイムライン（フェーズ ＆ 承認パイプライン）
+                            </span>
+                            <span style={{ fontSize: 10, color: '#ea580c', backgroundColor: '#fff7ed', padding: '2px 8px', borderRadius: 6, fontWeight: 800 }}>
+                              クリックして資料閲覧・入力
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 11, color: '#78716c', display: 'block', marginTop: 2 }}>
+                            ※各ステップをクリックすると、該当フェーズの議事録・企画書・振り返り・タスクが直接開きます
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1846,52 +1806,149 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* ステップバー */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
-                        {(pj.workflowSteps || [
-                          { id: 'st-1', step: '1', title: 'アイデア・班決定', date: '10/6〜10/13', active: true, done: true },
-                          { id: 'st-2', step: '2', title: '先行締切・要件確定', date: '〜10/31', active: true, done: false },
-                          { id: 'st-3', step: '3', title: 'EA企画書提出', date: '11/10', active: false, done: false },
-                          { id: 'st-4', step: '4', title: '西松建設 承認申請', date: '11/17', active: false, done: false },
-                          { id: 'st-5', step: '5', title: '決算書・注文/実働', date: '11月下旬〜', active: false, done: false },
-                          { id: 'st-6', step: '6', title: '全体リハ ＆ 当日', date: '12/16・17', active: false, done: false },
-                          { id: 'st-7', step: '7', title: '振り返り・次回への教訓', date: '12/18〜', active: false, done: false }
-                        ]).map((st) => (
-                          <div
-                            key={st.id || st.step}
+                      {/* 白紙状態：運営フローが未作成の場合 */}
+                      {(!pj.workflowSteps || pj.workflowSteps.length === 0) ? (
+                        <div
+                          style={{
+                            backgroundColor: '#fafaf9',
+                            border: '2px dashed #fed7aa',
+                            borderRadius: 14,
+                            padding: '28px 20px',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+                          <strong style={{ fontSize: 15, color: '#1c1917', display: 'block', marginBottom: 4 }}>
+                            運営フローがまだ作成されていません
+                          </strong>
+                          <p style={{ fontSize: 12, color: '#78716c', maxWidth: 440, margin: '0 auto 16px', lineHeight: 1.6 }}>
+                            白紙の状態から企画の運営フローを作成しましょう。標準の5大フェーズ（アイデア ➔ 企画書 ➔ 準備 ➔ 当日 ➔ 振り返り）が自動セットされ、自由に追加・変更できます。
+                          </p>
+                          <button
+                            onClick={async () => {
+                              await dbService.createWorkflowFromScratch(pj.id);
+                              const updated = await dbService.getProjects();
+                              setProjects(updated);
+                            }}
                             style={{
-                              padding: '10px 8px',
+                              backgroundColor: '#ea580c',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '10px 22px',
                               borderRadius: 10,
-                              backgroundColor: st.done ? '#f0fdf4' : st.active ? '#fff7ed' : '#f8fafc',
-                              border: st.done ? '1.5px solid #86efac' : st.active ? '1.5px solid #fed7aa' : '1px solid #e2e8f0',
-                              textAlign: 'center'
+                              fontSize: 13,
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              boxShadow: '0 4px 14px rgba(234, 88, 12, 0.25)'
                             }}
                           >
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                width: 20,
-                                height: 20,
-                                borderRadius: '50%',
-                                backgroundColor: st.done ? '#16a34a' : st.active ? '#ea580c' : '#94a3b8',
-                                color: '#fff',
-                                fontSize: 11,
-                                fontWeight: 800,
-                                lineHeight: '20px',
-                                marginBottom: 4
-                              }}
-                            >
-                              {st.done ? '✓' : st.step}
-                            </span>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', lineHeight: 1.25 }}>
-                              {st.title}
-                            </div>
-                            <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginTop: 2 }}>
-                              {st.date}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                            <Plus size={16} />
+                            ＋ 運営フローを作成する
+                          </button>
+                        </div>
+                      ) : (
+                        /* ステップバー：各ステップをクリックしてダイレクトに資料閲覧・編集 */
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 10 }}>
+                          {pj.workflowSteps.map((st) => {
+                            // ステップ種別の判定
+                            const isMeetingStep = st.title.includes('会議') || st.title.includes('アイデア') || st.title.includes('MTG');
+                            const isProposalStep = st.title.includes('企画書') || st.title.includes('EA') || st.title.includes('西松');
+                            const isEvalStep = st.title.includes('振り返り') || st.title.includes('教訓') || st.title.includes('評価');
+
+                            return (
+                              <div
+                                key={st.id || st.step}
+                                onClick={() => {
+                                  if (isMeetingStep) {
+                                    setNewMeetingTitle(`${st.title} 議事録`);
+                                    setNewMeetingDate(new Date().toISOString().slice(0, 10));
+                                    setIsAddMeetingModalOpen(true);
+                                  } else if (isProposalStep) {
+                                    setSelectedProjectTab('proposal');
+                                  } else if (isEvalStep) {
+                                    setEvalTargetResident({
+                                      id: pj.members[0]?.residentId || 'r1',
+                                      name: pj.members[0]?.name || pj.owner,
+                                      role: 'PL'
+                                    });
+                                  } else {
+                                    // 完了トグル
+                                    dbService.updateWorkflowStep(pj.id, st.id, { done: !st.done }).then(() => {
+                                      dbService.getProjects().then(setProjects);
+                                    });
+                                  }
+                                }}
+                                title="クリックしてこのフェーズの資料・入力を開く"
+                                style={{
+                                  padding: '12px 10px',
+                                  borderRadius: 12,
+                                  backgroundColor: st.done ? '#f0fdf4' : st.active ? '#fff7ed' : '#ffffff',
+                                  border: st.done ? '2px solid #86efac' : st.active ? '2px solid #fed7aa' : '1.5px solid #e2e8f0',
+                                  textAlign: 'center',
+                                  cursor: 'pointer',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                                  transition: 'all 0.15s ease',
+                                  position: 'relative'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.transform = 'translateY(-2px)';
+                                  e.currentTarget.style.boxShadow = '0 6px 14px rgba(234, 88, 12, 0.15)';
+                                  e.currentTarget.style.borderColor = '#ea580c';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.03)';
+                                  e.currentTarget.style.borderColor = st.done ? '#86efac' : st.active ? '#fed7aa' : '#e2e8f0';
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 6 }}>
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      width: 22,
+                                      height: 22,
+                                      borderRadius: '50%',
+                                      backgroundColor: st.done ? '#16a34a' : st.active ? '#ea580c' : '#94a3b8',
+                                      color: '#fff',
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      lineHeight: '22px'
+                                    }}
+                                  >
+                                    {st.done ? '✓' : st.step}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 12, fontWeight: 900, color: '#1c1917', lineHeight: 1.3 }}>
+                                  {st.title}
+                                </div>
+                                <span style={{ fontSize: 10, color: '#64748b', display: 'block', marginTop: 4 }}>
+                                  {st.date}
+                                </span>
+
+                                {/* 押したときの誘導バッジ */}
+                                <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed #e2e8f0' }}>
+                                  <span
+                                    style={{
+                                      fontSize: 9,
+                                      fontWeight: 800,
+                                      color: isMeetingStep ? '#0284c7' : isProposalStep ? '#ea580c' : isEvalStep ? '#16a34a' : '#78716c',
+                                      backgroundColor: isMeetingStep ? '#e0f2fe' : isProposalStep ? '#ffedd5' : isEvalStep ? '#dcfce7' : '#f1f5f9',
+                                      padding: '2px 6px',
+                                      borderRadius: 4,
+                                      display: 'inline-block'
+                                    }}
+                                  >
+                                    {isMeetingStep ? '📝 議事録' : isProposalStep ? '📄 企画書へ' : isEvalStep ? '⭐ 振り返り' : '✓ 完了切替'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* 2段階承認ステータスインフォ */}
                       <div
@@ -2210,342 +2267,82 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 2. 議事録タブ */}
-                {selectedProjectTab === 'meeting' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {(pj.meetingNotes && pj.meetingNotes.length > 0 ? pj.meetingNotes : [
-                      {
-                        date: pj.createdAt || '2026-10-06',
-                        title: `${pj.title} キックオフMTG`,
-                        attendees: pj.members.map((m) => m.name),
-                        summary: pj.description || 'プロジェクトの方向性と直近のネクストアクションを合意。',
-                        decisions: ['プロジェクトの正式立ち上げ', `次回アクション: ${pj.nextAction}`],
-                        nextTodos: [`${pj.owner}: 関係者への連絡と資料準備`]
-                      }
-                    ]).map((mn, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          backgroundColor: '#fff',
-                          border: '1.5px solid #fed7aa',
-                          borderRadius: 14,
-                          padding: 18,
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                          <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
-                            📅 {mn.date}
-                          </span>
-                          <span style={{ fontSize: 12, color: '#78716c' }}>
-                            参加者: {mn.attendees.join('、 ')}
-                          </span>
-                        </div>
-
-                        <h4 style={{ fontSize: 15, fontWeight: 800, color: '#1c1917', marginBottom: 8 }}>
-                          {mn.title}
-                        </h4>
-
-                        <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, marginBottom: 12 }}>
-                          {mn.summary}
-                        </p>
-
-                        <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'block', marginBottom: 4 }}>
-                            ✅ 決定・合意事項
-                          </span>
-                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#14532d', lineHeight: 1.6 }}>
-                            {mn.decisions.map((d, i) => (
-                              <li key={i}>{d}</li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: '#9a3412', display: 'block', marginBottom: 4 }}>
-                            📝 次のTODO
-                          </span>
-                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
-                            {mn.nextTodos.map((t, i) => (
-                              <li key={i}>{t}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 3. スタッフメンバータブ */}
+                {/* 2. スタッフタブ */}
                 {selectedProjectTab === 'members' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: '#1c1917' }}>
-                        参加スタッフ一覧（{pj.members.length}名）
-                      </span>
-                      <span style={{ fontSize: 11, color: '#78716c' }}>
-                        H生なら誰でも自由に参加・協力できます
-                      </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
+                      <div>
+                        <h4 style={{ fontSize: 15, fontWeight: 900, color: '#1c1917', margin: 0 }}>
+                          👥 参加スタッフ一覧（{pj.members.length}名）
+                        </h4>
+                        <span style={{ fontSize: 11, color: '#78716c' }}>
+                          役職（PL / GL / メンバー）と所属班。誰でも自由に参加・協力できます。
+                        </span>
+                      </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
                       {pj.members.map((m) => (
                         <div
                           key={m.residentId}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
+                            justifyContent: 'space-between',
                             gap: 12,
-                            padding: '10px 14px',
+                            padding: '12px 14px',
                             backgroundColor: '#fff',
-                            border: '1px solid #e7e5e4',
-                            borderRadius: 12
+                            border: '1.5px solid #fed7aa',
+                            borderRadius: 12,
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
                           }}
                         >
-                          <img
-                            src={m.avatar}
-                            alt={m.name}
-                            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <strong style={{ fontSize: 14, color: '#1c1917' }}>{m.name}</strong>
-                              {m.residentId === pj.ownerId && (
-                                <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
-                                  発起人
-                                </span>
-                              )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <img
+                              src={m.avatar}
+                              alt={m.name}
+                              style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
+                            />
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <strong style={{ fontSize: 14, color: '#1c1917' }}>{m.name}</strong>
+                                {m.residentId === pj.ownerId && (
+                                  <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
+                                    発起人
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 12, color: '#ea580c', fontWeight: 800, display: 'block', marginTop: 2 }}>
+                                {m.eventRole || m.role} {m.groupName ? `(${m.groupName})` : ''}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#78716c' }}>
+                                {m.building}棟
+                              </span>
                             </div>
-                            <span style={{ fontSize: 12, color: '#78716c', display: 'block', marginTop: 2 }}>
-                              {m.role} • {m.building}棟
-                            </span>
                           </div>
+
+                          <button
+                            onClick={() => {
+                              const r = residents.find((res) => res.id === m.residentId);
+                              if (r) setSelectedRosterResident(r);
+                            }}
+                            style={{
+                              backgroundColor: '#fff7ed',
+                              border: '1px solid #fed7aa',
+                              color: '#ea580c',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              padding: '5px 10px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            カルテ ➔
+                          </button>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {/* 3.5. みんなの振り返りタブ（AI自動採点完全排除・人間による直接スコアリング） */}
-                {selectedProjectTab === 'evaluation' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {/* ポリシーバナー */}
-                    <div style={{ backgroundColor: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <ShieldCheck size={20} color="#ea580c" />
-                        <div>
-                          <strong style={{ fontSize: 13, color: '#9a3412', display: 'block' }}>
-                            🛡️ 人間（関係者）による振り返りポリシー
-                          </strong>
-                          <span style={{ fontSize: 12, color: '#7c2d12' }}>
-                            AIによる自動採点は行いません。現場で共に汗を流した関係者（EA・PL・GL・メンバー）が直接星（★1〜5）とコメントを入力し、個人の名簿カルテへ統合されます。
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 被評価者クイック選択カード */}
-                    <div>
-                      <h4 style={{ fontSize: 14, fontWeight: 900, color: '#1c1917', marginBottom: 10 }}>
-                        👥 役職者・メンバーの振り返りを記録する
-                      </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-                        {pj.members.map((m) => (
-                          <div
-                            key={m.residentId}
-                            style={{
-                              backgroundColor: '#fff',
-                              border: '1px solid #e7e5e4',
-                              borderRadius: 12,
-                              padding: '12px 14px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <img src={m.avatar} alt={m.name} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} />
-                              <div>
-                                <strong style={{ fontSize: 13, color: '#1c1917' }}>{m.name}</strong>
-                                <span style={{ fontSize: 11, color: '#ea580c', fontWeight: 800, display: 'block' }}>
-                                  {m.eventRole || 'メンバー'} {m.groupName ? `(${m.groupName})` : ''}
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setEvalTargetResident({
-                                  id: m.residentId,
-                                  name: m.name,
-                                  role: (m.eventRole as any) || 'メンバー'
-                                });
-                              }}
-                              style={{
-                                backgroundColor: '#ea580c',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: 8,
-                                padding: '6px 12px',
-                                fontSize: 12,
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4
-                              }}
-                            >
-                              <Star size={12} />
-                              振り返り
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 蓄積された評価レコード一覧 */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                        <h4 style={{ fontSize: 14, fontWeight: 900, color: '#1c1917', margin: 0 }}>
-                          📊 蓄積された振り返りログ（{pj.evaluations?.length || 0}件）
-                        </h4>
-                        <span style={{ fontSize: 11, color: '#64748b' }}>
-                          🔒 課題・非公開メモはリーダーカルテとして保護
-                        </span>
-                      </div>
-
-                      {(!pj.evaluations || pj.evaluations.length === 0) ? (
-                        <div style={{ backgroundColor: '#f8fafc', padding: 24, textAlign: 'center', borderRadius: 12, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 13 }}>
-                          まだこのイベントの振り返りは記録されていません。上のボタンから手動で振り返りを入力できます。
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {pj.evaluations.map((ev) => (
-                            <div
-                              key={ev.id}
-                              style={{
-                                backgroundColor: '#fff',
-                                border: '1.5px solid #fed7aa',
-                                borderRadius: 14,
-                                padding: '16px',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-                              }}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ fontSize: 15, fontWeight: 900, color: '#1c1917' }}>
-                                      対象: {ev.targetResidentName}
-                                    </span>
-                                    <span style={{ backgroundColor: '#ffedd5', color: '#ea580c', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
-                                      {ev.targetRole}
-                                    </span>
-                                    <span style={{ backgroundColor: '#dcfce7', color: '#15803d', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
-                                      判定: {ev.aptitudeVerdict}
-                                    </span>
-                                  </div>
-                                  <span style={{ fontSize: 11, color: '#78716c', marginTop: 3, display: 'block' }}>
-                                    評価者: <strong>{ev.evaluatorName}</strong> ({ev.evaluatorRole}) • 記録日: {ev.createdAt}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* 4大指標スコア（人間手動） */}
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 12 }}>
-                                {[
-                                  { label: '統率・ファシリ', score: ev.scores.facilitation },
-                                  { label: '報連相・レスポンス', score: ev.scores.communication },
-                                  { label: '対外折衝・安全意識', score: ev.scores.safetyExternal },
-                                  { label: '期日・予算管理', score: ev.scores.scheduleBudget }
-                                ].map((item, idx) => (
-                                  <div key={idx} style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                                    <span style={{ fontSize: 10, color: '#64748b', display: 'block', fontWeight: 700 }}>
-                                      {item.label}
-                                    </span>
-                                    <div style={{ color: '#ea580c', fontSize: 13, fontWeight: 900, marginTop: 2 }}>
-                                      {'★'.repeat(item.score)}{'☆'.repeat(5 - item.score)}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* 定性フィードバック */}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}>
-                                  <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'block', marginBottom: 2 }}>
-                                    👍 いい面・強み（関係者の生の声）
-                                  </span>
-                                  <p style={{ margin: 0, fontSize: 12, color: '#14532d', lineHeight: 1.5 }}>
-                                    {ev.goodPoints}
-                                  </p>
-                                </div>
-
-                                {ev.badPoints && (
-                                  <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px' }}>
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', display: 'block', marginBottom: 2 }}>
-                                      ⚠️ 課題・悪い面・フォロー要（非公開リーダーカルテ）
-                                    </span>
-                                    <p style={{ margin: 0, fontSize: 12, color: '#7f1d1d', lineHeight: 1.5 }}>
-                                      {ev.badPoints}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. 進行計画（スケジュール）タブ */}
-                {selectedProjectTab === 'schedule' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {(pj.schedule && pj.schedule.length > 0 ? pj.schedule : [
-                      { date: pj.createdAt || '2026-10-06', milestone: '企画立ち上げ・課題の整理', completed: true },
-                      { date: '2026-10-10', milestone: pj.nextAction, completed: false },
-                      { date: '2026-10-20', milestone: '寮内実証・トライアル運用', completed: false }
-                    ]).map((sc, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 14,
-                          padding: '12px 16px',
-                          backgroundColor: sc.completed ? '#f0fdf4' : '#fff',
-                          border: sc.completed ? '1px solid #86efac' : '1px solid #e7e5e4',
-                          borderRadius: 12
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            backgroundColor: sc.completed ? '#15803d' : '#e7e5e4',
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 800,
-                            fontSize: 12,
-                            flexShrink: 0
-                          }}
-                        >
-                          {sc.completed ? '✓' : `${i + 1}`}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: sc.completed ? '#15803d' : '#ea580c' }}>
-                            {sc.date}
-                          </span>
-                          <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '2px 0 0' }}>
-                            {sc.milestone}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>
@@ -4830,6 +4627,247 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ========================================================= */}
+      {/* 📝 会議・アイデア議事録の閲覧 ＆ 新規作成モーダル */}
+      {/* ========================================================= */}
+      {isAddMeetingModalOpen && selectedProjectId && (() => {
+        const pj = projects.find((p) => p.id === selectedProjectId);
+        if (!pj) return null;
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 110,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: 20,
+                maxWidth: 620,
+                width: '100%',
+                overflow: 'hidden',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <div
+                style={{
+                  backgroundColor: '#ea580c',
+                  color: '#fff',
+                  padding: '16px 20px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileText size={20} />
+                  <h3 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>
+                    📝 会議・アイデア議事録（{pj.title}）
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsAddMeetingModalOpen(false)}
+                  style={{ background: 'transparent', color: '#fff', border: 'none', cursor: 'pointer', padding: 4 }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                {/* 既存の議事録一覧 */}
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', marginBottom: 8 }}>
+                    📜 保存された議事録ログ（{pj.meetingNotes?.length || 0}件）
+                  </h4>
+
+                  {(!pj.meetingNotes || pj.meetingNotes.length === 0) ? (
+                    <div style={{ backgroundColor: '#f8fafc', padding: 14, borderRadius: 10, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12, textAlign: 'center' }}>
+                      まだ議事録が記録されていません。下のフォームから議事録を追加してください。
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {pj.meetingNotes.map((mn, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            backgroundColor: '#fff7ed',
+                            border: '1px solid #fed7aa',
+                            borderRadius: 12,
+                            padding: '12px 14px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <strong style={{ fontSize: 13, color: '#9a3412' }}>{mn.title}</strong>
+                            <span style={{ fontSize: 11, color: '#7c2d12', fontWeight: 800 }}>📅 {mn.date}</span>
+                          </div>
+                          <p style={{ fontSize: 12, color: '#431407', margin: '0 0 6px', lineHeight: 1.5 }}>
+                            {mn.summary}
+                          </p>
+                          <div style={{ fontSize: 11, color: '#15803d', fontWeight: 800 }}>
+                            ✅ 決定事項: {mn.decisions.join('、 ')}
+                          </div>
+                          {mn.nextTodos && mn.nextTodos.length > 0 && (
+                            <div style={{ fontSize: 11, color: '#b45309', fontWeight: 800, marginTop: 2 }}>
+                              📝 次のTODO: {mn.nextTodos.join('、 ')}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 新規議事録作成フォーム */}
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!newMeetingTitle.trim()) {
+                      alert('会議名を入力してください');
+                      return;
+                    }
+                    await dbService.addMeetingNote(pj.id, {
+                      title: newMeetingTitle.trim(),
+                      date: newMeetingDate.trim() || new Date().toISOString().slice(0, 10),
+                      attendees: newMeetingAttendees.split(',').map((s) => s.trim()).filter(Boolean),
+                      summary: newMeetingSummary.trim(),
+                      decisions: newMeetingDecisions.split('\n').map((s) => s.trim()).filter(Boolean),
+                      nextTodos: newMeetingTodos.split('\n').map((s) => s.trim()).filter(Boolean)
+                    });
+                    const updated = await dbService.getProjects();
+                    setProjects(updated);
+                    setIsAddMeetingModalOpen(false);
+                    setNewMeetingTitle('');
+                    setNewMeetingSummary('');
+                    setNewMeetingDecisions('');
+                    setNewMeetingTodos('');
+                  }}
+                  style={{
+                    backgroundColor: '#fafaf9',
+                    border: '1.5px solid #e7e5e4',
+                    borderRadius: 14,
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12
+                  }}
+                >
+                  <h4 style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', margin: 0 }}>
+                    ➕ 新しい議事録・決定事項を記録する
+                  </h4>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
+                        会議・議題タイトル <span style={{ color: '#ea580c' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newMeetingTitle}
+                        onChange={(e) => setNewMeetingTitle(e.target.value)}
+                        placeholder="例: 全体会（アイデア出し・テーマ選定）"
+                        required
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
+                        開催日
+                      </label>
+                      <input
+                        type="date"
+                        value={newMeetingDate}
+                        onChange={(e) => setNewMeetingDate(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
+                      参加者（カンマ区切り）
+                    </label>
+                    <input
+                      type="text"
+                      value={newMeetingAttendees}
+                      onChange={(e) => setNewMeetingAttendees(e.target.value)}
+                      placeholder="例: 岡本直樹, 鈴木花子, 佐藤健"
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
+                      話し合った概要・要約
+                    </label>
+                    <textarea
+                      value={newMeetingSummary}
+                      onChange={(e) => setNewMeetingSummary(e.target.value)}
+                      placeholder="例: クリスマスイベントのテーマ選定および3班体制への分割について合意。"
+                      rows={2}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
+                      決定事項（改行で複数行）
+                    </label>
+                    <textarea
+                      value={newMeetingDecisions}
+                      onChange={(e) => setNewMeetingDecisions(e.target.value)}
+                      placeholder="例:&#10;・テーマを「それぞれの層が楽しめるクリスマス」に決定&#10;・EA申請期限を11月30日に設定"
+                      rows={2}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
+                      次のTODO・担当（改行で複数行）
+                    </label>
+                    <textarea
+                      value={newMeetingTodos}
+                      onChange={(e) => setNewMeetingTodos(e.target.value)}
+                      placeholder="例:&#10;・岡本: EA企画書の初稿作成&#10;・鈴木: 装飾品の仮見積もり取得"
+                      rows={2}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddMeetingModalOpen(false)}
+                      style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      閉じる
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: '#ea580c', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 800 }}
+                    >
+                      議事録を保存する
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
