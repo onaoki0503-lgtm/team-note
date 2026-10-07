@@ -103,6 +103,9 @@ export interface ProjectRecord {
   description?: string
   bannerImage?: string
   
+  // 企画種別（イベント企画 vs 日常運営プロジェクト）
+  projectType?: 'event' | 'operation' // 'event': 班編成・GL/PL役職・振り返り有効 / 'operation': 日常運営・布巾交換等のシンプル管理
+  
   // イベント運営フロー連携（スライド実務構造）
   isEventWorkflow?: boolean // イベント運営フロー適用フラグ
   workflowStage?: 'planning' | 'ea_review' | 'nishimatsu_review' | 'action_prep' | 'rehearsal_day' | 'retrospective'
@@ -342,6 +345,13 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     createdAt: '2026-10-01',
     description: '共用キッチンの布巾の生乾き臭と衛生リスクを解消し、使い捨てペーパーロールディスペンサーを自治会費で試験導入する。',
     bannerImage: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80',
+    projectType: 'operation',
+    workflowSteps: [
+      { id: 'op-1', step: '1', title: '課題特定・実地調査', date: '10/1〜10/3', active: true, done: true },
+      { id: 'op-2', step: '2', title: '試作機設置・検証', date: '10/4〜10/7', active: true, done: true },
+      { id: 'op-3', step: '3', title: '運用ルール・備品確定', date: '10/8〜10/10', active: true, done: false },
+      { id: 'op-4', step: '4', title: '4棟配備・常時運用', date: '10/15〜', active: false, done: false }
+    ],
     members: [
       {
         residentId: 'r1',
@@ -433,6 +443,12 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     createdAt: '2026-10-03',
     description: '各棟1Fコモンズは規約上全員利用可能なのに玄関で弾かれる既存システムの矛盾を、昼間限定の認証共通化で突破する。',
     bannerImage: 'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?auto=format&fit=crop&w=800&q=80',
+    projectType: 'operation',
+    workflowSteps: [
+      { id: 'op2-1', step: '1', title: '規約矛盾の調査・整理', date: '10/3〜10/5', active: true, done: true },
+      { id: 'op2-2', step: '2', title: '学事システム相談', date: '10/6〜10/10', active: true, done: false },
+      { id: 'op2-3', step: '3', title: 'カードキー一括登録', date: '10/15〜', active: false, done: false }
+    ],
     members: [
       {
         residentId: 'r1',
@@ -499,6 +515,7 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
     createdAt: '2026-10-06',
     description: '「それぞれの層が楽しめる！」をテーマに、イベント班・装飾班・ディナー班の3班体制で企画。EA・西松建設の2段階承認とリハを経て当日成功を目指す公式イベント。',
     bannerImage: 'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=800&q=80',
+    projectType: 'event',
     isEventWorkflow: true,
     workflowStage: 'planning',
     theme: '今年のテーマは、それぞれの層が楽しめる！',
@@ -1275,15 +1292,22 @@ export const dbService = {
   // --- 業務フローステップの追加・更新・白紙作成（企画ごとの進行ステップにカスタマイズ） ---
   async createWorkflowFromScratch(
     projectId: string,
-    initialSteps?: Omit<EventWorkflowStep, 'id'>[]
+    initialSteps?: Omit<EventWorkflowStep, 'id'>[],
+    type?: 'event' | 'operation'
   ): Promise<EventWorkflowStep[]> {
-    const defaultInitial: EventWorkflowStep[] = (initialSteps || [
+    const isOp = type === 'operation'
+    const defaultInitial: EventWorkflowStep[] = (initialSteps || (isOp ? [
+      { step: '1', title: '課題特定・実地調査', date: '初期調査', active: true, done: false },
+      { step: '2', title: '試作機設置・検証', date: '検証フェーズ', active: false, done: false },
+      { step: '3', title: '運用ルール・備品確定', date: '運用策定', active: false, done: false },
+      { step: '4', title: '4棟配備・常時運用', date: '本番運用', active: false, done: false }
+    ] : [
       { step: '1', title: 'アイデア・班決定', date: '初期フェーズ', active: true, done: false },
       { step: '2', title: '企画書・要件チェック', date: '企画フェーズ', active: false, done: false },
       { step: '3', title: '実働準備・リハ', date: '準備フェーズ', active: false, done: false },
       { step: '4', title: 'イベント当日', date: '本番', active: false, done: false },
       { step: '5', title: 'みんなの振り返り', date: '完了フェーズ', active: false, done: false }
-    ]).map((s, idx) => ({
+    ])).map((s, idx) => ({
       ...s,
       id: `step-${Date.now()}-${idx}`
     }))
@@ -1293,7 +1317,8 @@ export const dbService = {
       if (p.id === projectId) {
         return {
           ...p,
-          isEventWorkflow: true,
+          projectType: type || p.projectType || 'event',
+          isEventWorkflow: !isOp,
           workflowSteps: defaultInitial
         }
       }

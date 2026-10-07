@@ -62,6 +62,7 @@ interface Project {
   status: any;
   nextAction: string;
   createdAt?: string;
+  projectType?: 'event' | 'operation';
   isEventWorkflow?: boolean;
   workflowStage?: string;
   workflowSteps?: EventWorkflowStep[];
@@ -124,8 +125,15 @@ export default function App() {
   // モーダル入力
   const [ideaTitle, setIdeaTitle] = useState('');
   const [ideaContent, setIdeaContent] = useState('');
+  const [ideaProjectType, setIdeaProjectType] = useState<'event' | 'operation'>('event');
   const [meetingNoteText, setMeetingNoteText] = useState('');
   const [attachedImageName, setAttachedImageName] = useState<string | null>(null);
+
+  // 📂 フロー項目クリック時の「全画面ファイル管理・閲覧ビュー」ステート
+  // stepIdが指定された場合、全画面で左カラム（書類・ステップ一覧）と中央（ファイル閲覧・入力）を表示
+  const [activeWorkflowStepView, setActiveWorkflowStepView] = useState<{ stepId: string; stepTitle: string } | null>(null);
+  const [activeExplorerDoc, setActiveExplorerDoc] = useState<'proposal' | 'meeting' | 'evaluation' | 'rules'>('proposal');
+  const [selectedEvaluationResidentId, setSelectedEvaluationResidentId] = useState<string | null>(null);
 
   // マッピングノード
   const [nodes, setNodes] = useState<MapNode[]>([]);
@@ -589,16 +597,31 @@ export default function App() {
     setIsModalOpen(false);
 
     // 進行中プロジェクトにも自動登録 & DB保存
+    const isOp = ideaProjectType === 'operation';
     const newProject: Project = {
       id: `pj-${Date.now()}`,
-      title: ideaTitle || '新規改善プロジェクト',
-      category: 'アイデア運営',
+      title: ideaTitle || (isOp ? '新規日常改善プロジェクト' : '新規イベント企画'),
+      category: isOp ? '衛生・備品' : 'イベント・交流',
       description: ideaContent,
+      projectType: ideaProjectType,
+      isEventWorkflow: !isOp,
+      workflowSteps: isOp ? [
+        { id: 'op-1', step: '1', title: '課題特定・実地調査', date: '初期調査', active: true, done: false },
+        { id: 'op-2', step: '2', title: '試作機設置・検証', date: '検証フェーズ', active: false, done: false },
+        { id: 'op-3', step: '3', title: '運用ルール・備品確定', date: '運用策定', active: false, done: false },
+        { id: 'op-4', step: '4', title: '4棟配備・常時運用', date: '本番運用', active: false, done: false }
+      ] : [
+        { id: 'ev-1', step: '1', title: 'アイデア・班決定', date: '初期フェーズ', active: true, done: false },
+        { id: 'ev-2', step: '2', title: '企画書・要件チェック', date: '企画フェーズ', active: false, done: false },
+        { id: 'ev-3', step: '3', title: '実働準備・リハ', date: '準備フェーズ', active: false, done: false },
+        { id: 'ev-4', step: '4', title: 'イベント当日', date: '本番', active: false, done: false },
+        { id: 'ev-5', step: '5', title: 'みんなの振り返り', date: '完了フェーズ', active: false, done: false }
+      ],
       progress: 15,
       owner: `${currentUser.name} (${currentUser.role})`,
       ownerId: currentUser.id,
       status: 'planning',
-      nextAction: '思考マッピングの整理・関係者ヒアリング',
+      nextAction: isOp ? '現場写真の撮影と運用課題ヒアリング' : 'キックオフMTG・班編成の検討',
       createdAt: new Date().toISOString().slice(0, 10),
       members: [
         {
@@ -606,6 +629,7 @@ export default function App() {
           name: currentUser.name,
           avatar: currentUser.avatar,
           role: currentUser.role,
+          eventRole: isOp ? 'メンバー' : 'PL',
           building: currentUser.building,
           joinedAt: new Date().toISOString().slice(0, 10)
         }
@@ -622,6 +646,9 @@ export default function App() {
       nextAction: newProject.nextAction,
       proposalsCount: 1,
       description: newProject.description,
+      projectType: newProject.projectType,
+      isEventWorkflow: newProject.isEventWorkflow,
+      workflowSteps: newProject.workflowSteps,
       members: newProject.members
     });
   };
@@ -1822,11 +1849,11 @@ export default function App() {
                             運営フローがまだ作成されていません
                           </strong>
                           <p style={{ fontSize: 12, color: '#78716c', maxWidth: 440, margin: '0 auto 16px', lineHeight: 1.6 }}>
-                            白紙の状態から企画の運営フローを作成しましょう。標準の5大フェーズ（アイデア ➔ 企画書 ➔ 準備 ➔ 当日 ➔ 振り返り）が自動セットされ、自由に追加・変更できます。
+                            白紙の状態から企画の運営フローを作成しましょう。{pj.projectType === 'operation' ? '日常改善向けのシンプル4フェーズ' : '標準の5大フェーズ'}が自動セットされ、自由に追加・変更できます。
                           </p>
                           <button
                             onClick={async () => {
-                              await dbService.createWorkflowFromScratch(pj.id);
+                              await dbService.createWorkflowFromScratch(pj.id, undefined, pj.projectType);
                               const updated = await dbService.getProjects();
                               setProjects(updated);
                             }}
@@ -1850,38 +1877,25 @@ export default function App() {
                           </button>
                         </div>
                       ) : (
-                        /* ステップバー：各ステップをクリックしてダイレクトに資料閲覧・編集 */
+                        /* ステップバー：各ステップをクリックして全画面ファイル管理を開く */
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: 10 }}>
                           {pj.workflowSteps.map((st) => {
-                            // ステップ種別の判定
                             const isMeetingStep = st.title.includes('会議') || st.title.includes('アイデア') || st.title.includes('MTG');
-                            const isProposalStep = st.title.includes('企画書') || st.title.includes('EA') || st.title.includes('西松');
+                            const isProposalStep = st.title.includes('企画書') || st.title.includes('EA') || st.title.includes('西松') || st.title.includes('要件');
                             const isEvalStep = st.title.includes('振り返り') || st.title.includes('教訓') || st.title.includes('評価');
 
                             return (
                               <div
                                 key={st.id || st.step}
                                 onClick={() => {
-                                  if (isMeetingStep) {
-                                    setNewMeetingTitle(`${st.title} 議事録`);
-                                    setNewMeetingDate(new Date().toISOString().slice(0, 10));
-                                    setIsAddMeetingModalOpen(true);
-                                  } else if (isProposalStep) {
-                                    setSelectedProjectTab('proposal');
-                                  } else if (isEvalStep) {
-                                    setEvalTargetResident({
-                                      id: pj.members[0]?.residentId || 'r1',
-                                      name: pj.members[0]?.name || pj.owner,
-                                      role: 'PL'
-                                    });
-                                  } else {
-                                    // 完了トグル
-                                    dbService.updateWorkflowStep(pj.id, st.id, { done: !st.done }).then(() => {
-                                      dbService.getProjects().then(setProjects);
-                                    });
-                                  }
+                                  // フロー項目をタップしたときは全画面ファイル管理を開く
+                                  setActiveWorkflowStepView({ stepId: st.id, stepTitle: st.title });
+                                  if (isMeetingStep) setActiveExplorerDoc('meeting');
+                                  else if (isEvalStep) setActiveExplorerDoc('evaluation');
+                                  else if (st.title.includes('ルール') || st.title.includes('備品')) setActiveExplorerDoc('rules');
+                                  else setActiveExplorerDoc('proposal');
                                 }}
-                                title="クリックしてこのフェーズの資料・入力を開く"
+                                title="クリックしてこのステップの全画面ファイル管理・閲覧を開く"
                                 style={{
                                   padding: '12px 10px',
                                   borderRadius: 12,
@@ -1941,7 +1955,7 @@ export default function App() {
                                       display: 'inline-block'
                                     }}
                                   >
-                                    {isMeetingStep ? '📝 議事録' : isProposalStep ? '📄 企画書へ' : isEvalStep ? '⭐ 振り返り' : '✓ 完了切替'}
+                                    📂 ファイルを開く ➔
                                   </span>
                                 </div>
                               </div>
@@ -1950,255 +1964,30 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* 2段階承認ステータスインフォ */}
-                      <div
-                        style={{
-                          marginTop: 14,
-                          padding: '10px 14px',
-                          backgroundColor: '#f8fafc',
-                          borderRadius: 10,
-                          border: '1px dashed #cbd5e1',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          flexWrap: 'wrap',
-                          gap: 10,
-                          fontSize: 12
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <ShieldCheck size={16} color="#0284c7" />
-                          <span><strong>承認パイプライン:</strong> ① EA（次郎さん等）安全・予算チェック ➔ ② 西松建設 施設許可</span>
-                        </div>
-                        <span style={{ color: '#b45309', fontWeight: 800, backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: 4 }}>
-                          🔒 承認取得後に「決算書・注文」がアンロックされます
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 🚩 班・チーム構成 ＆ 役職リーダー（GL / PL） */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                        <div>
-                          <h4 style={{ fontSize: 15, fontWeight: 900, color: '#1c1917', margin: 0 }}>
-                            🚩 班・チーム構成 ＆ 役職リーダー（GL / PL）
-                          </h4>
-                          <span style={{ fontSize: 11, color: '#78716c' }}>
-                            ※小規模企画はチームを作らず全体進行可能。必要に応じて「班・チームを追加」できます。
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
-                            {(!pj.groups || pj.groups.length === 0) ? 'チームなし（単一進行）' : `全${pj.groups.length}班編成`}
-                          </span>
-                          <button
-                            onClick={() => {
-                              setNewGroupName('');
-                              setNewGroupGlName('');
-                              setNewGroupMilestoneTitle('');
-                              setNewGroupMilestoneDeadline('');
-                              setIsAddGroupModalOpen(true);
-                            }}
-                            style={{
-                              backgroundColor: '#ea580c',
-                              color: '#fff',
-                              border: 'none',
-                              fontSize: 11,
-                              fontWeight: 800,
-                              padding: '5px 12px',
-                              borderRadius: 8,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4
-                            }}
-                          >
-                            <Plus size={13} />
-                            チーム・班を追加
-                          </button>
-                        </div>
-                      </div>
-
-                      {(!pj.groups || pj.groups.length === 0) ? (
+                      {/* イベント企画のみ承認パイプライン案内 */}
+                      {pj.projectType !== 'operation' && (
                         <div
                           style={{
-                            backgroundColor: '#fafaf9',
-                            border: '1.5px dashed #cbd5e1',
-                            borderRadius: 14,
-                            padding: '24px 20px',
-                            textAlign: 'center'
+                            marginTop: 14,
+                            padding: '10px 14px',
+                            backgroundColor: '#f8fafc',
+                            borderRadius: 10,
+                            border: '1px dashed #cbd5e1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                            fontSize: 12
                           }}
                         >
-                          <div style={{ fontSize: 24, marginBottom: 6 }}>👥</div>
-                          <strong style={{ fontSize: 14, color: '#1c1917', display: 'block', marginBottom: 4 }}>
-                            この企画はチーム分けなしで全体で進めています
-                          </strong>
-                          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px' }}>
-                            少人数の有志企画やスモールプロジェクトではチーム編成不要です。規模が大きくなったら班を追加できます。
-                          </p>
-                          <button
-                            onClick={() => {
-                              setNewGroupName('');
-                              setNewGroupGlName('');
-                              setNewGroupMilestoneTitle('');
-                              setNewGroupMilestoneDeadline('');
-                              setIsAddGroupModalOpen(true);
-                            }}
-                            style={{
-                              backgroundColor: '#fff',
-                              border: '1.5px solid #ea580c',
-                              color: '#ea580c',
-                              padding: '6px 14px',
-                              borderRadius: 8,
-                              fontSize: 12,
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4
-                            }}
-                          >
-                            <Plus size={14} />
-                            分科会・班を作成する
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
-                          {pj.groups.map((grp) => {
-                            const glMember = residents.find((r) => r.name === grp.glName);
-                            const isCertifiedGl = glMember?.careers?.some((c) => c.isCertifiedGl) ?? false;
-
-                            return (
-                              <div
-                                key={grp.id}
-                                style={{
-                                  backgroundColor: '#fff',
-                                  border: '1.5px solid #fed7aa',
-                                  borderRadius: 14,
-                                  padding: '16px',
-                                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  justifyContent: 'space-between'
-                                }}
-                              >
-                                <div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                                    <span style={{ fontSize: 15, fontWeight: 900, color: '#1c1917' }}>
-                                      {grp.name}
-                                    </span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: 6 }}>
-                                        メンバー {grp.membersCount || 1}名
-                                      </span>
-                                      <button
-                                        onClick={async () => {
-                                          if (confirm(`班「${grp.name}」を削除しますか？`)) {
-                                            if (selectedProjectId) {
-                                              await dbService.removeGroupFromProject(selectedProjectId, grp.id);
-                                              const updated = await dbService.getProjects();
-                                              setProjects(updated);
-                                            }
-                                          }
-                                        }}
-                                        title="班を削除"
-                                        style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}
-                                      >
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* GL情報 */}
-                                  <div
-                                    style={{
-                                      backgroundColor: '#fff7ed',
-                                      border: '1px solid #fed7aa',
-                                      borderRadius: 10,
-                                      padding: '10px 12px',
-                                      marginBottom: 10,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between'
-                                    }}
-                                  >
-                                    <div>
-                                      <span style={{ fontSize: 10, fontWeight: 800, color: '#ea580c', display: 'block' }}>
-                                        班のまとめ役（GL）
-                                      </span>
-                                      <strong style={{ fontSize: 14, color: '#1c1917' }}>
-                                        {grp.glName || '未任命'}
-                                      </strong>
-                                    </div>
-                                    {isCertifiedGl ? (
-                                      <span style={{ fontSize: 10, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                        <UserCheck size={12} />
-                                        ★GL経験者
-                                      </span>
-                                    ) : (
-                                      <span style={{ fontSize: 10, fontWeight: 800, color: '#b45309', backgroundColor: '#fef3c7', padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                        初GL挑戦
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {/* 班独自マイルストーン */}
-                                  {grp.milestoneTitle && (
-                                    <div style={{ backgroundColor: '#f8fafc', padding: '8px 10px', borderRadius: 8, fontSize: 11, color: '#475569', border: '1px solid #e2e8f0' }}>
-                                      <span style={{ color: '#ea580c', fontWeight: 800, display: 'block' }}>
-                                        先行締切: {grp.milestoneDeadline}
-                                      </span>
-                                      <span>{grp.milestoneTitle}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <button
-                                    onClick={() => {
-                                      if (glMember) setSelectedRosterResident(glMember);
-                                    }}
-                                    style={{
-                                      background: 'transparent',
-                                      border: 'none',
-                                      color: '#ea580c',
-                                      fontSize: 11,
-                                      fontWeight: 800,
-                                      cursor: 'pointer',
-                                      padding: 0
-                                    }}
-                                  >
-                                    GLの活動カルテを見る ➔
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEvalTargetResident({
-                                        id: glMember?.id || 'r2',
-                                        name: grp.glName || 'GL',
-                                        role: 'GL'
-                                      });
-                                    }}
-                                    style={{
-                                      backgroundColor: '#ea580c',
-                                      color: '#fff',
-                                      border: 'none',
-                                      fontSize: 11,
-                                      fontWeight: 800,
-                                      padding: '4px 10px',
-                                      borderRadius: 6,
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 3
-                                    }}
-                                  >
-                                    <Star size={11} />
-                                    振り返りを記録する
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <ShieldCheck size={16} color="#0284c7" />
+                            <span><strong>承認パイプライン:</strong> ① EA（次郎さん等）安全・予算チェック ➔ ② 西松建設 施設許可</span>
+                          </div>
+                          <span style={{ color: '#b45309', fontWeight: 800, backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: 4 }}>
+                            🔒 承認取得後に「決算書・注文」がアンロックされます
+                          </span>
                         </div>
                       )}
                     </div>
@@ -2267,81 +2056,1005 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 2. スタッフタブ */}
+                {/* 2. スタッフタブ（班・チーム構成 ＆ 参加スタッフ一覧を集約） */}
                 {selectedProjectTab === 'members' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
-                      <div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    {/* イベント企画のみ：班・チーム構成 ＆ 役職リーダー（GL / PL） */}
+                    {pj.projectType !== 'operation' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                          <div>
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#1c1917', margin: 0 }}>
+                              🚩 班・チーム構成 ＆ 役職リーダー（GL / PL）
+                            </h4>
+                            <span style={{ fontSize: 11, color: '#78716c' }}>
+                              ※小規模企画はチームを作らず全体進行可能。必要に応じて「班・チームを追加」できます。
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '3px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
+                              {(!pj.groups || pj.groups.length === 0) ? 'チームなし（単一進行）' : `全${pj.groups.length}班編成`}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setNewGroupName('');
+                                setNewGroupGlName('');
+                                setNewGroupMilestoneTitle('');
+                                setNewGroupMilestoneDeadline('');
+                                setIsAddGroupModalOpen(true);
+                              }}
+                              style={{
+                                backgroundColor: '#ea580c',
+                                color: '#fff',
+                                border: 'none',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                padding: '5px 12px',
+                                borderRadius: 8,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                            >
+                              <Plus size={13} />
+                              チーム・班を追加
+                            </button>
+                          </div>
+                        </div>
+
+                        {(!pj.groups || pj.groups.length === 0) ? (
+                          <div
+                            style={{
+                              backgroundColor: '#fafaf9',
+                              border: '1.5px dashed #cbd5e1',
+                              borderRadius: 14,
+                              padding: '20px',
+                              textAlign: 'center'
+                            }}
+                          >
+                            <strong style={{ fontSize: 13, color: '#1c1917', display: 'block', marginBottom: 2 }}>
+                              この企画はチーム分けなしで全体で進めています
+                            </strong>
+                            <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 10px' }}>
+                              少人数の有志企画やスモールプロジェクトではチーム編成不要です。
+                            </p>
+                            <button
+                              onClick={() => {
+                                setNewGroupName('');
+                                setNewGroupGlName('');
+                                setNewGroupMilestoneTitle('');
+                                setNewGroupMilestoneDeadline('');
+                                setIsAddGroupModalOpen(true);
+                              }}
+                              style={{
+                                backgroundColor: '#fff',
+                                border: '1.5px solid #ea580c',
+                                color: '#ea580c',
+                                padding: '5px 12px',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                            >
+                              <Plus size={12} />
+                              分科会・班を作成する
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+                            {pj.groups.map((grp) => {
+                              const glMember = residents.find((r) => r.name === grp.glName);
+                              const isCertifiedGl = glMember?.careers?.some((c) => c.isCertifiedGl) ?? false;
+
+                              return (
+                                <div
+                                  key={grp.id}
+                                  style={{
+                                    backgroundColor: '#fff',
+                                    border: '1.5px solid #fed7aa',
+                                    borderRadius: 14,
+                                    padding: '14px',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between'
+                                  }}
+                                >
+                                  <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                      <span style={{ fontSize: 14, fontWeight: 900, color: '#1c1917' }}>
+                                        {grp.name}
+                                      </span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ fontSize: 10, fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>
+                                          {grp.membersCount || 1}名
+                                        </span>
+                                        <button
+                                          onClick={async () => {
+                                            if (confirm(`班「${grp.name}」を削除しますか？`)) {
+                                              if (selectedProjectId) {
+                                                await dbService.removeGroupFromProject(selectedProjectId, grp.id);
+                                                const updated = await dbService.getProjects();
+                                                setProjects(updated);
+                                              }
+                                            }
+                                          }}
+                                          title="班を削除"
+                                          style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* GL情報 */}
+                                    <div
+                                      style={{
+                                        backgroundColor: '#fff7ed',
+                                        border: '1px solid #fed7aa',
+                                        borderRadius: 8,
+                                        padding: '8px 10px',
+                                        marginBottom: 8,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between'
+                                      }}
+                                    >
+                                      <div>
+                                        <span style={{ fontSize: 10, fontWeight: 800, color: '#ea580c', display: 'block' }}>
+                                          班のまとめ役（GL）
+                                        </span>
+                                        <strong style={{ fontSize: 13, color: '#1c1917' }}>
+                                          {grp.glName || '未任命'}
+                                        </strong>
+                                      </div>
+                                      {isCertifiedGl ? (
+                                        <span style={{ fontSize: 10, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                          <UserCheck size={11} />
+                                          ★GL経験者
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: 10, fontWeight: 800, color: '#b45309', backgroundColor: '#fef3c7', padding: '2px 6px', borderRadius: 4 }}>
+                                          初GL挑戦
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* 班独自マイルストーン */}
+                                    {grp.milestoneTitle && (
+                                      <div style={{ backgroundColor: '#f8fafc', padding: '6px 8px', borderRadius: 6, fontSize: 11, color: '#475569', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ color: '#ea580c', fontWeight: 800, display: 'block' }}>
+                                          先行締切: {grp.milestoneDeadline}
+                                        </span>
+                                        <span>{grp.milestoneTitle}</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <button
+                                      onClick={() => {
+                                        if (glMember) setSelectedRosterResident(glMember);
+                                      }}
+                                      style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#ea580c',
+                                        fontSize: 11,
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        padding: 0
+                                      }}
+                                    >
+                                      GLカルテ ➔
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 12, padding: '12px 16px', fontSize: 12, color: '#0369a1' }}>
+                        💡 <strong>日常運営・設備改善プロジェクト:</strong> 班分けや臨時の役職（GL/PL）は設置せず、メンバー全員でフラットに協力して改善を進めます。
+                      </div>
+                    )}
+
+                    {/* 参加スタッフ一覧 */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                         <h4 style={{ fontSize: 15, fontWeight: 900, color: '#1c1917', margin: 0 }}>
                           👥 参加スタッフ一覧（{pj.members.length}名）
                         </h4>
                         <span style={{ fontSize: 11, color: '#78716c' }}>
-                          役職（PL / GL / メンバー）と所属班。誰でも自由に参加・協力できます。
+                          誰でも自由に参加・協力できます
                         </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+                        {pj.members.map((m) => (
+                          <div
+                            key={m.residentId}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                              padding: '10px 14px',
+                              backgroundColor: '#fff',
+                              border: '1.5px solid #fed7aa',
+                              borderRadius: 12,
+                              boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <img
+                                src={m.avatar}
+                                alt={m.name}
+                                style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                              />
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <strong style={{ fontSize: 13, color: '#1c1917' }}>{m.name}</strong>
+                                  {m.residentId === pj.ownerId && (
+                                    <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 4 }}>
+                                      発起人
+                                    </span>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: 11, color: '#ea580c', fontWeight: 800, display: 'block', marginTop: 1 }}>
+                                  {m.eventRole || m.role} {m.groupName ? `(${m.groupName})` : ''}
+                                </span>
+                                <span style={{ fontSize: 11, color: '#78716c' }}>
+                                  {m.building}棟
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                const r = residents.find((res) => res.id === m.residentId);
+                                if (r) setSelectedRosterResident(r);
+                              }}
+                              style={{
+                                backgroundColor: '#fff7ed',
+                                border: '1px solid #fed7aa',
+                                color: '#ea580c',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              カルテ ➔
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ========================================================= */}
+      {/* 📂 フロー項目タップ時の「全画面ファイル管理・閲覧ビュー」 */}
+      {/* 2枚目写真スタイル：左サイドバーで資料切替、中央・右でファイル閲覧・入力 */}
+      {/* ========================================================= */}
+      {activeWorkflowStepView && selectedProjectId && (() => {
+        const pj = projects.find((p) => p.id === selectedProjectId);
+        if (!pj) return null;
+
+        // 閲覧権限チェック: ログインユーザーがPL, GL, 発起人(owner), または管理者(FL/HL)なら閲覧可能
+        const myMemberRecord = pj.members.find((m) => m.residentId === currentUser.id);
+        const myRole = myMemberRecord?.eventRole;
+        const isOwner = pj.ownerId === currentUser.id;
+        const isFlOrHl = currentUser.roleType === 'fl' || currentUser.roleType === 'hl';
+        const canViewConfidentialEvaluations = isOwner || isFlOrHl || myRole === 'PL' || myRole === 'GL';
+
+        // 振り返り提出状況
+        const evaluationRecords = pj.evaluations || [];
+        const activeEvalResident = pj.members.find((m) => m.residentId === selectedEvaluationResidentId) || pj.members[0];
+        const currentResidentEval = evaluationRecords.find((ev) => ev.targetResidentId === activeEvalResident?.residentId);
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: '#f8fafc',
+              zIndex: 100,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
+            {/* 1. 上部トップバー（写真2枚目スタイル） */}
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderBottom: '1.5px solid #e2e8f0',
+                padding: '12px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 12,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                zIndex: 10
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button
+                  onClick={() => setActiveWorkflowStepView(null)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    backgroundColor: '#fff',
+                    border: '1.5px solid #cbd5e1',
+                    color: '#334155',
+                    padding: '6px 14px',
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ea580c'; e.currentTarget.style.color = '#ea580c'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#334155'; }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>← 戻る</span>
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, backgroundColor: '#ffedd5', color: '#9a3412', padding: '3px 8px', borderRadius: 6 }}>
+                    {pj.title}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 900, color: '#0f172a' }}>
+                    / {activeWorkflowStepView.stepTitle}（資料・ドキュメント管理）
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {canViewConfidentialEvaluations ? (
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <ShieldCheck size={13} />
+                    閲覧権限: GL・PL認証済
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Users size={13} />
+                    一般寮生モード（限定公開）
+                  </span>
+                )}
+                <button
+                  onClick={() => setActiveWorkflowStepView(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4 }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* 2. メイン二分割レイアウト（写真2枚目のファイル管理スタイル） */}
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              {/* 左サイドバー: ドキュメント・ファイル項目一覧 */}
+              <div
+                style={{
+                  width: 250,
+                  backgroundColor: '#ffffff',
+                  borderRight: '1.5px solid #e2e8f0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflowY: 'auto'
+                }}
+              >
+                <div style={{ padding: '16px 14px 8px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    書類・ファイル種別
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', padding: '0 8px 16px', gap: 4 }}>
+                  {/* ① 企画書・要件書 */}
+                  <button
+                    onClick={() => setActiveExplorerDoc('proposal')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: 'none',
+                      backgroundColor: activeExplorerDoc === 'proposal' ? '#ffedd5' : 'transparent',
+                      color: activeExplorerDoc === 'proposal' ? '#9a3412' : '#334155',
+                      fontWeight: activeExplorerDoc === 'proposal' ? 900 : 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FileText size={16} color={activeExplorerDoc === 'proposal' ? '#ea580c' : '#64748b'} />
+                      <span>企画書・要件書</span>
+                    </div>
+                    <span style={{ fontSize: 10, backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 6px', borderRadius: 4 }}>
+                      1件
+                    </span>
+                  </button>
+
+                  {/* ② 会議議事録 */}
+                  <button
+                    onClick={() => setActiveExplorerDoc('meeting')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: 'none',
+                      backgroundColor: activeExplorerDoc === 'meeting' ? '#ffedd5' : 'transparent',
+                      color: activeExplorerDoc === 'meeting' ? '#9a3412' : '#334155',
+                      fontWeight: activeExplorerDoc === 'meeting' ? 900 : 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FileSpreadsheet size={16} color={activeExplorerDoc === 'meeting' ? '#ea580c' : '#64748b'} />
+                      <span>会議議事録・決定録</span>
+                    </div>
+                    <span style={{ fontSize: 10, backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 6px', borderRadius: 4 }}>
+                      {pj.meetingNotes?.length || 0}件
+                    </span>
+                  </button>
+
+                  {/* ③ イベント企画の場合: 振り返りカルテ */}
+                  {pj.projectType !== 'operation' && (
+                    <button
+                      onClick={() => setActiveExplorerDoc('evaluation')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: 'none',
+                        backgroundColor: activeExplorerDoc === 'evaluation' ? '#ffedd5' : 'transparent',
+                        color: activeExplorerDoc === 'evaluation' ? '#9a3412' : '#334155',
+                        fontWeight: activeExplorerDoc === 'evaluation' ? 900 : 700,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Star size={16} color={activeExplorerDoc === 'evaluation' ? '#ea580c' : '#64748b'} />
+                        <span>スタッフ振り返り</span>
+                      </div>
+                      <span style={{ fontSize: 10, backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 6px', borderRadius: 4 }}>
+                        {pj.members.length}名
+                      </span>
+                    </button>
+                  )}
+
+                  {/* ④ 日常運営の場合: 運用ルール・備品指示書 */}
+                  {pj.projectType === 'operation' && (
+                    <button
+                      onClick={() => setActiveExplorerDoc('rules')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: 'none',
+                        backgroundColor: activeExplorerDoc === 'rules' ? '#ffedd5' : 'transparent',
+                        color: activeExplorerDoc === 'rules' ? '#9a3412' : '#334155',
+                        fontWeight: activeExplorerDoc === 'rules' ? 900 : 700,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Package size={16} color={activeExplorerDoc === 'rules' ? '#ea580c' : '#64748b'} />
+                        <span>運用ルール・備品書</span>
+                      </div>
+                      <span style={{ fontSize: 10, backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 6px', borderRadius: 4 }}>
+                        確定
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* タイムライン全ステップ切り替えリスト */}
+                <div style={{ padding: '14px 14px 8px', borderTop: '1px solid #f1f5f9' }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    全運営ステップ
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', padding: '0 8px 16px', gap: 2 }}>
+                  {(pj.workflowSteps || []).map((step) => {
+                    const isCurrent = step.id === activeWorkflowStepView.stepId;
+                    return (
+                      <button
+                        key={step.id}
+                        onClick={() => {
+                          setActiveWorkflowStepView({ stepId: step.id, stepTitle: step.title });
+                          if (step.title.includes('会議') || step.title.includes('MTG')) setActiveExplorerDoc('meeting');
+                          else if (step.title.includes('振り返り')) setActiveExplorerDoc('evaluation');
+                          else if (step.title.includes('ルール') || step.title.includes('備品')) setActiveExplorerDoc('rules');
+                          else setActiveExplorerDoc('proposal');
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: 'none',
+                          backgroundColor: isCurrent ? '#f1f5f9' : 'transparent',
+                          color: isCurrent ? '#ea580c' : '#64748b',
+                          fontSize: 12,
+                          fontWeight: isCurrent ? 800 : 600,
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <span style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: step.done ? '#16a34a' : '#cbd5e1', color: '#fff', fontSize: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                          {step.done ? '✓' : step.step}
+                        </span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {step.title}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 中央・右エリア: 選択されたドキュメントの閲覧・操作画面 */}
+              <div
+                style={{
+                  flex: 1,
+                  backgroundColor: '#ffffff',
+                  overflowY: 'auto',
+                  padding: '24px 32px'
+                }}
+              >
+                {/* 1. 企画書・要件書ドキュメントビュー */}
+                {activeExplorerDoc === 'proposal' && (
+                  <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ea580c', paddingBottom: 12 }}>
+                      <div>
+                        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917', margin: '0 0 4px' }}>
+                          📄 {pj.proposalDoc?.title || `${pj.title} 企画書・要件仕様書`}
+                        </h2>
+                        <span style={{ fontSize: 12, color: '#78716c' }}>
+                          作成日: {pj.createdAt || '2026-10-06'} • 発起人: {pj.owner} • カテゴリ: {pj.category}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: 8, border: '1px solid #fed7aa' }}>
+                        進捗: {pj.progress}%
+                      </span>
+                    </div>
+
+                    <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', padding: 16, borderRadius: 12 }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 900, color: '#9a3412', margin: '0 0 6px' }}>
+                        🎯 企画の目的・目指す状態
+                      </h4>
+                      <p style={{ fontSize: 13, color: '#431407', lineHeight: 1.7, margin: 0 }}>
+                        {pj.proposalDoc?.purpose || pj.description || '寮生同士の快適な生活と新しい体験を創出する。'}
+                      </p>
+                    </div>
+
+                    <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', padding: 16, borderRadius: 12 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', margin: '0 0 6px' }}>
+                        📋 現状の課題と背景
+                      </h4>
+                      <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.7, margin: 0 }}>
+                        {pj.proposalDoc?.background || pj.description || '既存の仕組みやルールでは解決できなかった課題を整理。'}
+                      </p>
+                    </div>
+
+                    <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 16, borderRadius: 12 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 900, color: '#991b1b', margin: '0 0 6px' }}>
+                        🛡️ 規約の抜け道・突破戦略（HACK）
+                      </h4>
+                      <p style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 1.7, margin: 0 }}>
+                        {pj.proposalDoc?.hackStrategy || '工事や高額予算を発生させず、運用ルールや既存設備の代替利用で解決する。'}
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 14, borderRadius: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>必要予算</span>
+                        <p style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                          {pj.proposalDoc?.budget || '自己資金・有志カンパまたは自治会費'}
+                        </p>
+                      </div>
+                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 14, borderRadius: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>次やること</span>
+                        <p style={{ fontSize: 14, fontWeight: 800, color: '#ea580c', marginTop: 4 }}>
+                          {pj.nextAction}
+                        </p>
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                      {pj.members.map((m) => (
-                        <div
-                          key={m.residentId}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                            padding: '12px 14px',
-                            backgroundColor: '#fff',
-                            border: '1.5px solid #fed7aa',
-                            borderRadius: 12,
-                            boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <img
-                              src={m.avatar}
-                              alt={m.name}
-                              style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }}
-                            />
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <strong style={{ fontSize: 14, color: '#1c1917' }}>{m.name}</strong>
-                                {m.residentId === pj.ownerId && (
-                                  <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
-                                    発起人
+                    {pj.proposalDoc?.steps && (
+                      <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e2e8f0', padding: 16, borderRadius: 12 }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', margin: '0 0 8px' }}>
+                          📌 具体的な実行ステップ
+                        </h4>
+                        <ol style={{ paddingLeft: 20, margin: 0, fontSize: 13, color: '#44403c', lineHeight: 1.8 }}>
+                          {pj.proposalDoc.steps.map((st, i) => (
+                            <li key={i}>{st}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. 会議議事録ドキュメントビュー */}
+                {activeExplorerDoc === 'meeting' && (
+                  <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ea580c', paddingBottom: 12 }}>
+                      <div>
+                        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917', margin: '0 0 4px' }}>
+                          📝 会議議事録 ＆ 決定事項アーカイブ
+                        </h2>
+                        <span style={{ fontSize: 12, color: '#78716c' }}>
+                          合意した決定事項と次回のTODOタスク
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setNewMeetingTitle(`${activeWorkflowStepView.stepTitle} 議事録`);
+                          setNewMeetingDate(new Date().toISOString().slice(0, 10));
+                          setIsAddMeetingModalOpen(true);
+                        }}
+                        style={{
+                          backgroundColor: '#ea580c',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '8px 16px',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <Plus size={14} />
+                        新規議事録を追加
+                      </button>
+                    </div>
+
+                    {(!pj.meetingNotes || pj.meetingNotes.length === 0) ? (
+                      <div style={{ backgroundColor: '#f8fafc', padding: 32, textAlign: 'center', borderRadius: 12, border: '1.5px dashed #cbd5e1', color: '#64748b' }}>
+                        まだ議事録が登録されていません。右上の「新規議事録を追加」から決定事項を保存してください。
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {pj.meetingNotes.map((mn, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              backgroundColor: '#fff',
+                              border: '1.5px solid #fed7aa',
+                              borderRadius: 14,
+                              padding: 18,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                                📅 {mn.date}
+                              </span>
+                              <span style={{ fontSize: 12, color: '#78716c' }}>
+                                参加者: {mn.attendees.join('、 ')}
+                              </span>
+                            </div>
+
+                            <h4 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', margin: '0 0 8px' }}>
+                              {mn.title}
+                            </h4>
+
+                            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 12px' }}>
+                              {mn.summary}
+                            </p>
+
+                            <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'block', marginBottom: 4 }}>
+                                ✅ 決定・合意事項
+                              </span>
+                              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#14532d', lineHeight: 1.6 }}>
+                                {mn.decisions.map((d, i) => (
+                                  <li key={i}>{d}</li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: '#9a3412', display: 'block', marginBottom: 4 }}>
+                                📝 次のTODO
+                              </span>
+                              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
+                                {mn.nextTodos.map((t, i) => (
+                                  <li key={i}>{t}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. 振り返りドキュメントビュー（個人スタッフ一覧 ＆ 提出済/未提出 ＆ 権限制御） */}
+                {activeExplorerDoc === 'evaluation' && (
+                  <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ea580c', paddingBottom: 12 }}>
+                      <div>
+                        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917', margin: '0 0 4px' }}>
+                          ⭐ スタッフ活動振り返り ＆ 人事カルテ管理
+                        </h2>
+                        <span style={{ fontSize: 12, color: '#78716c' }}>
+                          人間（関係者）による直接スコアリング • AI自動採点完全排除
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: 8, border: '1px solid #fed7aa' }}>
+                        提出済: {evaluationRecords.length} / {pj.members.length}名
+                      </span>
+                    </div>
+
+                    {/* 🔒 閲覧権限チェック: 一般寮生の場合は非表示ガード */}
+                    {!canViewConfidentialEvaluations ? (
+                      <div
+                        style={{
+                          backgroundColor: '#fef2f2',
+                          border: '2px dashed #fecaca',
+                          borderRadius: 16,
+                          padding: '36px 24px',
+                          textAlign: 'center',
+                          marginTop: 20
+                        }}
+                      >
+                        <ShieldAlert size={36} color="#dc2626" style={{ margin: '0 auto 12px' }} />
+                        <h3 style={{ fontSize: 16, fontWeight: 900, color: '#991b1b', margin: '0 0 6px' }}>
+                          🔒 振り返りカルテはGL・PL限定で管理されています
+                        </h3>
+                        <p style={{ fontSize: 13, color: '#7f1d1d', maxWidth: 480, margin: '0 auto', lineHeight: 1.6 }}>
+                          人事評価や課題の生々しい記録を保護するため、振り返り詳細の閲覧は監督（PL）および各班リーダー（GL）、または管理部のみに制限されています。
+                        </p>
+                      </div>
+                    ) : (
+                      /* GL・PL向け: 個人スタッフ一覧 ＆ 提出済・未提出ステータス ＆ 振り返り詳細 */
+                      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 18 }}>
+                        {/* 左リスト: スタッフ一覧 ＆ 未提出バッジ */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: '#475569' }}>
+                            👥 対象スタッフ（選択して閲覧・入力）
+                          </span>
+
+                          {pj.members.map((m) => {
+                            const isSubmitted = evaluationRecords.some((ev) => ev.targetResidentId === m.residentId);
+                            const isSelected = (activeEvalResident?.residentId === m.residentId);
+
+                            return (
+                              <div
+                                key={m.residentId}
+                                onClick={() => setSelectedEvaluationResidentId(m.residentId)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '10px 12px',
+                                  backgroundColor: isSelected ? '#fff7ed' : '#ffffff',
+                                  border: isSelected ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                                  borderRadius: 10,
+                                  cursor: 'pointer',
+                                  boxShadow: isSelected ? '0 2px 8px rgba(234, 88, 12, 0.15)' : 'none',
+                                  transition: 'all 0.1s ease'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <img src={m.avatar} alt={m.name} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                                  <div>
+                                    <strong style={{ fontSize: 13, color: '#1c1917', display: 'block' }}>{m.name}</strong>
+                                    <span style={{ fontSize: 10, color: '#ea580c', fontWeight: 800 }}>
+                                      {m.eventRole || 'メンバー'} {m.groupName ? `(${m.groupName})` : ''}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {isSubmitted ? (
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', padding: '2px 6px', borderRadius: 4 }}>
+                                    提出済
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 6px', borderRadius: 4 }}>
+                                    未提出
                                   </span>
                                 )}
                               </div>
-                              <span style={{ fontSize: 12, color: '#ea580c', fontWeight: 800, display: 'block', marginTop: 2 }}>
-                                {m.eventRole || m.role} {m.groupName ? `(${m.groupName})` : ''}
-                              </span>
-                              <span style={{ fontSize: 11, color: '#78716c' }}>
-                                {m.building}棟
-                              </span>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => {
-                              const r = residents.find((res) => res.id === m.residentId);
-                              if (r) setSelectedRosterResident(r);
-                            }}
-                            style={{
-                              backgroundColor: '#fff7ed',
-                              border: '1px solid #fed7aa',
-                              color: '#ea580c',
-                              fontSize: 11,
-                              fontWeight: 800,
-                              padding: '5px 10px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            カルテ ➔
-                          </button>
+                            );
+                          })}
                         </div>
-                      ))}
+
+                        {/* 右エリア: 選択されたスタッフの振り返りカルテ詳細 ＆ 入力 */}
+                        <div style={{ backgroundColor: '#fafaf9', border: '1.5px solid #fed7aa', borderRadius: 14, padding: 18 }}>
+                          {activeEvalResident && (
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <img src={activeEvalResident.avatar} alt={activeEvalResident.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <h3 style={{ fontSize: 16, fontWeight: 900, margin: 0, color: '#1c1917' }}>
+                                        {activeEvalResident.name}
+                                      </h3>
+                                      <span style={{ backgroundColor: '#ffedd5', color: '#ea580c', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                                        {activeEvalResident.eventRole || 'メンバー'}
+                                      </span>
+                                    </div>
+                                    <span style={{ fontSize: 11, color: '#78716c' }}>
+                                      所属: {activeEvalResident.groupName || '全体'} • {activeEvalResident.building}棟
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => {
+                                    setEvalTargetResident({
+                                      id: activeEvalResident.residentId,
+                                      name: activeEvalResident.name,
+                                      role: (activeEvalResident.eventRole as any) || 'メンバー'
+                                    });
+                                  }}
+                                  style={{
+                                    backgroundColor: '#ea580c',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '8px 16px',
+                                    borderRadius: 8,
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4
+                                  }}
+                                >
+                                  <Star size={13} />
+                                  {currentResidentEval ? '振り返りを再編集' : '振り返りを記録・提出'}
+                                </button>
+                              </div>
+
+                              {/* 記録された評価ログの表示 */}
+                              {currentResidentEval ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                                      評価者: <strong>{currentResidentEval.evaluatorName}</strong> ({currentResidentEval.evaluatorRole})
+                                    </span>
+                                    <span style={{ fontSize: 12, fontWeight: 900, color: '#15803d', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: 4 }}>
+                                      適性判定: {currentResidentEval.aptitudeVerdict}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                                    {[
+                                      { label: '統率・ファシリ', score: currentResidentEval.scores.facilitation },
+                                      { label: '報連相・レスポンス', score: currentResidentEval.scores.communication },
+                                      { label: '対外折衝・安全意識', score: currentResidentEval.scores.safetyExternal },
+                                      { label: '期日・予算管理', score: currentResidentEval.scores.scheduleBudget }
+                                    ].map((item, idx) => (
+                                      <div key={idx} style={{ backgroundColor: '#fff', padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                        <span style={{ fontSize: 10, color: '#64748b', display: 'block', fontWeight: 700 }}>
+                                          {item.label}
+                                        </span>
+                                        <div style={{ color: '#ea580c', fontSize: 13, fontWeight: 900, marginTop: 2 }}>
+                                          {'★'.repeat(item.score)}{'☆'.repeat(5 - item.score)}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 12px' }}>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'block', marginBottom: 2 }}>
+                                      👍 いい面・強み（生の声）
+                                    </span>
+                                    <p style={{ margin: 0, fontSize: 12, color: '#14532d', lineHeight: 1.5 }}>
+                                      {currentResidentEval.goodPoints}
+                                    </p>
+                                  </div>
+
+                                  {currentResidentEval.badPoints && (
+                                    <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 12px' }}>
+                                      <span style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', display: 'block', marginBottom: 2 }}>
+                                        ⚠️ 課題・フォロー要（非公開リーダーカルテ）
+                                      </span>
+                                      <p style={{ margin: 0, fontSize: 12, color: '#7f1d1d', lineHeight: 1.5 }}>
+                                        {currentResidentEval.badPoints}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ backgroundColor: '#fff', border: '1px dashed #cbd5e1', borderRadius: 10, padding: 24, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                                  まだ {activeEvalResident.name} さんの振り返りは入力されていません。<br />
+                                  右上の「振り返りを記録・提出」ボタンから関係者の手動スコアリングを入力できます。
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4. 日常運営向け：運用ルール・備品指示書 */}
+                {activeExplorerDoc === 'rules' && (
+                  <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0284c7', paddingBottom: 12 }}>
+                      <div>
+                        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: '0 0 4px' }}>
+                          📦 運用ルール ＆ 備品・消耗品管理指示書
+                        </h2>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>
+                          日常改善における定期補充・点検ルールと備品保管場所
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#0284c7', backgroundColor: '#f0f9ff', padding: '4px 10px', borderRadius: 8, border: '1px solid #bae6fd' }}>
+                        常時運用中
+                      </span>
+                    </div>
+
+                    <div style={{ backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', padding: 16, borderRadius: 12 }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 900, color: '#0369a1', margin: '0 0 6px' }}>
+                        📌 標準運用ルール（日常管理）
+                      </h4>
+                      <p style={{ fontSize: 13, color: '#082f49', lineHeight: 1.7, margin: 0 }}>
+                        {pj.title} における現場ルールです。交代制当番や複雑な承認手続きを排除し、自主管理と定期巡回点検で清潔・安全を維持します。
+                      </p>
+                    </div>
+
+                    <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', padding: 16, borderRadius: 12 }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', margin: '0 0 8px' }}>
+                        🔧 消耗品・予備パーツの保管先
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 13 }}>
+                        <div style={{ backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block' }}>保管場所</span>
+                          <strong style={{ color: '#0f172a' }}>ローズ1F 倉庫棚 A-1 / 各棟談話室</strong>
+                        </div>
+                        <div style={{ backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'block' }}>発注基準</span>
+                          <strong style={{ color: '#ea580c' }}>残量残り3ロール以下で自動追加購入</strong>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3441,13 +4154,66 @@ export default function App() {
             <form onSubmit={handleGenerateProposal} style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
+                  企画の種別 <span style={{ color: '#ea580c' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIdeaProjectType('event')}
+                    style={{
+                      padding: '12px',
+                      borderRadius: 10,
+                      border: ideaProjectType === 'event' ? '2px solid #ea580c' : '1.5px solid #cbd5e1',
+                      backgroundColor: ideaProjectType === 'event' ? '#fff7ed' : '#fff',
+                      color: ideaProjectType === 'event' ? '#ea580c' : '#475569',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>🎪</span>
+                    <span>イベント企画</span>
+                    <span style={{ fontSize: 10, color: '#78716c', fontWeight: 600 }}>班編成・GL任命・振り返り</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIdeaProjectType('operation')}
+                    style={{
+                      padding: '12px',
+                      borderRadius: 10,
+                      border: ideaProjectType === 'operation' ? '2px solid #0284c7' : '1.5px solid #cbd5e1',
+                      backgroundColor: ideaProjectType === 'operation' ? '#f0f9ff' : '#fff',
+                      color: ideaProjectType === 'operation' ? '#0284c7' : '#475569',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>🧹</span>
+                    <span>施設・日常運営</span>
+                    <span style={{ fontSize: 10, color: '#78716c', fontWeight: 600 }}>布巾交換等のシンプル改善</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
                   プロジェクト名 / タイトル
                 </label>
                 <input
                   type="text"
                   value={ideaTitle}
                   onChange={(e) => setIdeaTitle(e.target.value)}
-                  placeholder="例: パプリカ・ターメリックの玄関共通化 ＆ 昼間コモンズ開放"
+                  placeholder={ideaProjectType === 'event' ? "例: クリスマス大感謝祭、ハロウィン交流会" : "例: パプリカ・キッチン布巾使い捨て化、玄関オートロック共通化"}
                   style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid #cbd5e1', fontSize: 14, boxSizing: 'border-box' }}
                 />
               </div>
