@@ -79,6 +79,23 @@ export default function App() {
         const loadedResidents = await dbService.getResidents();
         if (loadedResidents && loadedResidents.length > 0) {
           setResidents(loadedResidents);
+          // ログインユーザー情報と名簿の最新アバター・役職を完全同期
+          const matched = loadedResidents.find(
+            (r) => r.id === currentUser.id || r.name === currentUser.name
+          );
+          if (matched) {
+            const syncedUser: CurrentUser = {
+              ...currentUser,
+              id: matched.id,
+              name: matched.name,
+              avatar: matched.avatar || currentUser.avatar,
+              role: matched.role || currentUser.role,
+              building: matched.building || currentUser.building,
+              unit: matched.unit || currentUser.unit
+            };
+            setCurrentUser(syncedUser);
+            dbService.setCurrentUser(syncedUser);
+          }
         }
         const loadedReports = await dbService.getWorkReports();
         if (loadedReports && loadedReports.length > 0) {
@@ -241,10 +258,12 @@ export default function App() {
       if (selectedResident && selectedResident.id === updated.id) {
         setSelectedResident(updated);
       }
-      if (currentUser.id === updated.id) {
+      if (currentUser.id === updated.id || currentUser.name === updated.name) {
         const updatedUser: CurrentUser = {
           ...currentUser,
-          ...updates
+          ...updates,
+          avatar: updates.avatar || currentUser.avatar,
+          role: updates.role || currentUser.role
         };
         setCurrentUser(updatedUser);
         dbService.setCurrentUser(updatedUser);
@@ -267,7 +286,25 @@ export default function App() {
     };
     setCurrentUser(user);
     dbService.setCurrentUser(user);
-    setStorageView('hub');
+    setSelectedResident(res);
+  };
+
+  // 自分の寮生オブジェクトを取得
+  const getMyResidentRecord = (): ResidentRecord => {
+    return (
+      residents.find((r) => r.id === currentUser.id || r.name === currentUser.name) || {
+        id: currentUser.id,
+        name: currentUser.name,
+        avatar: currentUser.avatar,
+        building: currentUser.building,
+        floor: currentUser.floor,
+        unit: currentUser.unit,
+        role: currentUser.role,
+        roleType: currentUser.roleType,
+        email: currentUser.email,
+        memo: 'ログインユーザー'
+      }
+    );
   };
 
   // 戻る操作の計算
@@ -283,6 +320,9 @@ export default function App() {
   } else if (activeTab === 'progress' && selectedProjectId) {
     onBackHandler = () => setSelectedProjectId(null);
     backTitle = '進行中';
+  } else if (activeTab === 'warehouse' && storageView === 'profile') {
+    onBackHandler = () => setStorageView('roster');
+    backTitle = '名簿';
   } else if (activeTab === 'warehouse' && storageView !== 'hub') {
     onBackHandler = () => setStorageView('hub');
     backTitle = '保管する';
@@ -290,10 +330,24 @@ export default function App() {
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
 
+  // 現在のナビゲーションのアクティブ表示判定
+  const effectiveActiveTab: MainNavDestination =
+    activeTab === 'warehouse' && storageView === 'profile' && selectedResident?.id === currentUser.id
+      ? 'profile'
+      : activeTab;
+
   return (
     <AppShell
-      activeTab={activeTab}
+      activeTab={effectiveActiveTab}
       onTabChange={(tab) => {
+        if (tab === 'profile') {
+          // マイページタブ: 自分のプロフィールを開く
+          const myResident = getMyResidentRecord();
+          setSelectedResident(myResident);
+          setActiveTab('warehouse');
+          setStorageView('profile');
+          return;
+        }
         setActiveTab(tab);
         if (tab === 'change') {
           setIdeaFlowMode('home');
@@ -303,15 +357,18 @@ export default function App() {
       }}
       currentUser={currentUser}
       onOpenUserMenu={() => {
+        // 右上アバターアイコンタップ: 自分のプロフィールを直接開く
+        const myResident = getMyResidentRecord();
+        setSelectedResident(myResident);
         setActiveTab('warehouse');
-        setStorageView('switch_user');
+        setStorageView('profile');
       }}
       onBack={onBackHandler}
       backTitle={backTitle}
       hideNav={activeTab === 'change' && ideaFlowMode === 'active'}
     >
       {/* ============================================================ */}
-      {/* 1. イータを変える (S01, S02, S03, S04) */}
+      {/* 1. アイデア (S01, S02, S03, S04) */}
       {/* ============================================================ */}
       {activeTab === 'change' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>

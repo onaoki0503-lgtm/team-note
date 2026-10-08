@@ -122,7 +122,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     ];
 
     return (
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -235,7 +235,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     ];
 
     return (
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -340,8 +340,11 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   // S28: プロフィール画面
   // ============================================================
   if (viewType === 'profile' && selectedResident) {
+    const isCurrentActiveUser =
+      currentUser.id === selectedResident.id || currentUser.name === selectedResident.name;
+
     return (
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -370,10 +373,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             backgroundColor: '#FFFFFF',
             borderRadius: 12,
             border: '1px solid #D9DEE7',
-            padding: '24px 20px',
+            padding: '16px 14px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 16
+            gap: 12
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
@@ -527,29 +530,54 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
           </div>
 
           {/* 役職の変更セレクター */}
-          <div style={{ paddingTop: 14, borderTop: '1px solid #F0F2F6', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#596273' }}>
-              役職の選択:
-            </span>
-            <select
-              value={selectedResident.role || '一般寮生'}
-              onChange={(e) => handleRoleChange(e.target.value as ResidentRoleKey)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 6,
-                border: '1px solid #D9DEE7',
-                backgroundColor: '#FFFFFF',
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#171A21'
-              }}
-            >
-              {DORM_ROLES_CONFIG.map((role) => (
-                <option key={role.key} value={role.key}>
-                  {role.title}
-                </option>
-              ))}
-            </select>
+          <div style={{ paddingTop: 12, borderTop: '1px solid #F0F2F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#596273' }}>
+                役職の選択:
+              </span>
+              <select
+                value={selectedResident.role || '一般寮生'}
+                onChange={(e) => handleRoleChange(e.target.value as ResidentRoleKey)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #D9DEE7',
+                  backgroundColor: '#FFFFFF',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#171A21'
+                }}
+              >
+                {DORM_ROLES_CONFIG.map((role) => (
+                  <option key={role.key} value={role.key}>
+                    {role.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* アプリ利用者の切り替えボタン */}
+            {isCurrentActiveUser ? (
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#16a34a' }}>
+                ✓ 現在の利用者
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSwitchUser(selectedResident)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  backgroundColor: '#171A21',
+                  color: '#FFFFFF',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                この寮生として利用する
+              </button>
+            )}
           </div>
         </div>
 
@@ -765,7 +793,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   // ============================================================
   if (viewType === 'switch_user') {
     return (
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -1032,7 +1060,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   // S25/S26/S27: 寮生名簿 部屋割り ＆ 一覧 
   // ============================================================
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* 上部ヘッダー */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
@@ -1066,7 +1094,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             color: rosterTab === 'units' ? '#FFFFFF' : '#171A21',
             border: rosterTab === 'units' ? '1px solid #171A21' : '1px solid #D9DEE7',
             borderRadius: 8,
-            padding: '12px',
+            padding: '10px',
             fontSize: 14,
             fontWeight: 800,
             cursor: 'pointer'
@@ -1082,7 +1110,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             color: rosterTab === 'list' ? '#FFFFFF' : '#171A21',
             border: rosterTab === 'list' ? '1px solid #171A21' : '1px solid #D9DEE7',
             borderRadius: 8,
-            padding: '12px',
+            padding: '10px',
             fontSize: 14,
             fontWeight: 800,
             cursor: 'pointer'
@@ -1093,13 +1121,13 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
       </div>
 
       {/* 棟と階の選択 (S25) */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <select
           value={selectedBuilding}
           onChange={(e) => setSelectedBuilding(e.target.value as any)}
           style={{
             flex: 1,
-            padding: '10px 14px',
+            padding: '8px 12px',
             borderRadius: 8,
             border: '1px solid #D9DEE7',
             backgroundColor: '#FFFFFF',
@@ -1114,7 +1142,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
         </select>
 
         {rosterTab === 'units' && (
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
             {([1, 2, 3, 4] as const).map((fl) => {
               const active = selectedFloor === fl;
               return (
@@ -1123,14 +1151,14 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   type="button"
                   onClick={() => setSelectedFloor(fl)}
                   style={{
-                    padding: '8px 14px',
+                    padding: '8px 12px',
                     borderRadius: 8,
                     fontSize: 13,
                     fontWeight: 700,
                     backgroundColor: active ? '#171A21' : '#FFFFFF',
                     color: active ? '#FFFFFF' : '#171A21',
                     border: '1px solid #D9DEE7',
-                    minHeight: 40
+                    minHeight: 38
                   }}
                 >
                   {fl}F
@@ -1143,7 +1171,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
       {/* S25: 部屋割りマップ 単一フロアの4ユニットカード表示  */}
       {rosterTab === 'units' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {['1', '2', '3', '4'].map((idx) => {
             const unitNumber = `${selectedFloor}0${idx}`;
             const occupants = residents.filter(
@@ -1158,10 +1186,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   backgroundColor: '#FFFFFF',
                   borderRadius: 12,
                   border: '1px solid #D9DEE7',
-                  padding: '16px 14px',
+                  padding: '12px 10px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 10
+                  gap: 8
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

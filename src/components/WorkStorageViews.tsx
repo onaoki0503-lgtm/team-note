@@ -41,7 +41,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   // ============================================================
   if (mode === 'work') {
     return (
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* セグメント切り替え 報告する / 提出済み  */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <button
@@ -255,7 +255,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: '24px 16px',
+        padding: '16px 10px',
         maxWidth: 640,
         margin: '0 auto',
         width: '100%'

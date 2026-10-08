@@ -1,8 +1,8 @@
 import React from 'react';
-import { Lightbulb, PlayCircle, ClipboardCheck, Archive, ArrowLeft } from 'lucide-react';
+import { Lightbulb, PlayCircle, Briefcase, Archive, ArrowLeft, User } from 'lucide-react';
 import type { CurrentUser } from '../lib/db';
 
-export type MainNavDestination = 'change' | 'progress' | 'work' | 'warehouse';
+export type MainNavDestination = 'change' | 'progress' | 'work' | 'warehouse' | 'profile';
 
 interface AppShellProps {
   activeTab: MainNavDestination;
@@ -36,7 +36,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         position: 'relative'
       }}
     >
-      {/* 共通トップヘッダー 白背景・細い下線・4色グラデーション上辺  */}
+      {/* 共通トップヘッダー 白背景・細い下線・4色グラデーション上辺 */}
       <header
         style={{
           position: 'sticky',
@@ -44,7 +44,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           zIndex: 40,
           backgroundColor: '#FFFFFF',
           borderBottom: '1px solid #D9DEE7',
-          padding: '12px 16px',
+          padding: '10px 14px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -63,7 +63,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         />
 
         {/* 左側: 戻る操作 または ロゴ */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {onBack ? (
             <button
               type="button"
@@ -76,7 +76,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                 fontSize: 14,
                 fontWeight: 700,
                 color: '#171A21',
-                padding: '4px 8px',
+                padding: '4px 6px',
                 borderRadius: 8
               }}
               aria-label="前の画面に戻る"
@@ -93,85 +93,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           )}
         </div>
 
-        {/* PC向けヘッダーナビゲーション (768px以上) */}
-        <nav
-          className="pc-header-nav"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 20
-          }}
-        >
-          {/* 1. イータを変える */}
-          <button
-            type="button"
-            onClick={() => onTabChange('change')}
-            style={{
-              background: 'transparent',
-              fontSize: 14,
-              fontWeight: activeTab === 'change' ? 800 : 600,
-              color: activeTab === 'change' ? '#171A21' : '#596273',
-              borderBottom: activeTab === 'change' ? '2px solid #171A21' : '2px solid transparent',
-              padding: '6px 2px',
-              minHeight: 'auto'
-            }}
-          >
-            イータを変える
-          </button>
-
-          {/* 2. 進行中 */}
-          <button
-            type="button"
-            onClick={() => onTabChange('progress')}
-            style={{
-              background: 'transparent',
-              fontSize: 14,
-              fontWeight: activeTab === 'progress' ? 800 : 600,
-              color: activeTab === 'progress' ? '#171A21' : '#596273',
-              borderBottom: activeTab === 'progress' ? '2px solid #171A21' : '2px solid transparent',
-              padding: '6px 2px',
-              minHeight: 'auto'
-            }}
-          >
-            進行中
-          </button>
-
-          {/* 3. はたらく */}
-          <button
-            type="button"
-            onClick={() => onTabChange('work')}
-            style={{
-              background: 'transparent',
-              fontSize: 14,
-              fontWeight: activeTab === 'work' ? 800 : 600,
-              color: activeTab === 'work' ? '#171A21' : '#596273',
-              borderBottom: activeTab === 'work' ? '2px solid #171A21' : '2px solid transparent',
-              padding: '6px 2px',
-              minHeight: 'auto'
-            }}
-          >
-            はたらく
-          </button>
-
-          {/* 4. 保管する */}
-          <button
-            type="button"
-            onClick={() => onTabChange('warehouse')}
-            style={{
-              background: 'transparent',
-              fontSize: 14,
-              fontWeight: activeTab === 'warehouse' ? 800 : 600,
-              color: activeTab === 'warehouse' ? '#171A21' : '#596273',
-              borderBottom: activeTab === 'warehouse' ? '2px solid #171A21' : '2px solid transparent',
-              padding: '6px 2px',
-              minHeight: 'auto'
-            }}
-          >
-            保管する
-          </button>
-        </nav>
-
-        {/* 右側: 利用者アイコン デモ切替メニュー  */}
+        {/* 右側: 利用者アバターアイコン 名簿・ログインユーザーの写真と完全連動 */}
         <button
           type="button"
           onClick={onOpenUserMenu}
@@ -180,79 +102,106 @@ export const AppShell: React.FC<AppShellProps> = ({
             alignItems: 'center',
             gap: 8,
             background: 'transparent',
-            padding: 4,
-            borderRadius: 20
+            padding: 2,
+            borderRadius: '50%',
+            cursor: 'pointer'
           }}
-          aria-label="利用者を切り替える"
+          aria-label="利用者のプロフィール・切り替え"
         >
           <div
             style={{
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               borderRadius: '50%',
               backgroundColor: '#EEF0F5',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 13,
-              fontWeight: 800,
-              color: '#171A21',
-              border: '1px solid #D9DEE7'
+              overflow: 'hidden',
+              border: '2px solid #D9DEE7',
+              boxShadow: '0 2px 5px rgba(0, 0, 0, 0.08)'
             }}
           >
-            {currentUser.name ? currentUser.name.charAt(0) : 'A'}
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#171A21' }}>
+                {currentUser.name ? currentUser.name.charAt(0) : '岡'}
+              </span>
+            )}
           </div>
         </button>
       </header>
 
-      {/* メインコンテンツ領域 スマホ下部ナビのための余白を確保  */}
+      {/* メインコンテンツ領域 */}
       <main
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          paddingBottom: hideNav ? 0 : 72,
+          paddingBottom: hideNav ? 16 : 88,
           position: 'relative'
         }}
       >
         {children}
       </main>
 
-      {/* スマホ優先 固定ボトムナビゲーション (768px未満) */}
+      {/* 2枚目写真仕様: すりガラス調フローティングカプセルナビゲーション */}
       {!hideNav && (
         <nav
           style={{
             position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: '#FFFFFF',
-            borderTop: '1px solid #D9DEE7',
-            padding: '8px 12px env(safe-area-inset-bottom, 8px)',
+            bottom: 16,
+            left: 12,
+            right: 12,
+            maxWidth: 440,
+            margin: '0 auto',
+            backgroundColor: 'rgba(255, 255, 255, 0.88)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(220, 225, 235, 0.9)',
+            borderRadius: 9999,
+            boxShadow: '0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.04)',
+            padding: '4px 6px',
             display: 'flex',
-            justifyContent: 'space-around',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            zIndex: 40
+            zIndex: 50
           }}
         >
-          {/* 1. イータを変える */}
+          {/* 1. アイデア */}
           <button
             type="button"
             onClick={() => onTabChange('change')}
             style={{
-              background: 'transparent',
+              flex: 1,
+              backgroundColor: activeTab === 'change' ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+              borderRadius: 9999,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 2,
-              color: activeTab === 'change' ? '#171A21' : '#596273',
-              padding: '4px 8px',
-              minHeight: 44
+              justifyContent: 'center',
+              padding: '6px 2px',
+              minHeight: 46,
+              color: '#171A21',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease'
             }}
           >
-            <Lightbulb size={20} strokeWidth={activeTab === 'change' ? 2.4 : 1.8} />
-            <span style={{ fontSize: 11, fontWeight: activeTab === 'change' ? 800 : 500 }}>
-              イータを変える
+            <Lightbulb size={22} strokeWidth={activeTab === 'change' ? 2.5 : 1.9} />
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: activeTab === 'change' ? 800 : 600,
+                marginTop: 2,
+                letterSpacing: -0.2
+              }}
+            >
+              アイデア
             </span>
           </button>
 
@@ -261,18 +210,29 @@ export const AppShell: React.FC<AppShellProps> = ({
             type="button"
             onClick={() => onTabChange('progress')}
             style={{
-              background: 'transparent',
+              flex: 1,
+              backgroundColor: activeTab === 'progress' ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+              borderRadius: 9999,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 2,
-              color: activeTab === 'progress' ? '#171A21' : '#596273',
-              padding: '4px 8px',
-              minHeight: 44
+              justifyContent: 'center',
+              padding: '6px 2px',
+              minHeight: 46,
+              color: '#171A21',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease'
             }}
           >
-            <PlayCircle size={20} strokeWidth={activeTab === 'progress' ? 2.4 : 1.8} />
-            <span style={{ fontSize: 11, fontWeight: activeTab === 'progress' ? 800 : 500 }}>
+            <PlayCircle size={22} strokeWidth={activeTab === 'progress' ? 2.5 : 1.9} />
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: activeTab === 'progress' ? 800 : 600,
+                marginTop: 2,
+                letterSpacing: -0.2
+              }}
+            >
               進行中
             </span>
           </button>
@@ -282,18 +242,29 @@ export const AppShell: React.FC<AppShellProps> = ({
             type="button"
             onClick={() => onTabChange('work')}
             style={{
-              background: 'transparent',
+              flex: 1,
+              backgroundColor: activeTab === 'work' ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+              borderRadius: 9999,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 2,
-              color: activeTab === 'work' ? '#171A21' : '#596273',
-              padding: '4px 8px',
-              minHeight: 44
+              justifyContent: 'center',
+              padding: '6px 2px',
+              minHeight: 46,
+              color: '#171A21',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease'
             }}
           >
-            <ClipboardCheck size={20} strokeWidth={activeTab === 'work' ? 2.4 : 1.8} />
-            <span style={{ fontSize: 11, fontWeight: activeTab === 'work' ? 800 : 500 }}>
+            <Briefcase size={22} strokeWidth={activeTab === 'work' ? 2.5 : 1.9} />
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: activeTab === 'work' ? 800 : 600,
+                marginTop: 2,
+                letterSpacing: -0.2
+              }}
+            >
               はたらく
             </span>
           </button>
@@ -303,19 +274,62 @@ export const AppShell: React.FC<AppShellProps> = ({
             type="button"
             onClick={() => onTabChange('warehouse')}
             style={{
-              background: 'transparent',
+              flex: 1,
+              backgroundColor: activeTab === 'warehouse' ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+              borderRadius: 9999,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 2,
-              color: activeTab === 'warehouse' ? '#171A21' : '#596273',
-              padding: '4px 8px',
-              minHeight: 44
+              justifyContent: 'center',
+              padding: '6px 2px',
+              minHeight: 46,
+              color: '#171A21',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease'
             }}
           >
-            <Archive size={20} strokeWidth={activeTab === 'warehouse' ? 2.4 : 1.8} />
-            <span style={{ fontSize: 11, fontWeight: activeTab === 'warehouse' ? 800 : 500 }}>
+            <Archive size={22} strokeWidth={activeTab === 'warehouse' ? 2.5 : 1.9} />
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: activeTab === 'warehouse' ? 800 : 600,
+                marginTop: 2,
+                letterSpacing: -0.2
+              }}
+            >
               保管する
+            </span>
+          </button>
+
+          {/* 5. マイページ (2枚目写真仕様) */}
+          <button
+            type="button"
+            onClick={() => onTabChange('profile')}
+            style={{
+              flex: 1,
+              backgroundColor: activeTab === 'profile' ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+              borderRadius: 9999,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px 2px',
+              minHeight: 46,
+              color: '#171A21',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease'
+            }}
+          >
+            <User size={22} strokeWidth={activeTab === 'profile' ? 2.5 : 1.9} />
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: activeTab === 'profile' ? 800 : 600,
+                marginTop: 2,
+                letterSpacing: -0.2
+              }}
+            >
+              マイページ
             </span>
           </button>
         </nav>

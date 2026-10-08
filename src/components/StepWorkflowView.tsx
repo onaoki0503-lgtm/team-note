@@ -45,7 +45,7 @@ export const StepWorkflowView: React.FC<StepWorkflowViewProps> = ({
   const [evalVerdict, setEvalVerdict] = useState<'未評価' | 'PL適格' | 'GL適格' | '専門実務向き' | '要フォロー'>('未評価');
 
   return (
-    <div style={{ maxWidth: 880, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ maxWidth: 880, margin: '0 auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* 上部ヘッダー S13 運営ステップ  */}
       <div
         style={{
