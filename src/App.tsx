@@ -42,12 +42,17 @@ import {
   Printer,
   Download,
   Eye,
-  ExternalLink
+  ExternalLink,
+  Building2
 } from 'lucide-react';
 import {
   dbService,
   isSupabaseConfigured,
   checkSupabaseConnection,
+  BUILDING_FLOORS_CONFIG,
+  parseUnitNumber,
+  getUnitRoomType,
+  getUnitCapacity,
   type CurrentUser,
   type ResidentRecord,
   type ProjectMemberRecord,
@@ -171,11 +176,14 @@ export default function App() {
   const [newStaffRole, setNewStaffRole] = useState('スタッフ');
 
   // 📋 寮生名簿（保管ポータル）ステート
+  const [selectedRosterBuilding, setSelectedRosterBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
+  const [rosterViewMode, setRosterViewMode] = useState<'units' | 'list'>('units');
   const [newResidentName, setNewResidentName] = useState('');
   const [newResidentBuilding, setNewResidentBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
-  const [newResidentUnit, setNewResidentUnit] = useState('');
+  const [newResidentFloor, setNewResidentFloor] = useState<1 | 2 | 3 | 4>(1);
+  const [newResidentUnit, setNewResidentUnit] = useState('Unit 101');
   const [newResidentRole, setNewResidentRole] = useState('一般寮生');
-  const [rosterBuildingFilter, setRosterBuildingFilter] = useState<string>('all');
+  const [rosterFilterRoomType, setRosterFilterRoomType] = useState<'all' | '5-person' | '1-person'>('all');
   const [rosterSearchQuery, setRosterSearchQuery] = useState('');
 
   // 📑 企画書ビュー用ステート（アプリ作成 vs 添付ファイル）
@@ -5273,405 +5281,873 @@ export default function App() {
           )}
 
           {/* ========================================================= */}
-          {/* 👥 全画面：寮生名簿（スタッフ画面と同様のシンプルな2段構成） */}
+          {/* 👥 全画面：4棟・全4階・各階4ユニット 部屋割り当て名簿 */}
           {/* ========================================================= */}
-          {warehouseActiveView === 'roster' && (
-            <div
-              style={{
-                position: 'fixed',
-                inset: 0,
-                backgroundColor: '#fafaf9',
-                zIndex: 90,
-                overflowY: 'auto',
-                paddingBottom: 80,
-                display: 'flex',
-                flexDirection: 'column'
-              }}
-            >
-              {/* 全画面ヘッダー */}
+          {warehouseActiveView === 'roster' && (() => {
+            const targetResidents = residents.filter((r) => r.building === selectedRosterBuilding);
+
+            // ユニットごとの住人集計
+            const getResidentsInUnit = (unitNumber: string) => {
+              return targetResidents.filter((r) => {
+                const parsed = parseUnitNumber(r.unit);
+                return parsed === unitNumber;
+              });
+            };
+
+            // 棟全体の統計
+            const totalCapacity = BUILDING_FLOORS_CONFIG.reduce((acc, f) => {
+              return acc + f.units.reduce((uAcc, u) => uAcc + u.capacity, 0);
+            }, 0);
+            const totalResidentsCount = targetResidents.length;
+            const fivePersonUnits = BUILDING_FLOORS_CONFIG.flatMap((f) => f.units).filter((u) => u.roomType === '5-person');
+            const onePersonUnits = BUILDING_FLOORS_CONFIG.flatMap((f) => f.units).filter((u) => u.roomType === '1-person');
+
+            const fivePersonResidentsCount = fivePersonUnits.reduce((acc, u) => acc + getResidentsInUnit(u.unitNumber).length, 0);
+            const fivePersonCapacity = fivePersonUnits.reduce((acc, u) => acc + u.capacity, 0);
+
+            const onePersonResidentsCount = onePersonUnits.reduce((acc, u) => acc + getResidentsInUnit(u.unitNumber).length, 0);
+            const onePersonCapacity = onePersonUnits.reduce((acc, u) => acc + u.capacity, 0);
+
+            // 選択中の階に応じたユニット候補
+            const currentFloorConfig = BUILDING_FLOORS_CONFIG.find((f) => f.floor === newResidentFloor);
+            const availableUnits = currentFloorConfig ? currentFloorConfig.units : [];
+
+            return (
               <div
                 style={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 40,
-                  backgroundColor: '#ea580c',
-                  color: '#fff',
-                  padding: '12px 18px',
+                  position: 'fixed',
+                  inset: 0,
+                  backgroundColor: '#fafaf9',
+                  zIndex: 90,
+                  overflowY: 'auto',
+                  paddingBottom: 80,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  boxShadow: '0 2px 10px rgba(234, 88, 12, 0.25)'
+                  flexDirection: 'column'
                 }}
               >
-                <button
-                  onClick={() => setWarehouseActiveView('hub')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.35)',
-                    padding: '6px 14px',
-                    borderRadius: 20,
-                    fontSize: 13,
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ArrowLeft size={16} />
-                  <span>保管ポータルに戻る</span>
-                </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
-                  <Users size={18} />
-                  <span>寮生名簿</span>
-                </div>
-                <div style={{ width: 40 }} />
-              </div>
-
-              <div style={{ maxWidth: 880, width: '100%', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-                {/* ① 寮生を追加するセクション（スタッフ追加画面と同様のスタイル） */}
+                {/* 全画面ヘッダー */}
                 <div
                   style={{
-                    backgroundColor: '#fff',
-                    border: '1.5px solid #fed7aa',
-                    borderRadius: 14,
-                    padding: '18px 20px',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 40,
+                    backgroundColor: '#ea580c',
+                    color: '#fff',
+                    padding: '12px 18px',
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: 14,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 2px 10px rgba(234, 88, 12, 0.25)'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h4 style={{ fontSize: 15, fontWeight: 900, color: '#1c1917', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <UserPlus size={18} color="#ea580c" />
-                      寮生を追加する
-                    </h4>
-                    <span style={{ fontSize: 11, color: '#78716c' }}>
-                      新しい寮生の基本情報を登録
-                    </span>
+                  <button
+                    onClick={() => setWarehouseActiveView('hub')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      color: '#fff',
+                      border: '1px solid rgba(255,255,255,0.35)',
+                      padding: '6px 14px',
+                      borderRadius: 20,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                    <span>保管ポータルに戻る</span>
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900 }}>
+                    <Building2 size={18} />
+                    <span>4棟・部屋割り当て名簿（全4階・各階4ユニット）</span>
                   </div>
 
-                  <form
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      if (!newResidentName.trim()) {
-                        alert('氏名を入力してください');
-                        return;
-                      }
-                      if (!newResidentUnit.trim()) {
-                        alert('部屋番号を入力してください（例: 301-A）');
-                        return;
-                      }
-
-                      // 部屋番号から階数を推定（例: "301" -> 3）、数字がなければ1
-                      const floorMatch = newResidentUnit.match(/^[0-9]/);
-                      const derivedFloor = floorMatch ? parseInt(floorMatch[0], 10) : 1;
-
-                      // デフォルトのアバター画像を生成（DiceBearアバター）
-                      const avatarSeed = encodeURIComponent(newResidentName.trim());
-                      const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${avatarSeed}`;
-
-                      await dbService.addResident({
-                        name: newResidentName.trim(),
-                        avatar: avatarUrl,
-                        building: newResidentBuilding,
-                        floor: derivedFloor,
-                        unit: newResidentUnit.trim(),
-                        role: newResidentRole.trim() || '一般寮生',
-                        roleType: 'member',
-                        email: '',
-                        memo: '名簿登録'
-                      });
-
-                      const updatedResidents = await dbService.getResidents();
-                      setResidents(updatedResidents);
-                      setNewResidentName('');
-                      setNewResidentUnit('');
-                      setNewResidentRole('一般寮生');
-                      alert(`${newResidentName.trim()}さんを寮生名簿に追加しました`);
-                    }}
-                    style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-                  >
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
-                          氏名 <span style={{ color: '#ea580c' }}>*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={newResidentName}
-                          onChange={(e) => setNewResidentName(e.target.value)}
-                          placeholder="例: 山田 太郎"
-                          required
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #cbd5e1',
-                            fontSize: 13,
-                            backgroundColor: '#fff',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
-                          所属棟 <span style={{ color: '#ea580c' }}>*</span>
-                        </label>
-                        <select
-                          value={newResidentBuilding}
-                          onChange={(e) => setNewResidentBuilding(e.target.value as any)}
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #cbd5e1',
-                            fontSize: 13,
-                            backgroundColor: '#fff',
-                            boxSizing: 'border-box'
-                          }}
-                        >
-                          <option value="rosemary">🌿 ローズマリー棟</option>
-                          <option value="basil">🌱 バジル棟</option>
-                          <option value="turmeric">🟡 ターメリック棟</option>
-                          <option value="paprika">🌶️ パプリカ棟</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
-                          部屋番号 <span style={{ color: '#ea580c' }}>*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={newResidentUnit}
-                          onChange={(e) => setNewResidentUnit(e.target.value)}
-                          placeholder="例: 301-A"
-                          required
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #cbd5e1',
-                            fontSize: 13,
-                            backgroundColor: '#fff',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
-                          役職・役割（任意）
-                        </label>
-                        <input
-                          type="text"
-                          value={newResidentRole}
-                          onChange={(e) => setNewResidentRole(e.target.value)}
-                          placeholder="例: 一般寮生、フロアリーダー"
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            borderRadius: 8,
-                            border: '1px solid #cbd5e1',
-                            fontSize: 13,
-                            backgroundColor: '#fff',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                      <button
-                        type="submit"
-                        style={{
-                          backgroundColor: '#ea580c',
-                          color: '#fff',
-                          border: 'none',
-                          padding: '10px 24px',
-                          borderRadius: 8,
-                          fontSize: 13,
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
-                        }}
-                      >
-                        <UserPlus size={16} />
-                        寮生を追加
-                      </button>
-                    </div>
-                  </form>
+                  {/* 表示モード切り替えスイッチ */}
+                  <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 20, padding: 3 }}>
+                    <button
+                      onClick={() => setRosterViewMode('units')}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 16,
+                        border: 'none',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        backgroundColor: rosterViewMode === 'units' ? '#fff' : 'transparent',
+                        color: rosterViewMode === 'units' ? '#ea580c' : '#fff',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      🏢 部屋割りマップ
+                    </button>
+                    <button
+                      onClick={() => setRosterViewMode('list')}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 16,
+                        border: 'none',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        backgroundColor: rosterViewMode === 'list' ? '#fff' : 'transparent',
+                        color: rosterViewMode === 'list' ? '#ea580c' : '#fff',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      📋 寮生一覧
+                    </button>
+                  </div>
                 </div>
 
-                {/* ② 追加された寮生の一覧 */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10, borderBottom: '1.5px solid #f1f5f9', paddingBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <h4 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', margin: 0 }}>
-                        寮生一覧
+                <div style={{ maxWidth: 960, width: '100%', margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* 4棟切り替えタブ ＆ 棟別ステータスサマリー */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {[
+                        { key: 'rosemary', label: '🌿 ローズマリー棟' },
+                        { key: 'basil', label: '🌱 バジル棟' },
+                        { key: 'turmeric', label: '🟡 ターメリック棟' },
+                        { key: 'paprika', label: '🌶️ パプリカ棟' }
+                      ].map((b) => {
+                        const isSelected = selectedRosterBuilding === b.key;
+                        const bResidents = residents.filter((r) => r.building === b.key);
+                        return (
+                          <button
+                            key={b.key}
+                            onClick={() => {
+                              setSelectedRosterBuilding(b.key as any);
+                              setNewResidentBuilding(b.key as any);
+                            }}
+                            style={{
+                              padding: '10px 18px',
+                              borderRadius: 12,
+                              fontSize: 14,
+                              fontWeight: 800,
+                              backgroundColor: isSelected ? '#ea580c' : '#fff',
+                              border: isSelected ? '2px solid #ea580c' : '1px solid #d6d3d1',
+                              color: isSelected ? '#fff' : '#44403c',
+                              cursor: 'pointer',
+                              boxShadow: isSelected ? '0 4px 12px rgba(234, 88, 12, 0.25)' : 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8
+                            }}
+                          >
+                            <span>{b.label}</span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: '1px 7px',
+                                borderRadius: 10,
+                                backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                                color: isSelected ? '#fff' : '#64748b'
+                              }}
+                            >
+                              {bResidents.length}名
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* 棟統計インフォバー（5人部屋と1人部屋の区分を明確化） */}
+                    <div
+                      style={{
+                        backgroundColor: '#fff',
+                        border: '1.5px solid #fed7aa',
+                        borderRadius: 14,
+                        padding: '12px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                        <div>
+                          <span style={{ fontSize: 11, color: '#78716c', fontWeight: 700 }}>棟全体 入居者</span>
+                          <div style={{ fontSize: 16, fontWeight: 900, color: '#1c1917' }}>
+                            {totalResidentsCount} / {totalCapacity} 名
+                            <span style={{ fontSize: 12, color: totalCapacity - totalResidentsCount > 0 ? '#ea580c' : '#15803d', marginLeft: 6, fontWeight: 800 }}>
+                              {totalCapacity - totalResidentsCount > 0 ? `(空き ${totalCapacity - totalResidentsCount}名)` : '(満室)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ height: 28, width: 1, backgroundColor: '#e2e8f0' }} />
+
+                        <div>
+                          <span style={{ fontSize: 11, color: '#78716c', fontWeight: 700 }}>👥 5人部屋ユニット (計14部屋)</span>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#1d4ed8' }}>
+                            {fivePersonResidentsCount} / {fivePersonCapacity} 名
+                            <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>
+                              (空き {fivePersonCapacity - fivePersonResidentsCount}名)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ height: 28, width: 1, backgroundColor: '#e2e8f0' }} />
+
+                        <div>
+                          <span style={{ fontSize: 11, color: '#78716c', fontWeight: 700 }}>🚪 1階 1人部屋個室 (計2部屋)</span>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#7c3aed' }}>
+                            {onePersonResidentsCount} / {onePersonCapacity} 名
+                            <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>
+                              (空室 {onePersonCapacity - onePersonResidentsCount}室)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: 11, color: '#9a3412', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}>
+                        全4階・各階4ユニット構成
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ① 寮生を追加するセクション（スタッフ画面同様のシンプル設計） */}
+                  <div
+                    style={{
+                      backgroundColor: '#fff',
+                      border: '1.5px solid #fed7aa',
+                      borderRadius: 14,
+                      padding: '16px 20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 900, color: '#1c1917', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <UserPlus size={16} color="#ea580c" />
+                        寮生を追加する（部屋割り当て）
                       </h4>
-                      <span style={{ fontSize: 12, fontWeight: 800, backgroundColor: '#ffedd5', color: '#9a3412', padding: '2px 10px', borderRadius: 8 }}>
-                        {residents.filter((r) => {
-                          const matchesBuilding = rosterBuildingFilter === 'all' || r.building === rosterBuildingFilter;
-                          const matchesQuery = !rosterSearchQuery.trim() || r.name.toLowerCase().includes(rosterSearchQuery.toLowerCase()) || r.unit.toLowerCase().includes(rosterSearchQuery.toLowerCase());
-                          return matchesBuilding && matchesQuery;
-                        }).length} 名
+                      <span style={{ fontSize: 11, color: '#78716c' }}>
+                        棟・階・ユニット（5人部屋 / 1人部屋）を選んで登録
                       </span>
                     </div>
 
-                    {/* 棟フィルター ＆ 検索窓 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {[
-                          { key: 'all', label: 'すべて' },
-                          { key: 'rosemary', label: 'ローズ' },
-                          { key: 'basil', label: 'バジル' },
-                          { key: 'turmeric', label: 'ターメリック' },
-                          { key: 'paprika', label: 'パプリカ' }
-                        ].map((b) => (
-                          <button
-                            key={b.key}
-                            onClick={() => setRosterBuildingFilter(b.key)}
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!newResidentName.trim()) {
+                          alert('氏名を入力してください');
+                          return;
+                        }
+                        if (!newResidentUnit.trim()) {
+                          alert('ユニットを選択してください');
+                          return;
+                        }
+
+                        const roomType = getUnitRoomType(newResidentUnit);
+                        const capacity = getUnitCapacity(newResidentUnit);
+                        const existingInUnit = targetResidents.filter(
+                          (r) => parseUnitNumber(r.unit) === parseUnitNumber(newResidentUnit)
+                        );
+
+                        if (existingInUnit.length >= capacity) {
+                          if (!confirm(`【注意】${newResidentUnit}（定員${capacity}名）は現在既に${existingInUnit.length}名入居中です。定員を超えて登録しますか？`)) {
+                            return;
+                          }
+                        }
+
+                        const avatarSeed = encodeURIComponent(newResidentName.trim());
+                        const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${avatarSeed}`;
+
+                        await dbService.addResident({
+                          name: newResidentName.trim(),
+                          avatar: avatarUrl,
+                          building: newResidentBuilding,
+                          floor: newResidentFloor,
+                          unit: newResidentUnit,
+                          roomType: roomType,
+                          role: newResidentRole.trim() || '一般寮生',
+                          roleType: 'member',
+                          email: '',
+                          memo: '部屋割り登録'
+                        });
+
+                        const updatedResidents = await dbService.getResidents();
+                        setResidents(updatedResidents);
+                        setNewResidentName('');
+                        alert(`${newResidentName.trim()}さんを ${newResidentUnit}（${roomType === '1-person' ? '1人部屋' : '5人部屋'}）に追加しました`);
+                      }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+                        {/* 氏名 */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                            氏名 <span style={{ color: '#ea580c' }}>*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={newResidentName}
+                            onChange={(e) => setNewResidentName(e.target.value)}
+                            placeholder="例: 山田 太郎"
+                            required
                             style={{
-                              padding: '5px 10px',
-                              borderRadius: 6,
-                              fontSize: 11,
-                              fontWeight: 800,
-                              backgroundColor: rosterBuildingFilter === b.key ? '#ea580c' : '#f1f5f9',
-                              color: rosterBuildingFilter === b.key ? '#fff' : '#475569',
-                              border: 'none',
-                              cursor: 'pointer'
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              backgroundColor: '#fff',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        {/* 所属棟 */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                            所属棟 <span style={{ color: '#ea580c' }}>*</span>
+                          </label>
+                          <select
+                            value={newResidentBuilding}
+                            onChange={(e) => {
+                              const b = e.target.value as any;
+                              setNewResidentBuilding(b);
+                              setSelectedRosterBuilding(b);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              backgroundColor: '#fff',
+                              boxSizing: 'border-box'
                             }}
                           >
-                            {b.label}
-                          </button>
-                        ))}
+                            <option value="rosemary">🌿 ローズマリー棟</option>
+                            <option value="basil">🌱 バジル棟</option>
+                            <option value="turmeric">🟡 ターメリック棟</option>
+                            <option value="paprika">🌶️ パプリカ棟</option>
+                          </select>
+                        </div>
+
+                        {/* 階数 */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                            階数 <span style={{ color: '#ea580c' }}>*</span>
+                          </label>
+                          <select
+                            value={newResidentFloor}
+                            onChange={(e) => {
+                              const f = parseInt(e.target.value, 10) as 1 | 2 | 3 | 4;
+                              setNewResidentFloor(f);
+                              setNewResidentUnit(`Unit ${f}01`);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              backgroundColor: '#fff',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <option value="4">第4階 (4F) - 5人部屋</option>
+                            <option value="3">第3階 (3F) - 5人部屋</option>
+                            <option value="2">第2階 (2F) - 5人部屋</option>
+                            <option value="1">第1階 (1F) - 5人部屋 / 1人部屋</option>
+                          </select>
+                        </div>
+
+                        {/* ユニット選択 */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                            ユニット・部屋番号 <span style={{ color: '#ea580c' }}>*</span>
+                          </label>
+                          <select
+                            value={newResidentUnit}
+                            onChange={(e) => setNewResidentUnit(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              backgroundColor: '#fff',
+                              boxSizing: 'border-box',
+                              fontWeight: 700
+                            }}
+                          >
+                            {availableUnits.map((u) => {
+                              const inCount = getResidentsInUnit(u.unitNumber).length;
+                              const isFull = inCount >= u.capacity;
+                              const isPartial = inCount < u.capacity && inCount > 0;
+                              const statusText = isFull
+                                ? '満室'
+                                : isPartial
+                                ? `${inCount}/${u.capacity}名 (空き${u.capacity - inCount}名)`
+                                : `空室 (${u.capacity}名空き)`;
+                              return (
+                                <option key={u.unitNumber} value={u.unitName}>
+                                  {u.unitName} [{u.label}] — {statusText}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        {/* 役職・役割 */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                            担当・役職（任意）
+                          </label>
+                          <input
+                            type="text"
+                            value={newResidentRole}
+                            onChange={(e) => setNewResidentRole(e.target.value)}
+                            placeholder="例: 一般寮生、フロアリーダー"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 12,
+                              backgroundColor: '#fff',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
                       </div>
 
-                      <div style={{ position: 'relative', width: 160 }}>
-                        <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }} />
-                        <input
-                          type="text"
-                          value={rosterSearchQuery}
-                          onChange={(e) => setRosterSearchQuery(e.target.value)}
-                          placeholder="氏名・部屋で検索"
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
+                        <button
+                          type="submit"
                           style={{
-                            width: '100%',
-                            padding: '5px 8px 5px 26px',
-                            borderRadius: 6,
-                            border: '1px solid #cbd5e1',
-                            fontSize: 11,
-                            backgroundColor: '#fff',
-                            boxSizing: 'border-box'
+                            backgroundColor: '#ea580c',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '9px 22px',
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
                           }}
-                        />
+                        >
+                          <UserPlus size={15} />
+                          名簿に追加
+                        </button>
                       </div>
-                    </div>
+                    </form>
                   </div>
 
-                  {/* 一覧グリッド */}
-                  {residents.filter((r) => {
-                    const matchesBuilding = rosterBuildingFilter === 'all' || r.building === rosterBuildingFilter;
-                    const matchesQuery = !rosterSearchQuery.trim() || r.name.toLowerCase().includes(rosterSearchQuery.toLowerCase()) || r.unit.toLowerCase().includes(rosterSearchQuery.toLowerCase());
-                    return matchesBuilding && matchesQuery;
-                  }).length === 0 ? (
-                    <div style={{ backgroundColor: '#fff', padding: 32, borderRadius: 12, border: '1.5px dashed #cbd5e1', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
-                      該当する寮生が見つかりません。上のフォームから新しく寮生を追加してください。
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-                      {residents
-                        .filter((r) => {
-                          const matchesBuilding = rosterBuildingFilter === 'all' || r.building === rosterBuildingFilter;
-                          const matchesQuery = !rosterSearchQuery.trim() || r.name.toLowerCase().includes(rosterSearchQuery.toLowerCase()) || r.unit.toLowerCase().includes(rosterSearchQuery.toLowerCase());
-                          return matchesBuilding && matchesQuery;
-                        })
-                        .map((r) => {
-                          const buildingLabels: Record<string, string> = {
-                            rosemary: 'ローズマリー棟',
-                            basil: 'バジル棟',
-                            turmeric: 'ターメリック棟',
-                            paprika: 'パプリカ棟'
-                          };
-                          return (
-                            <div
-                              key={r.id}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: 12,
-                                padding: '12px 14px',
-                                backgroundColor: '#fff',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: 12,
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                                <img
-                                  src={r.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(r.name)}`}
-                                  alt={r.name}
-                                  style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1.5px solid #fed7aa' }}
-                                />
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <strong style={{ fontSize: 14, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {r.name}
-                                    </strong>
-                                    <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>
-                                      {r.role || '一般寮生'}
-                                    </span>
+                  {/* ==================================================== */}
+                  {/* メイン表示 A：🏢 部屋割りマップ（4F〜1F・各階4ユニット） */}
+                  {/* ==================================================== */}
+                  {rosterViewMode === 'units' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {BUILDING_FLOORS_CONFIG.map((floorConfig) => (
+                        <div
+                          key={floorConfig.floor}
+                          style={{
+                            backgroundColor: '#fff',
+                            borderRadius: 14,
+                            border: '1.5px solid #fed7aa',
+                            overflow: 'hidden',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                          }}
+                        >
+                          {/* 階ヘッダー */}
+                          <div
+                            style={{
+                              backgroundColor: '#fff7ed',
+                              borderBottom: '1px solid #fed7aa',
+                              padding: '12px 18px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: 8
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 16, fontWeight: 900, color: '#9a3412' }}>
+                                {floorConfig.label}
+                              </span>
+                              {floorConfig.floor === 1 ? (
+                                <span style={{ backgroundColor: '#ede9fe', color: '#6d28d9', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                                  🚪 1人部屋個室 (Unit 103・104) ＆ 👥 5人部屋 (Unit 101・102)
+                                </span>
+                              ) : (
+                                <span style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                                  👥 全4ユニット 5人部屋
+                                </span>
+                              )}
+                            </div>
+
+                            <span style={{ fontSize: 12, color: '#78716c', fontWeight: 700 }}>
+                              {floorConfig.units.reduce((acc, u) => acc + getResidentsInUnit(u.unitNumber).length, 0)} / {floorConfig.units.reduce((acc, u) => acc + u.capacity, 0)} 名入居
+                            </span>
+                          </div>
+
+                          {/* 4つのユニットカード（グリッド） */}
+                          <div
+                            style={{
+                              padding: 16,
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                              gap: 14
+                            }}
+                          >
+                            {floorConfig.units.map((unit) => {
+                              const occupants = getResidentsInUnit(unit.unitNumber);
+                              const count = occupants.length;
+                              const capacity = unit.capacity;
+                              const isFull = count >= capacity;
+                              const isPartial = count > 0 && count < capacity;
+                              const isEmpty = count === 0;
+                              const isSingle = unit.roomType === '1-person';
+
+                              return (
+                                <div
+                                  key={unit.unitNumber}
+                                  style={{
+                                    backgroundColor: isEmpty ? '#f8fafc' : '#fff',
+                                    border: isSingle ? '1.5px solid #c4b5fd' : '1px solid #e2e8f0',
+                                    borderRadius: 12,
+                                    padding: '12px 14px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 10,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  {/* ユニットヘッダー */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <strong style={{ fontSize: 15, color: '#1c1917' }}>
+                                          {unit.unitName}
+                                        </strong>
+                                        {/* 区分バッジ */}
+                                        {isSingle ? (
+                                          <span style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
+                                            🚪 1人部屋
+                                          </span>
+                                        ) : (
+                                          <span style={{ backgroundColor: '#dbeafe', color: '#1e40af', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
+                                            👥 5人部屋
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* 人数ステータスバッジ */}
+                                    {isFull ? (
+                                      <span style={{ backgroundColor: '#dcfce7', color: '#15803d', fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6 }}>
+                                        {count}/{capacity} 満室
+                                      </span>
+                                    ) : isPartial ? (
+                                      <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6 }}>
+                                        {count}/{capacity} (空き{capacity - count})
+                                      </span>
+                                    ) : (
+                                      <span style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6 }}>
+                                        0/{capacity} 空室
+                                      </span>
+                                    )}
                                   </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: 11, color: '#64748b' }}>
-                                    <span>🏠 {buildingLabels[r.building] || r.building}</span>
-                                    <span>•</span>
-                                    <span style={{ fontWeight: 700, color: '#334155' }}>{r.unit}</span>
+
+                                  {/* スロット視覚インジケーター */}
+                                  <div style={{ display: 'flex', gap: 4 }}>
+                                    {Array.from({ length: capacity }).map((_, idx) => (
+                                      <div
+                                        key={idx}
+                                        style={{
+                                          flex: 1,
+                                          height: 5,
+                                          borderRadius: 3,
+                                          backgroundColor: idx < count ? (isSingle ? '#9333ea' : '#ea580c') : '#e2e8f0'
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+
+                                  {/* 入居者一覧 */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 40 }}>
+                                    {occupants.map((occ) => (
+                                      <div
+                                        key={occ.id}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          padding: '5px 8px',
+                                          backgroundColor: '#fafaf9',
+                                          borderRadius: 6,
+                                          fontSize: 12
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                          <img
+                                            src={occ.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(occ.name)}`}
+                                            alt={occ.name}
+                                            style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                          />
+                                          <span style={{ fontWeight: 800, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {occ.name}
+                                          </span>
+                                          {occ.role && occ.role !== '一般寮生' && (
+                                            <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, flexShrink: 0 }}>
+                                              {occ.role}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <button
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            if (confirm(`${occ.name}さんを名簿から削除しますか？`)) {
+                                              const updated = await dbService.deleteResident(occ.id);
+                                              setResidents(updated);
+                                            }
+                                          }}
+                                          title="削除"
+                                          style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#cbd5e1',
+                                            cursor: 'pointer',
+                                            padding: 2,
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.color = '#cbd5e1'; }}
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </div>
+                                    ))}
+
+                                    {/* 空きスロットがある場合 */}
+                                    {count < capacity && (
+                                      <button
+                                        onClick={() => {
+                                          setNewResidentFloor(floorConfig.floor);
+                                          setNewResidentUnit(unit.unitName);
+                                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
+                                        style={{
+                                          border: '1px dashed #cbd5e1',
+                                          backgroundColor: 'transparent',
+                                          color: '#64748b',
+                                          padding: '5px 8px',
+                                          borderRadius: 6,
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          textAlign: 'center'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.borderColor = '#ea580c';
+                                          e.currentTarget.style.color = '#ea580c';
+                                          e.currentTarget.style.backgroundColor = '#fff7ed';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.borderColor = '#cbd5e1';
+                                          e.currentTarget.style.color = '#64748b';
+                                          e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                      >
+                                        ＋ 空き枠に追加 ({capacity - count}名募集)
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
-                              </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
+                  {/* ==================================================== */}
+                  {/* メイン表示 B：📋 寮生一覧リスト（スタッフ画面スタイル） */}
+                  {/* ==================================================== */}
+                  {rosterViewMode === 'list' && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10, borderBottom: '1.5px solid #f1f5f9', paddingBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <h4 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', margin: 0 }}>
+                            寮生一覧
+                          </h4>
+                          <span style={{ fontSize: 12, fontWeight: 800, backgroundColor: '#ffedd5', color: '#9a3412', padding: '2px 10px', borderRadius: 8 }}>
+                            {targetResidents.filter((r) => {
+                              const rType = r.roomType || getUnitRoomType(r.unit);
+                              const matchesType = rosterFilterRoomType === 'all' || rType === rosterFilterRoomType;
+                              const matchesQuery = !rosterSearchQuery.trim() || r.name.toLowerCase().includes(rosterSearchQuery.toLowerCase()) || r.unit.toLowerCase().includes(rosterSearchQuery.toLowerCase());
+                              return matchesType && matchesQuery;
+                            }).length} 名
+                          </span>
+                        </div>
+
+                        {/* 区分フィルター ＆ 検索窓 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {[
+                              { key: 'all', label: 'すべて' },
+                              { key: '5-person', label: '👥 5人部屋' },
+                              { key: '1-person', label: '🚪 1人部屋' }
+                            ].map((btn) => (
                               <button
-                                onClick={async () => {
-                                  if (confirm(`${r.name}さんを名簿から削除しますか？`)) {
-                                    const updated = await dbService.deleteResident(r.id);
-                                    setResidents(updated);
-                                  }
-                                }}
-                                title="名簿から削除"
+                                key={btn.key}
+                                onClick={() => setRosterFilterRoomType(btn.key as any)}
                                 style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  color: '#94a3b8',
-                                  cursor: 'pointer',
-                                  padding: '6px',
+                                  padding: '5px 10px',
                                   borderRadius: 6,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  transition: 'color 0.15s ease'
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  backgroundColor: rosterFilterRoomType === btn.key ? '#ea580c' : '#f1f5f9',
+                                  color: rosterFilterRoomType === btn.key ? '#fff' : '#475569',
+                                  border: 'none',
+                                  cursor: 'pointer'
                                 }}
-                                onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
                               >
-                                <Trash2 size={16} />
+                                {btn.label}
                               </button>
-                            </div>
-                          );
-                        })}
+                            ))}
+                          </div>
+
+                          <div style={{ position: 'relative', width: 160 }}>
+                            <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }} />
+                            <input
+                              type="text"
+                              value={rosterSearchQuery}
+                              onChange={(e) => setRosterSearchQuery(e.target.value)}
+                              placeholder="氏名・部屋で検索"
+                              style={{
+                                width: '100%',
+                                padding: '5px 8px 5px 26px',
+                                borderRadius: 6,
+                                border: '1px solid #cbd5e1',
+                                fontSize: 11,
+                                backgroundColor: '#fff',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 一覧グリッド */}
+                      {targetResidents.filter((r) => {
+                        const rType = r.roomType || getUnitRoomType(r.unit);
+                        const matchesType = rosterFilterRoomType === 'all' || rType === rosterFilterRoomType;
+                        const matchesQuery = !rosterSearchQuery.trim() || r.name.toLowerCase().includes(rosterSearchQuery.toLowerCase()) || r.unit.toLowerCase().includes(rosterSearchQuery.toLowerCase());
+                        return matchesType && matchesQuery;
+                      }).length === 0 ? (
+                        <div style={{ backgroundColor: '#fff', padding: 32, borderRadius: 12, border: '1.5px dashed #cbd5e1', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                          該当する寮生が見つかりません。上のフォームから新しく寮生を追加してください。
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                          {targetResidents
+                            .filter((r) => {
+                              const rType = r.roomType || getUnitRoomType(r.unit);
+                              const matchesType = rosterFilterRoomType === 'all' || rType === rosterFilterRoomType;
+                              const matchesQuery = !rosterSearchQuery.trim() || r.name.toLowerCase().includes(rosterSearchQuery.toLowerCase()) || r.unit.toLowerCase().includes(rosterSearchQuery.toLowerCase());
+                              return matchesType && matchesQuery;
+                            })
+                            .map((r) => {
+                              const rType = r.roomType || getUnitRoomType(r.unit);
+                              const isSingle = rType === '1-person';
+                              return (
+                                <div
+                                  key={r.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12,
+                                    padding: '12px 14px',
+                                    backgroundColor: '#fff',
+                                    border: isSingle ? '1.5px solid #ddd6fe' : '1px solid #e2e8f0',
+                                    borderRadius: 12,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                                    <img
+                                      src={r.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(r.name)}`}
+                                      alt={r.name}
+                                      style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1.5px solid #fed7aa' }}
+                                    />
+                                    <div style={{ minWidth: 0 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <strong style={{ fontSize: 14, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {r.name}
+                                        </strong>
+                                        <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>
+                                          {r.role || '一般寮生'}
+                                        </span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: 11, color: '#64748b' }}>
+                                        <span style={{ fontWeight: 800, color: '#1e293b' }}>{r.unit}</span>
+                                        <span>•</span>
+                                        {isSingle ? (
+                                          <span style={{ color: '#7c3aed', fontWeight: 800 }}>🚪 1人部屋</span>
+                                        ) : (
+                                          <span style={{ color: '#1d4ed8', fontWeight: 800 }}>👥 5人部屋</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm(`${r.name}さんを名簿から削除しますか？`)) {
+                                        const updated = await dbService.deleteResident(r.id);
+                                        setResidents(updated);
+                                      }
+                                    }}
+                                    title="名簿から削除"
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#94a3b8',
+                                      cursor: 'pointer',
+                                      padding: '6px',
+                                      borderRadius: 6,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'color 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================= */}
           {/* 📦 全画面：備品在庫（何がどこに何個あるか） */}

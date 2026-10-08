@@ -50,12 +50,84 @@ export interface ResidentRecord {
   building: 'rosemary' | 'basil' | 'turmeric' | 'paprika'
   floor: number
   unit: string
+  roomType?: '5-person' | '1-person' // 5人部屋 or 1人部屋（1階）
   role: string
   roleType: 'fl' | 'hl' | 'member'
   email: string
   memo: string
   careers?: EventRoleCareer[] // 歴代イベント役職経歴
   evaluations?: LeaderEvaluationRecord[] // 人事評価・リーダーカルテ
+}
+
+export interface BuildingUnitConfig {
+  unitNumber: string
+  unitName: string
+  floor: 1 | 2 | 3 | 4
+  roomType: '5-person' | '1-person'
+  capacity: number
+  label: string
+}
+
+export const BUILDING_FLOORS_CONFIG: {
+  floor: 1 | 2 | 3 | 4
+  label: string
+  units: BuildingUnitConfig[]
+}[] = [
+  {
+    floor: 4,
+    label: '第4階（4F）',
+    units: [
+      { unitNumber: '401', unitName: 'Unit 401', floor: 4, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '402', unitName: 'Unit 402', floor: 4, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '403', unitName: 'Unit 403', floor: 4, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '404', unitName: 'Unit 404', floor: 4, roomType: '5-person', capacity: 5, label: '5人部屋' }
+    ]
+  },
+  {
+    floor: 3,
+    label: '第3階（3F）',
+    units: [
+      { unitNumber: '301', unitName: 'Unit 301', floor: 3, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '302', unitName: 'Unit 302', floor: 3, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '303', unitName: 'Unit 303', floor: 3, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '304', unitName: 'Unit 304', floor: 3, roomType: '5-person', capacity: 5, label: '5人部屋' }
+    ]
+  },
+  {
+    floor: 2,
+    label: '第2階（2F）',
+    units: [
+      { unitNumber: '201', unitName: 'Unit 201', floor: 2, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '202', unitName: 'Unit 202', floor: 2, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '203', unitName: 'Unit 203', floor: 2, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '204', unitName: 'Unit 204', floor: 2, roomType: '5-person', capacity: 5, label: '5人部屋' }
+    ]
+  },
+  {
+    floor: 1,
+    label: '第1階（1F）',
+    units: [
+      { unitNumber: '101', unitName: 'Unit 101', floor: 1, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '102', unitName: 'Unit 102', floor: 1, roomType: '5-person', capacity: 5, label: '5人部屋' },
+      { unitNumber: '103', unitName: 'Unit 103', floor: 1, roomType: '1-person', capacity: 1, label: '1人部屋（個室）' },
+      { unitNumber: '104', unitName: 'Unit 104', floor: 1, roomType: '1-person', capacity: 1, label: '1人部屋（個室）' }
+    ]
+  }
+]
+
+export function parseUnitNumber(unitStr: string): string {
+  const m = unitStr.match(/([1-4]0[1-4])/);
+  return m ? m[1] : '';
+}
+
+export function getUnitRoomType(unitStr: string): '5-person' | '1-person' {
+  const num = parseUnitNumber(unitStr);
+  if (num === '103' || num === '104') return '1-person';
+  return '5-person';
+}
+
+export function getUnitCapacity(unitStr: string): number {
+  return getUnitRoomType(unitStr) === '1-person' ? 1 : 5;
 }
 
 export interface ProjectMemberRecord {
@@ -372,7 +444,96 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
       { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'メンバー', groupName: '装飾班', yearMonth: '2026-12', isCertifiedGl: false }
     ],
     evaluations: []
-  }
+  },
+  // --- 4F ユニット住人 ---
+  { id: 'r-401-1', name: '佐々木 陸', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '統括メンバー', roleType: 'member', email: '', memo: '' },
+  { id: 'r-401-2', name: '松本 玲奈', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-401-3', name: '井上 陽介', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-401-4', name: '木村 拓也', avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-401-5', name: '林 彩花', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 402: 3名入居中（空き2名）
+  { id: 'r-402-1', name: '加藤 航', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 402', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-402-2', name: '清水 大輝', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 402', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-402-3', name: '池田 萌', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 402', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 403: 5名満室
+  { id: 'r-403-1', name: '吉田 健', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 403', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-403-2', name: '山口 舞', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 403', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-403-3', name: '斉藤 翔', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 403', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-403-4', name: '岡田 葵', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 403', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-403-5', name: '長谷川 蓮', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 403', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 404: 4名入居中（空き1名）
+  { id: 'r-404-1', name: '村上 拓真', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 404', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-404-2', name: '近藤 咲', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 404', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-404-3', name: '遠藤 隼人', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 404', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-404-4', name: '青木 結衣', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 404', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // --- 3F ユニット住人 ---
+  // Unit 301（岡本直樹、伊藤雄吉に加えて3人目）
+  { id: 'r-301-3', name: '高橋 涼平', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 301 - C室', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 302: 5名満室
+  { id: 'r-302-1', name: '三浦 剛', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 302', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-302-2', name: '竹内 楓', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 302', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-302-3', name: '中島 裕貴', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 302', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-402-4', name: '石井 美優', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 302', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-402-5', name: '小川 雄大', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 302', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 303: 5名満室
+  { id: 'r-303-1', name: '前田 龍', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 303', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-303-2', name: '藤田 詩織', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 303', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-303-3', name: '後藤 悠太', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 303', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-303-4', name: '柴田 莉奈', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 303', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-303-5', name: '坂本 拓海', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 303', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 304: 3名入居中（空き2名）
+  { id: 'r-304-1', name: '原田 慎一', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 304', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-304-2', name: '工藤 真央', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 304', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-304-3', name: '小野 健治', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 304', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // --- 2F ユニット住人 ---
+  // Unit 201: 5名満室
+  { id: 'r-201-1', name: '森本 健', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-201-2', name: '阿部 さくら', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-201-3', name: '福田 優希', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-201-4', name: '西田 涼', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-201-5', name: '内田 結菜', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 202（佐藤健太に加えて残り4名で満室）
+  { id: 'r-202-2', name: '菊地 翔', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 202', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-202-3', name: '野村 遥', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 202', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-202-4', name: '菅原 大地', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 202', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-202-5', name: '安藤 美咲', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 202', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 203: 3名入居中（空き2名）
+  { id: 'r-203-1', name: '丸山 浩', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 203', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-203-2', name: '大野 芽衣', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 203', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-203-3', name: '杉山 拓', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 203', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 204: 4名入居中（空き1名）
+  { id: 'r-204-1', name: '千葉 竜也', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 204', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-204-2', name: '荒木 陽菜', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 204', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-204-3', name: '水野 駿', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 204', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-204-4', name: '堀内 誠', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 204', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // --- 1F ユニット住人（5人部屋 ＆ 1人部屋個室） ---
+  // Unit 101: 5名満室
+  { id: 'r-101-1', name: '田村 啓介', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-101-2', name: '上田 七海', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-101-3', name: '馬場 光', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-101-4', name: '望月 隼', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-101-5', name: '金子 栞', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 102: 3名入居中（空き2名）
+  { id: 'r-102-1', name: '辻 康平', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 102', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-102-2', name: '白石 琴音', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 102', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  { id: 'r-102-3', name: '矢野 大輝', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 102', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+
+  // Unit 103: 1人部屋（個室）/ 1名入居中（満室）
+  { id: 'r-103-1', name: '中村 遥', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 103', roomType: '1-person', role: '有志メンバー（個室）', roleType: 'member', email: 'nakamura.h@sfc.keio.ac.jp', memo: '1人部屋利用' }
+  // ※ Unit 104 は 1人部屋（個室）で現在 0名（空室）
 ]
 
 // 初期プロジェクトデータ（スタッフ参加リスト付き）
@@ -966,7 +1127,16 @@ export const dbService = {
     const local = localStorage.getItem(STORAGE_KEYS.RESIDENTS)
     if (local) {
       try {
-        return JSON.parse(local)
+        const parsed: ResidentRecord[] = JSON.parse(local)
+        // 既存の住人データに INITIAL_RESIDENTS の初期データが不足している場合は補完
+        const existingIds = new Set(parsed.map((r) => r.id))
+        const missing = INITIAL_RESIDENTS.filter((r) => !existingIds.has(r.id))
+        if (missing.length > 0) {
+          const merged = [...parsed, ...missing]
+          localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(merged))
+          return merged
+        }
+        return parsed
       } catch {
         // ignore
       }
@@ -978,6 +1148,7 @@ export const dbService = {
   async addResident(resident: Omit<ResidentRecord, 'id'>): Promise<ResidentRecord> {
     const newResident: ResidentRecord = {
       ...resident,
+      roomType: resident.roomType || getUnitRoomType(resident.unit),
       id: `r-${Date.now()}`
     }
     const current = await this.getResidents()
