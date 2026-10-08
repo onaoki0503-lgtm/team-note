@@ -42,7 +42,7 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {/* 上部ヘッダー（S05 進行中） */}
+      {/* 上部ヘッダー S05 進行中  */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 900, color: '#171A21', letterSpacing: -0.4 }}>

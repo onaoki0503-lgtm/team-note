@@ -377,7 +377,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             </span>
           </div>
 
-          {/* 表示切替（アイデアマップ / 一覧） */}
+          {/* 表示切替 アイデアマップ / 一覧  */}
           <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #D9DEE7', paddingBottom: 8 }}>
             <button
               type="button"

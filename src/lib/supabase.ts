@@ -25,7 +25,7 @@ export const checkSupabaseConnection = async (): Promise<{ success: boolean; mes
   if (!isSupabaseConfigured) {
     return {
       success: false,
-      message: 'Supabaseの環境変数（VITE_SUPABASE_URL）が未設定です。ローカル永続化ストレージを使用中。'
+      message: 'Supabaseの環境変数 VITE_SUPABASE_URL が未設定です。ローカル永続化ストレージを使用中。'
     }
   }
 
@@ -34,7 +34,7 @@ export const checkSupabaseConnection = async (): Promise<{ success: boolean; mes
     if (error && error.code !== 'PGRST116') {
       return {
         success: true,
-        message: `Supabaseに接続されました（ステータス: ${error.message}）`
+        message: `Supabaseに接続されました ステータス: ${error.message} `
       }
     }
     return {

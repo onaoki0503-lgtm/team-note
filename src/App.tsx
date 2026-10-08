@@ -100,7 +100,7 @@ export default function App() {
     init();
   }, []);
 
-  // 吹き出しアイデアデータ（プロジェクトから生成または初期値）
+  // 吹き出しアイデアデータ プロジェクトから生成または初期値 
   const bubbleIdeas: IdeaItem[] = projects.slice(0, 4).map((p, idx) => ({
     id: p.id,
     text: p.title,
@@ -233,7 +233,7 @@ export default function App() {
     setResidents(updated);
   };
 
-  // 寮生更新（アバターや役職変更）
+  // 寮生更新 アバターや役職変更 
   const handleUpdateResident = async (residentId: string, updates: Partial<ResidentRecord>) => {
     const updated = await dbService.updateResident(residentId, updates);
     if (updated) {
@@ -335,7 +335,7 @@ export default function App() {
                 onTogglePause={() => setIsScenePaused((p) => !p)}
               />
 
-              {/* 上部スローガン（指定文字列: アイデアをカタチに。） */}
+              {/* 上部スローガン 指定文字列: アイデアをカタチに。  */}
               <div
                 style={{
                   position: 'relative',
@@ -357,7 +357,7 @@ export default function App() {
                 </h1>
               </div>
 
-              {/* 中央の白い円形ボタン（アイデア運営をスタート） */}
+              {/* 中央の白い円形ボタン アイデア運営をスタート  */}
               <div
                 style={{
                   position: 'relative',
@@ -376,7 +376,7 @@ export default function App() {
                 />
               </div>
 
-              {/* 吹き出しレイヤー（S01通常交代 ＆ S02直接入力展開） */}
+              {/* 吹き出しレイヤー S01通常交代 ＆ S02直接入力展開  */}
               <IdeaBubbleLayer
                 ideas={bubbleIdeas}
                 currentUserId={currentUser.id}
@@ -466,6 +466,26 @@ export default function App() {
                 setProjects(refreshed);
               }}
               onOpenAddStep={() => {}}
+              onUpdateProposal={async (doc) => {
+                await dbService.updateProject(selectedProject.id, { proposalDoc: doc });
+                const refreshed = await dbService.getProjects();
+                setProjects(refreshed);
+              }}
+              onAddStepItem={async (name, dateRange) => {
+                const currentSteps = selectedProject.workflowSteps || [];
+                const newStep = {
+                  id: `st-${Date.now()}`,
+                  step: String(currentSteps.length + 1),
+                  title: name,
+                  date: dateRange || '実施予定',
+                  done: false,
+                  active: false
+                };
+                const updated = [...currentSteps, newStep];
+                await dbService.updateProject(selectedProject.id, { workflowSteps: updated });
+                const refreshed = await dbService.getProjects();
+                setProjects(refreshed);
+              }}
               allResidents={residents}
             />
           ) : (

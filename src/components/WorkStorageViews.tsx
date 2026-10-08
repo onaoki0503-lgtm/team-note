@@ -42,7 +42,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   if (mode === 'work') {
     return (
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* セグメント切り替え（報告する / 提出済み） */}
+        {/* セグメント切り替え 報告する / 提出済み  */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <button
             type="button"

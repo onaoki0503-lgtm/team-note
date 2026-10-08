@@ -61,11 +61,20 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   const [archiveSearch, setArchiveSearch] = useState('');
 
   // S31/S32 利用者登録ステート
-  const [newAccountName, setNewAccountName] = useState('');
-  const [newAccountBuilding, setNewAccountBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
-  const [newAccountUnit, setNewAccountUnit] = useState('105');
+  const [showRegisterUserModal, setShowRegisterUserModal] = useState(false);
+  const [regName, setRegName] = useState('');
+  const [regBuilding, setRegBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
+  const [regUnit, setRegUnit] = useState('105');
 
-  // 📸 アバター変更演出ステート（画面背景維持・文字なし演出）
+  // S29 活動履歴編集ステート
+  const [showAddHistoryModal, setShowAddHistoryModal] = useState(false);
+  const [histProjectName, setHistProjectName] = useState('');
+  const [histRole, setHistRole] = useState('企画・運営');
+  const [histPeriod, setHistPeriod] = useState('2026.10');
+  const [histStatus, setHistStatus] = useState<'進行中' | '完了'>('進行中');
+  const [histSummary, setHistSummary] = useState('');
+
+  // 📸 アバター変更演出ステート 画面背景維持・文字なし演出 
   const [animatingAvatar, setAnimatingAvatar] = useState<{
     active: boolean;
     url: string;
@@ -557,6 +566,21 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', margin: 0 }}>
               活動履歴
             </h4>
+            <button
+              type="button"
+              onClick={() => setShowAddHistoryModal(true)}
+              style={{
+                backgroundColor: '#F7F8FA',
+                border: '1px solid #D9DEE7',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#171A21'
+              }}
+            >
+              ＋ 履歴を追加
+            </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {(selectedResident.projectHistory && selectedResident.projectHistory.length > 0
@@ -601,6 +625,137 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
         >
           関係者のみ閲覧できます
         </div>
+
+        {/* S29: 活動履歴の編集モーダル */}
+        {showAddHistoryModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(23, 26, 33, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              zIndex: 60
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                border: '1px solid #D9DEE7',
+                maxWidth: 480,
+                width: '100%',
+                padding: '24px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16
+              }}
+            >
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                活動履歴
+              </h3>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!histProjectName.trim()) return;
+                  const newHist = {
+                    id: `ph-${Date.now()}`,
+                    projectTitle: histProjectName.trim(),
+                    role: histRole.trim() || 'メンバー',
+                    period: histPeriod.trim() || '2026.10',
+                    status: histStatus,
+                    summary: histSummary.trim()
+                  };
+                  const currentHist = selectedResident.projectHistory || [];
+                  const updatedHist = [...currentHist, newHist];
+                  if (onUpdateResident) {
+                    await onUpdateResident(selectedResident.id, { projectHistory: updatedHist });
+                  }
+                  setShowAddHistoryModal(false);
+                  setHistProjectName('');
+                  setHistRole('企画・運営');
+                  setHistPeriod('2026.10');
+                  setHistSummary('');
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+              >
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                    プロジェクト名 <span style={{ color: '#B92F3D' }}>必須</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={histProjectName}
+                    onChange={(e) => setHistProjectName(e.target.value)}
+                    placeholder="中庭シネマ"
+                    required
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>役割</label>
+                    <input
+                      type="text"
+                      value={histRole}
+                      onChange={(e) => setHistRole(e.target.value)}
+                      placeholder="企画・運営"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>時期</label>
+                    <input
+                      type="text"
+                      value={histPeriod}
+                      onChange={(e) => setHistPeriod(e.target.value)}
+                      placeholder="2026.10"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>状態</label>
+                  <select
+                    value={histStatus}
+                    onChange={(e) => setHistStatus(e.target.value as any)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                  >
+                    <option value="進行中">進行中</option>
+                    <option value="完了">完了</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>活動概要</label>
+                  <textarea
+                    value={histSummary}
+                    onChange={(e) => setHistSummary(e.target.value)}
+                    rows={3}
+                    placeholder="担当した業務や改善の要約"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddHistoryModal(false)}
+                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="submit"
+                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                  >
+                    保存する
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -728,18 +883,153 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             ))}
           </div>
 
-          <div style={{ paddingTop: 8, borderTop: '1px solid #F7F8FA' }}>
+          <div style={{ paddingTop: 12, borderTop: '1px solid #F7F8FA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, color: '#596273' }}>
               本番では本人認証が必要です。
             </span>
+            <button
+              type="button"
+              onClick={() => setShowRegisterUserModal(true)}
+              style={{
+                backgroundColor: 'transparent',
+                color: '#12BDE8',
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: 'underline'
+              }}
+            >
+              新しい寮生を登録
+            </button>
           </div>
         </div>
+
+        {/* S32: 利用者登録モーダル */}
+        {showRegisterUserModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(23, 26, 33, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              zIndex: 60
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                border: '1px solid #D9DEE7',
+                maxWidth: 480,
+                width: '100%',
+                padding: '24px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                  利用者を登録
+                </h3>
+                <span style={{ backgroundColor: '#FEE2E2', color: '#B92F3D', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4 }}>
+                  デモモード
+                </span>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!regName.trim()) return;
+                  onRegisterUser(regName.trim(), regBuilding, regUnit.trim());
+                  setShowRegisterUserModal(false);
+                  setRegName('');
+                  setRegUnit('105');
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+              >
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                    氏名 <span style={{ color: '#B92F3D' }}>必須</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    placeholder="寮生E"
+                    required
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>所属棟</label>
+                    <select
+                      value={regBuilding}
+                      onChange={(e) => setRegBuilding(e.target.value as any)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                    >
+                      <option value="rosemary">ローズマリー</option>
+                      <option value="basil">バジル</option>
+                      <option value="turmeric">ターメリック</option>
+                      <option value="paprika">パプリカ</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>部屋番号</label>
+                    <input
+                      type="text"
+                      value={regUnit}
+                      onChange={(e) => setRegUnit(e.target.value)}
+                      placeholder="105"
+                      required
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>役職</label>
+                  <input
+                    type="text"
+                    value="一般寮生"
+                    disabled
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#F7F8FA', color: '#596273', fontSize: 14 }}
+                  />
+                </div>
+
+                <span style={{ fontSize: 11, color: '#596273', display: 'block' }}>
+                  本番では認証と所属確認を行います
+                </span>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowRegisterUserModal(false)}
+                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="submit"
+                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                  >
+                    登録してはじめる
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   // ============================================================
-  // S25/S26/S27: 寮生名簿（部屋割り ＆ 一覧）
+  // S25/S26/S27: 寮生名簿 部屋割り ＆ 一覧 
   // ============================================================
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -766,7 +1056,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
         </h2>
       </div>
 
-      {/* タブ切り替え（部屋割り / 一覧） */}
+      {/* タブ切り替え 部屋割り / 一覧  */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <button
           type="button"
@@ -851,7 +1141,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
         )}
       </div>
 
-      {/* S25: 部屋割りマップ（単一フロアの4ユニットカード表示） */}
+      {/* S25: 部屋割りマップ 単一フロアの4ユニットカード表示  */}
       {rosterTab === 'units' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
           {['1', '2', '3', '4'].map((idx) => {

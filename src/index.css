@@ -45,7 +45,7 @@ input, textarea, select {
   color: var(--text-main);
 }
 
-/* アニメーション停止クラス（ユーザー設定 / 操作連動） */
+/* アニメーション停止クラス ユーザー設定 / 操作連動  */
 .motion-reduce *,
 .animation-paused * {
   animation-play-state: paused !important;
@@ -100,7 +100,7 @@ input, textarea, select {
   animation: dashTravel4 19s linear infinite;
 }
 
-/* 吹き出しの優しいフェードイン（8px以内の移動、0.98〜1.0） */
+/* 吹き出しの優しいフェードイン 8px以内の移動、0.98〜1.0  */
 @keyframes bubbleGentleIn {
   0% {
     opacity: 0;
@@ -138,7 +138,7 @@ input, textarea, select {
   }
 }
 
-/* 📸 アバター変更時の飛び出し＆着地インパクト演出（画面背景維持・文字なし仕様） */
+/* 📸 アバター変更時の飛び出し＆着地インパクト演出 画面背景維持・文字なし仕様  */
 @keyframes rainbowGlowSpin {
   0% {
     transform: rotate(0deg);

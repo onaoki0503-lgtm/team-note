@@ -8,10 +8,12 @@ interface ProjectDetailViewProps {
   onBack: () => void;
   onToggleJoin: () => void;
   onOpenStep: (stepId: string, stepTitle: string) => void;
-  onOpenProposalEdit: () => void;
+  onOpenProposalEdit?: () => void;
   onAddStaff: (residentId: string, role: string) => void;
   onAddGroup: (name: string, leader: string, goal: string, deadline: string) => void;
-  onOpenAddStep: () => void;
+  onOpenAddStep?: () => void;
+  onUpdateProposal?: (proposal: any) => Promise<void>;
+  onAddStepItem?: (name: string, dateRange: string) => Promise<void>;
   allResidents: any[];
 }
 
@@ -25,6 +27,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   onAddStaff,
   onAddGroup,
   onOpenAddStep,
+  onUpdateProposal,
+  onAddStepItem,
   allResidents
 }) => {
   // S06/S07 タブ: 'overview' (概要) | 'proposal' (企画書) | 'staff' (スタッフ)
@@ -42,6 +46,29 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [groupGoal, setGroupGoal] = useState('');
   const [groupDeadline, setGroupDeadline] = useState('');
 
+  // S10 企画書編集モーダル (S10)
+  const [showProposalEditModal, setShowProposalEditModal] = useState(false);
+  const [propTitle, setPropTitle] = useState(project.proposalDoc?.title || `${project.title} 企画書`);
+  const [propRecipient, setPropRecipient] = useState('西松地所様・寮母様');
+  const [propDate, setPropDate] = useState('2026/10/15');
+  const [propPurpose, setPropPurpose] = useState(project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。');
+  const [propIssues, setPropIssues] = useState('夜間の時間帯に共有部で会話するきっかけが少ない');
+  const [propProposal, setPropProposal] = useState(project.proposalDoc?.proposalOverview || '中庭にスクリーンを設置し、夕方から映画上映会を開催します。');
+  const [propCost, setPropCost] = useState(project.proposalDoc?.totalBudget || '自治会費より約 4,800 円');
+  const [propSummary, setPropSummary] = useState('安全管理と消灯時間を厳守して運営します');
+
+  // S11 添付ファイルステート (S11)
+  const [attachments, setAttachments] = useState([
+    { id: 'att-1', name: '会場レイアウト.pdf', size: '1.2 MB', type: 'pdf' },
+    { id: 'att-2', name: '参考資料.docx', size: '480 KB', type: 'docx' }
+  ]);
+  const [selectedPdfPreview, setSelectedPdfPreview] = useState(false);
+
+  // S14 ステップ追加モーダル (S14)
+  const [showAddStepModal, setShowAddStepModal] = useState(false);
+  const [newStepName, setNewStepName] = useState('');
+  const [newStepDate, setNewStepDate] = useState('');
+
   const isEvent = project.projectType !== 'operation';
   const isJoined = project.members && project.members.some((m) => m.residentId === currentUser.id);
 
@@ -50,7 +77,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 画面トップバナー（実際の寮のモノクロバナー ＋ 細い色線） */}
+      {/* 画面トップバナー 実際の寮のモノクロバナー ＋ 細い色線  */}
       <div
         style={{
           position: 'relative',
@@ -170,7 +197,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           </button>
         </div>
 
-        {/* タブナビゲーション（概要 / 企画書 / スタッフ） */}
+        {/* タブナビゲーション 概要 / 企画書 / スタッフ  */}
         <div style={{ display: 'flex', borderBottom: '1px solid #D9DEE7', marginTop: 8 }}>
           {(['overview', 'proposal', 'staff'] as const).map((tab) => {
             const labels = { overview: '概要', proposal: '企画書', staff: 'スタッフ' };
@@ -226,7 +253,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             <ChevronRight size={20} />
           </div>
 
-          {/* 縦型タイムライン（運営ステップ） */}
+          {/* 縦型タイムライン 運営ステップ  */}
           <div
             style={{
               backgroundColor: '#FFFFFF',
@@ -241,7 +268,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={onOpenAddStep}
+                onClick={() => setShowAddStepModal(true)}
                 style={{
                   backgroundColor: '#F7F8FA',
                   border: '1px solid #D9DEE7',
@@ -364,7 +391,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={onOpenProposalEdit}
+                onClick={() => setShowProposalEditModal(true)}
                 style={{
                   backgroundColor: '#171A21',
                   color: '#FFFFFF',
@@ -427,6 +454,65 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               <p style={{ fontSize: 14, color: '#171A21', lineHeight: 1.7, margin: 0 }}>
                 {project.proposalDoc?.totalBudget || '自治会費より約 4,800 円'}
               </p>
+            </div>
+          </div>
+
+          {/* S11 添付資料 */}
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #EEF0F5' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                添付資料
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  const name = window.prompt('資料名を入力してください: 例 会場図面.pdf');
+                  if (name && name.trim()) {
+                    setAttachments([...attachments, { id: `att-${Date.now()}`, name: name.trim(), size: '840 KB', type: name.endsWith('.docx') ? 'docx' : 'pdf' }]);
+                  }
+                }}
+                style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}
+              >
+                ＋ 資料を追加
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {attachments.map((att) => (
+                <div key={att.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <FileText size={16} color="#596273" />
+                    <strong style={{ fontSize: 13, color: '#171A21' }}>{att.name}</strong>
+                    <span style={{ fontSize: 11, color: '#596273' }}>{att.size}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {att.type === 'pdf' ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPdfPreview(!selectedPdfPreview)}
+                        style={{ backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
+                      >
+                        {selectedPdfPreview ? 'プレビューを閉じる' : 'プレビュー'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => alert('ダウンロードを開始しました')}
+                        style={{ backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
+                      >
+                        ダウンロードして開く
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {selectedPdfPreview && (
+                <div style={{ padding: '16px', borderRadius: 8, backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', textAlign: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#596273', display: 'block', marginBottom: 8 }}>プレビュー</span>
+                  <div style={{ width: '100%', height: 160, backgroundColor: '#EEF0F5', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#596273' }}>
+                    会場レイアウト図面
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -530,7 +616,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             </div>
           </div>
 
-          {/* 班のブロック（広報班、会場班など） */}
+          {/* 班のブロック 広報班、会場班など  */}
           {(project.groups || [
             { id: 'g1', name: '広報班', glName: '寮生B', milestoneTitle: 'ポスター作成' },
             { id: 'g2', name: '会場班', glName: '寮生C', milestoneTitle: '会場レイアウト作成' }
@@ -714,7 +800,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   <option value="">選択してください</option>
                   {allResidents.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.name} ({r.building}棟 {r.unit})
+                      {r.name} {r.building}棟 {r.unit}
                     </option>
                   ))}
                 </select>
@@ -747,6 +833,258 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
                 >
                   追加する
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* S10 企画書編集モーダル */}
+      {showProposalEditModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(23, 26, 33, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            zIndex: 60
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              border: '1px solid #D9DEE7',
+              maxWidth: 540,
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '24px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                企画書を編集
+              </h3>
+              <span style={{ fontSize: 11, color: '#FF6B68', fontWeight: 700 }}>未保存の変更</span>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const doc = {
+                  title: propTitle,
+                  recipient: propRecipient,
+                  submittedDate: propDate,
+                  purpose: propPurpose,
+                  issues: propIssues,
+                  proposalOverview: propProposal,
+                  totalBudget: propCost,
+                  summary: propSummary
+                };
+                if (onUpdateProposal) {
+                  await onUpdateProposal(doc);
+                }
+                setShowProposalEditModal(false);
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+            >
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>企画タイトル</label>
+                <input
+                  type="text"
+                  value={propTitle}
+                  onChange={(e) => setPropTitle(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>提出先</label>
+                  <input
+                    type="text"
+                    value={propRecipient}
+                    onChange={(e) => setPropRecipient(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>提出日</label>
+                  <input
+                    type="text"
+                    value={propDate}
+                    onChange={(e) => setPropDate(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>目的・背景</label>
+                <textarea
+                  value={propPurpose}
+                  onChange={(e) => setPropPurpose(e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>課題</label>
+                <textarea
+                  value={propIssues}
+                  onChange={(e) => setPropIssues(e.target.value)}
+                  rows={2}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>提案内容</label>
+                <textarea
+                  value={propProposal}
+                  onChange={(e) => setPropProposal(e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>費用</label>
+                <input
+                  type="text"
+                  value={propCost}
+                  onChange={(e) => setPropCost(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>まとめ</label>
+                <textarea
+                  value={propSummary}
+                  onChange={(e) => setPropSummary(e.target.value)}
+                  rows={2}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowProposalEditModal(false)}
+                  style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                >
+                  保存する
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* S14 ステップ追加モーダル */}
+      {showAddStepModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(23, 26, 33, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            zIndex: 60
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              border: '1px solid #D9DEE7',
+              maxWidth: 480,
+              width: '100%',
+              padding: '24px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
+            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+              ステップを追加
+            </h3>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newStepName.trim()) return;
+                if (onAddStepItem) {
+                  await onAddStepItem(newStepName.trim(), newStepDate.trim());
+                }
+                setShowAddStepModal(false);
+                setNewStepName('');
+                setNewStepDate('');
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+            >
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                  ステップ名 <span style={{ color: '#B92F3D' }}>必須</span>
+                </label>
+                <input
+                  type="text"
+                  value={newStepName}
+                  onChange={(e) => setNewStepName(e.target.value)}
+                  placeholder="会場の下見"
+                  required
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                />
+                <span style={{ fontSize: 11, color: '#596273', display: 'block', marginTop: 4 }}>
+                  完了条件を明確にする名前がおすすめ
+                </span>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                  実施予定日・期間
+                </label>
+                <input
+                  type="text"
+                  value={newStepDate}
+                  onChange={(e) => setNewStepDate(e.target.value)}
+                  placeholder="2026/10/20〜2026/10/25"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStepModal(false)}
+                  style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                >
+                  ステップを追加
                 </button>
               </div>
             </form>

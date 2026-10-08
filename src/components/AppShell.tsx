@@ -36,7 +36,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         position: 'relative'
       }}
     >
-      {/* 共通トップヘッダー（白背景・細い下線・4色グラデーション上辺） */}
+      {/* 共通トップヘッダー 白背景・細い下線・4色グラデーション上辺  */}
       <header
         style={{
           position: 'sticky',
@@ -171,7 +171,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           </button>
         </nav>
 
-        {/* 右側: 利用者アイコン（デモ切替メニュー） */}
+        {/* 右側: 利用者アイコン デモ切替メニュー  */}
         <button
           type="button"
           onClick={onOpenUserMenu}
@@ -205,7 +205,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         </button>
       </header>
 
-      {/* メインコンテンツ領域（スマホ下部ナビのための余白を確保） */}
+      {/* メインコンテンツ領域 スマホ下部ナビのための余白を確保  */}
       <main
         style={{
           flex: 1,

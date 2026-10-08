@@ -25,7 +25,7 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
   isPaused,
   onPauseChange
 }) => {
-  // 入力状態（S02）
+  // 入力状態 S02 
   const [isTyping, setIsTyping] = useState(false);
   const [typedText, setTypedText] = useState('');
   const [draftSaved, setDraftSaved] = useState(false);
@@ -56,7 +56,7 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
     return () => clearTimeout(timer);
   }, [typedText, draftKey]);
 
-  // 吹き出しのゆっくり交代（通常6〜10秒）
+  // 吹き出しのゆっくり交代 通常6〜10秒 
   useEffect(() => {
     if (isPaused || isTyping) return;
     const interval = setInterval(() => {
@@ -89,7 +89,7 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
     onPauseChange(false);
   };
 
-  // 表示する吹き出し（PCは最大3件、スマホは1〜2件）
+  // 表示する吹き出し PCは最大3件、スマホは1〜2件 
   const currentIdea = ideas[activeIdeaIndex] || {
     id: 'sample-1',
     text: '中庭で映画を観たい',
@@ -111,7 +111,7 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
         zIndex: 10
       }}
     >
-      {/* S02: 入力中の場合（背景は維持したまま、フォーカスされた大きな白い吹き出し） */}
+      {/* S02: 入力中の場合 背景は維持したまま、フォーカスされた大きな白い吹き出し  */}
       {isTyping ? (
         <div
           style={{
@@ -243,7 +243,7 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
           </div>
         </div>
       ) : (
-        /* S01: 通常時の吹き出し配置（中央ボタンの周囲） */
+        /* S01: 通常時の吹き出し配置 中央ボタンの周囲  */
         <>
           {/* 左上の吹き出し 1 */}
           <div
@@ -313,7 +313,7 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
             {secondaryIdea.text}
           </div>
 
-          {/* 下部の書き込める吹き出し（ここにアイデアを書く） */}
+          {/* 下部の書き込める吹き出し ここにアイデアを書く  */}
           <div
             onClick={handleStartTyping}
             style={{

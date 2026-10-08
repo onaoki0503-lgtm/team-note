@@ -27,7 +27,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
       }}
       aria-hidden="true"
     >
-      {/* モノクロ背景写真（グレースケール） */}
+      {/* モノクロ背景写真 グレースケール  */}
       <img
         src={imgSrc}
         alt=""
@@ -41,7 +41,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
         }}
       />
 
-      {/* 薄いオーバーレイ（視認性確保用） */}
+      {/* 薄いオーバーレイ 視認性確保用  */}
       <div
         style={{
           position: 'absolute',
@@ -50,7 +50,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
         }}
       />
 
-      {/* アイデアを表す4色の細い光線（SVGパス） */}
+      {/* アイデアを表す4色の細い光線 SVGパス  */}
       <svg
         style={{
           position: 'absolute',
@@ -73,7 +73,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
           </filter>
         </defs>
 
-        {/* 1. コーラル線（左側住棟の輪郭から中庭階段へ） */}
+        {/* 1. コーラル線 左側住棟の輪郭から中庭階段へ  */}
         <path
           d="M 50 200 L 220 280 L 320 460 Q 400 520 500 500"
           fill="none"
@@ -86,7 +86,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
         {/* コーラルの光点 */}
         <circle cx="220" cy="280" r="4" fill="#FF6B68" />
 
-        {/* 2. シアン線（右側住棟から中庭・中央ボタンへ） */}
+        {/* 2. シアン線 右側住棟から中庭・中央ボタンへ  */}
         <path
           d="M 950 240 L 780 320 L 680 430 Q 580 480 500 500"
           fill="none"
@@ -98,7 +98,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
         />
         <circle cx="780" cy="320" r="4" fill="#12BDE8" />
 
-        {/* 3. イエロー線（奥の連絡通路から階段へ） */}
+        {/* 3. イエロー線 奥の連絡通路から階段へ  */}
         <path
           d="M 500 280 L 520 380 Q 500 440 450 490"
           fill="none"
@@ -108,7 +108,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
           className="path-yellow"
         />
 
-        {/* 4. バイオレット線（中庭の下部から手前通路へ） */}
+        {/* 4. バイオレット線 中庭の下部から手前通路へ  */}
         <path
           d="M 500 500 Q 580 560 680 620 L 850 720"
           fill="none"
@@ -120,7 +120,7 @@ export const VillageScene: React.FC<VillageSceneProps> = ({
         <circle cx="680" cy="620" r="4" fill="#A876F5" />
       </svg>
 
-      {/* 動きの停止ボタン（画面仕様：動きを止める操作を用意する） */}
+      {/* 動きの停止ボタン 画面仕様：動きを止める操作を用意する  */}
       {showPauseButton && onTogglePause && (
         <div
           style={{

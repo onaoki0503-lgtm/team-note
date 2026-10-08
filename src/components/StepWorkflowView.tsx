@@ -46,7 +46,7 @@ export const StepWorkflowView: React.FC<StepWorkflowViewProps> = ({
 
   return (
     <div style={{ maxWidth: 880, margin: '0 auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 上部ヘッダー（S13 運営ステップ） */}
+      {/* 上部ヘッダー S13 運営ステップ  */}
       <div
         style={{
           backgroundColor: '#FFFFFF',

@@ -1,7 +1,7 @@
-// 画像リサイズ＆レインボーバーン演出ユーティリティ（プリン事業 AIドリブン経営プロダクト同等仕様）
+// 画像リサイズ＆レインボーバーン演出ユーティリティ プリン事業 AIドリブン経営プロダクト同等仕様 
 
 /**
- * 端末の写真・ファイルをCanvasで正方形（256x256）に中央トリミング＆リサイズしてBase64を返す
+ * 端末の写真・ファイルをCanvasで正方形 256x256 に中央トリミング＆リサイズしてBase64を返す
  */
 export const processAndResizeImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -44,7 +44,7 @@ export const processAndResizeImage = (file: File): Promise<string> => {
 }
 
 /**
- * 「バーン！ピキーン！」という爽快な祝賀インパクト効果音（Web Audio API）
+ * バーン！ピキーン！という爽快な祝賀インパクト効果音 Web Audio API 
  * 外部音源ファイル不要で100%確実にブラウザ上で再生可能
  */
 export const playBurnImpactSound = () => {
@@ -55,7 +55,7 @@ export const playBurnImpactSound = () => {
     if (!AudioContextClass) return
     const ctx = new AudioContextClass()
 
-    // 1. ピキーン！という高周波のキラキラ立ち上がり音（クリスタルベル風）
+    // 1. ピキーン！という高周波のキラキラ立ち上がり音 クリスタルベル風 
     const oscChime = ctx.createOscillator()
     const gainChime = ctx.createGain()
     oscChime.type = 'sine'
@@ -68,7 +68,7 @@ export const playBurnImpactSound = () => {
     oscChime.start()
     oscChime.stop(ctx.currentTime + 0.35)
 
-    // 2. 「バーン！！」という迫力の重低音インパクト＆アタック
+    // 2. バーン！！という迫力の重低音インパクト＆アタック
     const oscBoom = ctx.createOscillator()
     const gainBoom = ctx.createGain()
     oscBoom.type = 'triangle'
