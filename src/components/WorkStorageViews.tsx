@@ -41,7 +41,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   // ============================================================
   if (mode === 'work') {
     return (
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ maxWidth: 540, margin: '0 auto', padding: '12px 10px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* セグメント切り替え 報告する / 提出済み  */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <button
@@ -52,7 +52,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               color: workTab === 'input' ? '#FFFFFF' : '#171A21',
               border: workTab === 'input' ? '1px solid #171A21' : '1px solid #D9DEE7',
               borderRadius: 8,
-              padding: '12px',
+              padding: '10px',
               fontSize: 14,
               fontWeight: 800,
               cursor: 'pointer'
@@ -68,7 +68,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               color: workTab === 'submitted' ? '#FFFFFF' : '#171A21',
               border: workTab === 'submitted' ? '1px solid #171A21' : '1px solid #D9DEE7',
               borderRadius: 8,
-              padding: '12px',
+              padding: '10px',
               fontSize: 14,
               fontWeight: 800,
               cursor: 'pointer'
@@ -85,10 +85,10 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               backgroundColor: '#FFFFFF',
               borderRadius: 12,
               border: '1px solid #D9DEE7',
-              padding: '24px 20px',
+              padding: '18px 14px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 16
+              gap: 14
             }}
           >
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#171A21', margin: 0 }}>
@@ -250,28 +250,26 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   return (
     <div
       style={{
-        position: 'relative',
-        minHeight: 'calc(100vh - 120px)',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: '16px 10px',
-        maxWidth: 640,
+        padding: '12px 10px',
+        maxWidth: 540,
         margin: '0 auto',
-        width: '100%'
+        width: '100%',
+        gap: 12
       }}
     >
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 900, color: '#171A21', marginBottom: 4 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 900, color: '#171A21', margin: '0 0 4px 0' }}>
           保管する
         </h1>
-        <p style={{ fontSize: 13, color: '#596273', marginBottom: 24 }}>
+        <p style={{ fontSize: 13, color: '#596273', margin: '0 0 10px 0' }}>
           名簿、備品、過去の資料を一元管理します
         </p>
       </div>
 
       {/* 3つの大きなアクセスしやすい白カード (S23) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, zIndex: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, zIndex: 10 }}>
         {/* 1. 寮生名簿 */}
         <div
           onClick={onOpenRoster}

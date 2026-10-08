@@ -122,7 +122,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     ];
 
     return (
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -235,7 +235,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     ];
 
     return (
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -344,7 +344,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
       currentUser.id === selectedResident.id || currentUser.name === selectedResident.name;
 
     return (
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -793,7 +793,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   // ============================================================
   if (viewType === 'switch_user') {
     return (
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
             type="button"
@@ -1060,7 +1060,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   // S25/S26/S27: 寮生名簿 部屋割り ＆ 一覧 
   // ============================================================
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* 上部ヘッダー */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
@@ -1207,10 +1207,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                         key={occ.id}
                         onClick={() => onSelectResident(occ)}
                         style={{
-                          padding: '6px 8px',
+                          padding: '5px 7px',
                           borderRadius: 6,
                           backgroundColor: '#F7F8FA',
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: 600,
                           color: '#171A21',
                           cursor: 'pointer',
@@ -1220,7 +1220,38 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                           gap: 6
                         }}
                       >
-                        <span>{occ.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                          {/* 各名前の左端にそれぞれのアイコン */}
+                          <div
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: '50%',
+                              backgroundColor: '#E2E8F0',
+                              flexShrink: 0,
+                              overflow: 'hidden',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: '1px solid #CBD5E1'
+                            }}
+                          >
+                            {occ.avatar ? (
+                              <img
+                                src={occ.avatar}
+                                alt={occ.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>
+                                {occ.name ? occ.name.charAt(0) : '寮'}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {occ.name}
+                          </span>
+                        </div>
                         {/* 役職表示: 背景なく文字のみ */}
                         {occRole.isLeadership && (
                           <span

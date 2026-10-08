@@ -41,7 +41,7 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
   });
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ maxWidth: 540, margin: '0 auto', padding: '16px 10px', width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* 上部ヘッダー S05 進行中  */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>

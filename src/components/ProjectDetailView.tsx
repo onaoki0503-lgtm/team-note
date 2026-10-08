@@ -76,7 +76,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const accentColor = isEvent ? '#FF6B68' : '#12BDE8';
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ maxWidth: 540, margin: '0 auto', padding: '12px 10px', width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* 画面トップバナー 実際の寮のモノクロバナー ＋ 細い色線  */}
       <div
         style={{
