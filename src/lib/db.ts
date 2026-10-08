@@ -43,6 +43,47 @@ export interface LeaderEvaluationRecord {
   isConfidential: boolean // 非公開リーダーカルテ（幹部・EAのみ閲覧可）
 }
 
+// 1棟ごとの役職定義（HL, EA/IA/OAのHSL, FL, 一般寮生）
+export type ResidentRoleKey = 'HL' | 'EA' | 'IA' | 'OA' | 'FL' | '一般寮生'
+
+export interface RoleConfigItem {
+  key: ResidentRoleKey
+  title: string
+  badgeLabel: string
+  isLeadership: boolean
+  description: string
+}
+
+export const DORM_ROLES_CONFIG: RoleConfigItem[] = [
+  { key: 'HL', title: 'HL（ハウスリーダー）', badgeLabel: 'HL', isLeadership: true, description: '棟全体の統括代表' },
+  { key: 'EA', title: 'EA（ハウスサブリーダー）', badgeLabel: 'EA (HSL)', isLeadership: true, description: 'イベント・対外企画担当 HSL' },
+  { key: 'IA', title: 'IA（ハウスサブリーダー）', badgeLabel: 'IA (HSL)', isLeadership: true, description: '内部運営・総務担当 HSL' },
+  { key: 'OA', title: 'OA（ハウスサブリーダー）', badgeLabel: 'OA (HSL)', isLeadership: true, description: '広報・運営管理担当 HSL' },
+  { key: 'FL', title: 'FL（フロアリーダー）', badgeLabel: 'FL', isLeadership: true, description: '各階フロアの責任者' },
+  { key: '一般寮生', title: '一般寮生', badgeLabel: '', isLeadership: false, description: '一般入居寮生' }
+]
+
+export function getRoleBadgeInfo(roleStr?: string): { badge: string; isLeadership: boolean } {
+  if (!roleStr) return { badge: '', isLeadership: false }
+  const clean = roleStr.trim()
+  if (clean === 'HL' || clean.includes('ハウスリーダー')) return { badge: 'HL', isLeadership: true }
+  if (clean === 'EA' || clean.includes('EA')) return { badge: 'EA (HSL)', isLeadership: true }
+  if (clean === 'IA' || clean.includes('IA')) return { badge: 'IA (HSL)', isLeadership: true }
+  if (clean === 'OA' || clean.includes('OA')) return { badge: 'OA (HSL)', isLeadership: true }
+  if (clean === 'FL' || clean.includes('フロアリーダー') || clean.includes('FL')) return { badge: 'FL', isLeadership: true }
+  return { badge: '', isLeadership: false }
+}
+
+export interface ProjectHistoryItem {
+  id: string
+  projectId?: string
+  projectTitle: string
+  role: string // 例: 'PL', 'GL', 'メンバー', 'EA'
+  period?: string // 例: '2026年10月', '2026年秋'
+  status?: string // '進行中' | '完了'
+  summary?: string
+}
+
 export interface ResidentRecord {
   id: string
   name: string
@@ -51,10 +92,11 @@ export interface ResidentRecord {
   floor: number
   unit: string
   roomType?: '5-person' | '1-person' // 5人部屋 or 1人部屋（1階）
-  role: string
-  roleType: 'fl' | 'hl' | 'member'
+  role: ResidentRoleKey | string
+  roleType?: 'fl' | 'hl' | 'member' | 'hsl'
   email: string
   memo: string
+  projectHistory?: ProjectHistoryItem[] // これまで行ったプロジェクトの履歴
   careers?: EventRoleCareer[] // 歴代イベント役職経歴
   evaluations?: LeaderEvaluationRecord[] // 人事評価・リーダーカルテ
 }
@@ -283,7 +325,7 @@ export interface CurrentUser {
   floor: number
   unit: string
   role: string
-  roleType: 'fl' | 'hl' | 'member'
+  roleType: 'fl' | 'hl' | 'member' | 'hsl'
   email: string
 }
 
@@ -304,10 +346,15 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     building: 'rosemary',
     floor: 3,
     unit: 'Unit 301 - A室',
-    role: '統括リーダー (FL)',
-    roleType: 'fl',
+    role: 'HL',
+    roleType: 'hl',
     email: 'okamoto@intakingresources.com',
     memo: 'キッチン布巾改善PJ / 玄関共通化提案',
+    projectHistory: [
+      { id: 'ph-1', projectId: 'pj-1', projectTitle: '共有キッチン 布巾の衛生改善（使い捨てロール化）', role: 'プロジェクトリーダー (PL)', period: '2026年10月〜', status: '進行中', summary: '壁面マグネットホルダー導入と3ボックス分別フローの策定' },
+      { id: 'ph-2', projectId: 'pj-xmas', projectTitle: '🎄 2026年 H-Village クリスマス企画', role: '統括PL', period: '2026-12', status: '進行中', summary: '全体予算管理・西松建設折衝' },
+      { id: 'ph-3', projectId: 'pj-summer', projectTitle: '🎋 2026年 七夕・中庭夏祭り', role: 'PL', period: '2026-07', status: '完了', summary: '中庭音響・屋台ブース運営' }
+    ],
     careers: [
       { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'PL', yearMonth: '2026-12', isCertifiedGl: true },
       { eventId: 'pj-summer', eventTitle: '🎋 2026年 七夕・中庭夏祭り', role: 'PL', yearMonth: '2026-07', isCertifiedGl: true }
@@ -339,10 +386,14 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     building: 'rosemary',
     floor: 3,
     unit: 'Unit 301 - B室',
-    role: '有志メンバー',
-    roleType: 'member',
+    role: 'EA',
+    roleType: 'hsl',
     email: 'ito.y@intakingresources.com',
     memo: '夜間イベント企画・サイレントフェス検討',
+    projectHistory: [
+      { id: 'ph-4', projectId: 'pj-xmas', projectTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL (イベント班)', period: '2026-12', status: '進行中', summary: '夜間ステージ演出・企画進行' },
+      { id: 'ph-5', projectId: 'pj-summer', projectTitle: '🎋 2026年 七夕・中庭夏祭り', role: 'メンバー (音響企画)', period: '2026-07', status: '完了', summary: '音響PA設営・DJブース担当' }
+    ],
     careers: [
       { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL', groupName: 'イベント班', yearMonth: '2026-12', isCertifiedGl: true },
       { eventId: 'pj-summer', eventTitle: '🎋 2026年 七夕・中庭夏祭り', role: 'メンバー', groupName: '音響企画', yearMonth: '2026-07', isCertifiedGl: false }
@@ -374,14 +425,78 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     building: 'rosemary',
     floor: 2,
     unit: 'Unit 202 - A室',
-    role: 'サブリーダー',
-    roleType: 'hl',
+    role: 'IA',
+    roleType: 'hsl',
     email: 'sato.k@sfc.keio.ac.jp',
     memo: '玄関美化・靴箱プロトタイプ担当',
+    projectHistory: [
+      { id: 'ph-6', projectId: 'pj-xmas', projectTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL (ディナー班)', period: '2026-12', status: '進行中', summary: 'ケータリング手配・食材予算管理' }
+    ],
     careers: [
       { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL', groupName: 'ディナー班', yearMonth: '2026-12', isCertifiedGl: true }
     ],
     evaluations: []
+  },
+  {
+    id: 'r-oa-rosemary',
+    name: '高橋 涼平',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80',
+    building: 'rosemary',
+    floor: 3,
+    unit: 'Unit 301 - C室',
+    role: 'OA',
+    roleType: 'hsl',
+    email: 'takahashi.r@sfc.keio.ac.jp',
+    memo: '広報・写真記録・SNS運用担当',
+    projectHistory: [
+      { id: 'ph-7', projectId: 'pj-pr', projectTitle: 'H-Village 公式広報・月報アーカイブ', role: '広報リーダー', period: '2026年9月〜', status: '進行中', summary: '月次ハイライトポスター制作' }
+    ],
+    careers: [],
+    evaluations: []
+  },
+  {
+    id: 'r-fl-4f',
+    name: '佐々木 陸',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80',
+    building: 'rosemary',
+    floor: 4,
+    unit: 'Unit 401',
+    roomType: '5-person',
+    role: 'FL',
+    roleType: 'fl',
+    email: 'sasaki.r@sfc.keio.ac.jp',
+    memo: '4Fフロアリーダー',
+    projectHistory: [
+      { id: 'ph-8', projectId: 'pj-floor4', projectTitle: '4F 共用ラウンジ清掃・備品ルール改善', role: 'FL統括', period: '2026-10', status: '進行中', summary: '掃除当番カレンダー整備' }
+    ]
+  },
+  {
+    id: 'r-fl-2f',
+    name: '森本 健',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80',
+    building: 'rosemary',
+    floor: 2,
+    unit: 'Unit 201',
+    roomType: '5-person',
+    role: 'FL',
+    roleType: 'fl',
+    email: 'morimoto.k@sfc.keio.ac.jp',
+    memo: '2Fフロアリーダー',
+    projectHistory: []
+  },
+  {
+    id: 'r-fl-1f',
+    name: '田村 啓介',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80',
+    building: 'rosemary',
+    floor: 1,
+    unit: 'Unit 101',
+    roomType: '5-person',
+    role: 'FL',
+    roleType: 'fl',
+    email: 'tamura.k@sfc.keio.ac.jp',
+    memo: '1Fフロアリーダー',
+    projectHistory: []
   },
   {
     id: 'r4',
@@ -390,10 +505,13 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     building: 'paprika',
     floor: 3,
     unit: 'Unit 303 - A室',
-    role: 'パプリカFL',
+    role: 'FL',
     roleType: 'fl',
     email: 'ikuma.s@sfc.keio.ac.jp',
     memo: '布巾改善の申請書連携・西松窓口',
+    projectHistory: [
+      { id: 'ph-9', projectId: 'pj-1', projectTitle: '共有キッチン 布巾の衛生改善（使い捨てロール化）', role: '推進メンバー', period: '2026-10', status: '進行中', summary: 'パプリカ棟への申請・説明ポスター掲示' }
+    ],
     careers: [
       { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'GL', groupName: '装飾班', yearMonth: '2026-12', isCertifiedGl: true }
     ],
@@ -406,10 +524,13 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     building: 'paprika',
     floor: 2,
     unit: 'Unit 201 - A室',
-    role: 'ハウスリーダー (HL)',
+    role: 'HL',
     roleType: 'hl',
     email: 'soji.r@sfc.keio.ac.jp',
-    memo: '棟間連携・全体自治会担当',
+    memo: 'パプリカ棟ハウスリーダー・全体自治会担当',
+    projectHistory: [
+      { id: 'ph-10', projectId: 'pj-1', projectTitle: '共有キッチン 布巾の衛生改善（使い捨てロール化）', role: '協力メンバー', period: '2026-10', status: '進行中', summary: '棟間連携・全体自治会合意' }
+    ],
     careers: [
       { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'メンバー', groupName: 'ディナー班', yearMonth: '2026-12', isCertifiedGl: false }
     ],
@@ -422,10 +543,13 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     building: 'turmeric',
     floor: 3,
     unit: 'Unit 302 - B室',
-    role: 'ターメリックFL',
+    role: 'FL',
     roleType: 'fl',
     email: 'yamada.d@sfc.keio.ac.jp',
     memo: 'BBQ大会企画・機材管理',
+    projectHistory: [
+      { id: 'ph-11', projectId: 'pj-bbq', projectTitle: '中庭BBQ大会＆新入寮生歓迎会', role: '機材統括', period: '2026-05', status: '完了', summary: '炭火台手配・消火備品準備' }
+    ],
     careers: [],
     evaluations: []
   },
@@ -436,17 +560,20 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
     building: 'basil',
     floor: 2,
     unit: 'Unit 203 - A室',
-    role: 'バジルFL',
+    role: 'FL',
     roleType: 'fl',
     email: 'watanabe.h@sfc.keio.ac.jp',
     memo: '中庭植栽・ハーブ菜園PJ',
+    projectHistory: [
+      { id: 'ph-12', projectId: 'pj-herb', projectTitle: 'バジル棟テラス ハーブ菜園PJ', role: 'PL', period: '2026年春〜秋', status: '完了', summary: '水やり当番表・自動給水プランター導入' }
+    ],
     careers: [
       { eventId: 'pj-xmas', eventTitle: '🎄 2026年 H-Village クリスマス企画', role: 'メンバー', groupName: '装飾班', yearMonth: '2026-12', isCertifiedGl: false }
     ],
     evaluations: []
   },
   // --- 4F ユニット住人 ---
-  { id: 'r-401-1', name: '佐々木 陸', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '統括メンバー', roleType: 'member', email: '', memo: '' },
+  // Unit 401（佐々木 陸 FL に加えて4名で満室）
   { id: 'r-401-2', name: '松本 玲奈', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-401-3', name: '井上 陽介', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-401-4', name: '木村 拓也', avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 401', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
@@ -471,9 +598,6 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
   { id: 'r-404-4', name: '青木 結衣', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 4, unit: 'Unit 404', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
 
   // --- 3F ユニット住人 ---
-  // Unit 301（岡本直樹、伊藤雄吉に加えて3人目）
-  { id: 'r-301-3', name: '高橋 涼平', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 301 - C室', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
-
   // Unit 302: 5名満室
   { id: 'r-302-1', name: '三浦 剛', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 302', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-302-2', name: '竹内 楓', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 302', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
@@ -494,14 +618,13 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
   { id: 'r-304-3', name: '小野 健治', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 3, unit: 'Unit 304', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
 
   // --- 2F ユニット住人 ---
-  // Unit 201: 5名満室
-  { id: 'r-201-1', name: '森本 健', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  // Unit 201（森本 健 FL に加えて4名で満室）
   { id: 'r-201-2', name: '阿部 さくら', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-201-3', name: '福田 優希', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-201-4', name: '西田 涼', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-201-5', name: '内田 結菜', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 201', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
 
-  // Unit 202（佐藤健太に加えて残り4名で満室）
+  // Unit 202（佐藤健太 IA に加えて残り4名で満室）
   { id: 'r-202-2', name: '菊地 翔', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 202', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-202-3', name: '野村 遥', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 202', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-202-4', name: '菅原 大地', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 202', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
@@ -519,8 +642,7 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
   { id: 'r-204-4', name: '堀内 誠', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 2, unit: 'Unit 204', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
 
   // --- 1F ユニット住人（5人部屋 ＆ 1人部屋個室） ---
-  // Unit 101: 5名満室
-  { id: 'r-101-1', name: '田村 啓介', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
+  // Unit 101（田村 啓介 FL に加えて4名で満室）
   { id: 'r-101-2', name: '上田 七海', avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-101-3', name: '馬場 光', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
   { id: 'r-101-4', name: '望月 隼', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 101', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
@@ -532,7 +654,7 @@ export const INITIAL_RESIDENTS: ResidentRecord[] = [
   { id: 'r-102-3', name: '矢野 大輝', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 102', roomType: '5-person', role: '一般寮生', roleType: 'member', email: '', memo: '' },
 
   // Unit 103: 1人部屋（個室）/ 1名入居中（満室）
-  { id: 'r-103-1', name: '中村 遥', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 103', roomType: '1-person', role: '有志メンバー（個室）', roleType: 'member', email: 'nakamura.h@sfc.keio.ac.jp', memo: '1人部屋利用' }
+  { id: 'r-103-1', name: '中村 遥', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80', building: 'rosemary', floor: 1, unit: 'Unit 103', roomType: '1-person', role: '一般寮生', roleType: 'member', email: 'nakamura.h@sfc.keio.ac.jp', memo: '1人部屋利用' }
   // ※ Unit 104 は 1人部屋（個室）で現在 0名（空室）
 ]
 
@@ -1131,12 +1253,29 @@ export const dbService = {
         // 既存の住人データに INITIAL_RESIDENTS の初期データが不足している場合は補完
         const existingIds = new Set(parsed.map((r) => r.id))
         const missing = INITIAL_RESIDENTS.filter((r) => !existingIds.has(r.id))
-        if (missing.length > 0) {
-          const merged = [...parsed, ...missing]
-          localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(merged))
-          return merged
-        }
-        return parsed
+        const combined = missing.length > 0 ? [...parsed, ...missing] : parsed
+
+        // 旧役職（統括メンバー等）の正規化とプロジェクト履歴の同期
+        const normalized = combined.map((r) => {
+          let role = r.role || '一般寮生'
+          if (role.includes('統括リーダー') || role === 'HL') role = 'HL'
+          else if (role.includes('有志メンバー') || role.includes('統括メンバー')) role = '一般寮生'
+          else if (role.includes('サブリーダー') || role === 'IA') role = 'IA'
+          else if (role.includes('FL')) role = 'FL'
+
+          const initMatch = INITIAL_RESIDENTS.find((ir) => ir.id === r.id)
+          const projectHistory = r.projectHistory && r.projectHistory.length > 0
+            ? r.projectHistory
+            : (initMatch?.projectHistory || [])
+
+          return {
+            ...r,
+            role,
+            projectHistory
+          }
+        })
+        localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(normalized))
+        return normalized
       } catch {
         // ignore
       }
@@ -1149,12 +1288,58 @@ export const dbService = {
     const newResident: ResidentRecord = {
       ...resident,
       roomType: resident.roomType || getUnitRoomType(resident.unit),
+      projectHistory: resident.projectHistory || [],
       id: `r-${Date.now()}`
     }
     const current = await this.getResidents()
     const updated = [...current, newResident]
     localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(updated))
     return newResident
+  },
+
+  async updateResident(id: string, updates: Partial<ResidentRecord>): Promise<ResidentRecord | null> {
+    const current = await this.getResidents()
+    const index = current.findIndex((r) => r.id === id)
+    if (index === -1) return null
+    const updatedRecord: ResidentRecord = {
+      ...current[index],
+      ...updates,
+      roomType: updates.unit ? getUnitRoomType(updates.unit) : current[index].roomType
+    }
+    current[index] = updatedRecord
+    localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(current))
+
+    if (isSupabaseConfigured) {
+      try {
+        await (supabase as any).from('residents').update({
+          name: updatedRecord.name,
+          role: updatedRecord.role,
+          avatar_url: updatedRecord.avatar,
+          unit: updatedRecord.unit,
+          memo: updatedRecord.memo
+        }).eq('id', id)
+      } catch (e) {
+        console.warn('Supabase updateResident error:', e)
+      }
+    }
+    return updatedRecord
+  },
+
+  async addProjectHistoryToResident(
+    residentId: string,
+    historyItem: Omit<ProjectHistoryItem, 'id'>
+  ): Promise<ResidentRecord | null> {
+    const current = await this.getResidents()
+    const resident = current.find((r) => r.id === residentId)
+    if (!resident) return null
+
+    const newItem: ProjectHistoryItem = {
+      ...historyItem,
+      id: `ph-${Date.now()}`
+    }
+    const currentHistory = resident.projectHistory || []
+    const updatedHistory = [newItem, ...currentHistory]
+    return this.updateResident(residentId, { projectHistory: updatedHistory })
   },
 
   async deleteResident(id: string): Promise<ResidentRecord[]> {

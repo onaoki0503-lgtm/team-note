@@ -53,8 +53,11 @@ import {
   parseUnitNumber,
   getUnitRoomType,
   getUnitCapacity,
+  DORM_ROLES_CONFIG,
+  getRoleBadgeInfo,
   type CurrentUser,
   type ResidentRecord,
+  type ResidentRoleKey,
   type ProjectMemberRecord,
   type ProposalAttachment,
   type ProjectProposalDoc,
@@ -193,8 +196,20 @@ export default function App() {
   const [editProposalDoc, setEditProposalDoc] = useState<ProjectProposalDoc | null>(null);
   const [uploadingProposal, setUploadingProposal] = useState(false);
 
-  // 👤 寮生詳細モーダル
+  // 👤 寮生詳細モーダル ＆ アイコン変更演出ステート
   const [selectedRosterResident, setSelectedRosterResident] = useState<ResidentRecord | null>(null);
+  const [animatingAvatar, setAnimatingAvatar] = useState<{
+    active: boolean;
+    url: string;
+    badgeLabel: string;
+    residentName: string;
+  } | null>(null);
+  const [isAddingHistory, setIsAddingHistory] = useState(false);
+  const [newHistoryTitle, setNewHistoryTitle] = useState('');
+  const [newHistoryRole, setNewHistoryRole] = useState('PL');
+  const [newHistoryPeriod, setNewHistoryPeriod] = useState('2026年秋');
+  const [newHistoryStatus, setNewHistoryStatus] = useState<'進行中' | '完了'>('進行中');
+  const [newHistorySummary, setNewHistorySummary] = useState('');
 
   // 🏛️ 倉庫内の全画面表示セクション
   const [warehouseActiveView, setWarehouseActiveView] = useState<'hub' | 'roster' | 'inventory' | 'archives'>('hub');
@@ -721,7 +736,7 @@ export default function App() {
       floor: resident.floor,
       unit: resident.unit,
       role: resident.role,
-      roleType: resident.roleType,
+      roleType: resident.roleType || 'member',
       email: resident.email
     };
     setCurrentUser(user);
@@ -5623,13 +5638,11 @@ export default function App() {
                         {/* 役職・役割 */}
                         <div>
                           <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#44403c', marginBottom: 4 }}>
-                            担当・役職（任意）
+                            担当・役職
                           </label>
-                          <input
-                            type="text"
+                          <select
                             value={newResidentRole}
                             onChange={(e) => setNewResidentRole(e.target.value)}
-                            placeholder="例: 一般寮生、フロアリーダー"
                             style={{
                               width: '100%',
                               padding: '8px 10px',
@@ -5637,9 +5650,16 @@ export default function App() {
                               border: '1px solid #d6d3d1',
                               fontSize: 12,
                               backgroundColor: '#fff',
-                              boxSizing: 'border-box'
+                              boxSizing: 'border-box',
+                              fontWeight: 700
                             }}
-                          />
+                          >
+                            {DORM_ROLES_CONFIG.map((role) => (
+                              <option key={role.key} value={role.key}>
+                                {role.title}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
@@ -5785,35 +5805,59 @@ export default function App() {
 
                                   {/* 入居者一覧 */}
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 36 }}>
-                                    {occupants.map((occ) => (
-                                      <div
-                                        key={occ.id}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'space-between',
-                                          padding: '5px 8px',
-                                          backgroundColor: '#fafaf9',
-                                          borderRadius: 6,
-                                          fontSize: 12,
-                                          border: '1px solid #f5f5f4'
-                                        }}
-                                      >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                          <img
-                                            src={occ.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(occ.name)}`}
-                                            alt={occ.name}
-                                            style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                                          />
-                                          <span style={{ fontWeight: 700, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {occ.name}
-                                          </span>
-                                          {occ.role && occ.role !== '一般寮生' && (
-                                            <span style={{ backgroundColor: '#f5f5f4', color: '#57534e', fontSize: 10, padding: '1px 5px', borderRadius: 3, border: '1px solid #e7e5e4', flexShrink: 0 }}>
-                                              {occ.role}
+                                    {occupants.map((occ) => {
+                                      const roleInfo = getRoleBadgeInfo(occ.role);
+                                      return (
+                                        <div
+                                          key={occ.id}
+                                          onClick={() => setSelectedRosterResident(occ)}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '6px 8px',
+                                            backgroundColor: '#fafaf9',
+                                            borderRadius: 6,
+                                            fontSize: 12,
+                                            border: '1px solid #f5f5f4',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#f5f5f4';
+                                            e.currentTarget.style.borderColor = '#e7e5e4';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#fafaf9';
+                                            e.currentTarget.style.borderColor = '#f5f5f4';
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                            <img
+                                              src={occ.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(occ.name)}`}
+                                              alt={occ.name}
+                                              style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid #e7e5e4' }}
+                                            />
+                                            <span style={{ fontWeight: 700, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                              {occ.name}
                                             </span>
-                                          )}
-                                        </div>
+                                            {roleInfo.isLeadership && (
+                                              <span
+                                                style={{
+                                                  backgroundColor: '#1c1917',
+                                                  color: '#fff',
+                                                  fontSize: 10,
+                                                  fontWeight: 800,
+                                                  padding: '1px 6px',
+                                                  borderRadius: 4,
+                                                  letterSpacing: '0.02em',
+                                                  flexShrink: 0
+                                                }}
+                                              >
+                                                {roleInfo.badge}
+                                              </span>
+                                            )}
+                                          </div>
 
                                         <button
                                           onClick={async (e) => {
@@ -5839,7 +5883,8 @@ export default function App() {
                                           <Trash2 size={13} />
                                         </button>
                                       </div>
-                                    ))}
+                                    );
+                                  })}
 
                                     {/* 空き枠追加ボタン（シンプルなモノトーン） */}
                                     {count < capacity && (
@@ -5973,9 +6018,11 @@ export default function App() {
                             .map((r) => {
                               const rType = r.roomType || getUnitRoomType(r.unit);
                               const isSingle = rType === '1-person';
+                              const roleInfo = getRoleBadgeInfo(r.role);
                               return (
                                 <div
                                   key={r.id}
+                                  onClick={() => setSelectedRosterResident(r)}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -5985,7 +6032,17 @@ export default function App() {
                                     backgroundColor: '#fff',
                                     border: '1px solid #e7e5e4',
                                     borderRadius: 10,
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = '#1c1917';
+                                    e.currentTarget.style.backgroundColor = '#fafaf9';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = '#e7e5e4';
+                                    e.currentTarget.style.backgroundColor = '#fff';
                                   }}
                                 >
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
@@ -5995,13 +6052,24 @@ export default function App() {
                                       style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid #e7e5e4' }}
                                     />
                                     <div style={{ minWidth: 0 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                         <strong style={{ fontSize: 14, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {r.name}
                                         </strong>
-                                        {r.role && (
-                                          <span style={{ backgroundColor: '#f5f5f4', color: '#57534e', fontSize: 10, padding: '1px 5px', borderRadius: 3, border: '1px solid #e7e5e4', flexShrink: 0 }}>
-                                            {r.role}
+                                        {roleInfo.isLeadership && (
+                                          <span
+                                            style={{
+                                              backgroundColor: '#1c1917',
+                                              color: '#fff',
+                                              fontSize: 10,
+                                              fontWeight: 800,
+                                              padding: '1px 6px',
+                                              borderRadius: 4,
+                                              letterSpacing: '0.02em',
+                                              flexShrink: 0
+                                            }}
+                                          >
+                                            {roleInfo.badge}
                                           </span>
                                         )}
                                       </div>
@@ -6018,7 +6086,8 @@ export default function App() {
                                   </div>
 
                                   <button
-                                    onClick={async () => {
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
                                       if (confirm(`${r.name}さんを名簿から削除しますか？`)) {
                                         const updated = await dbService.deleteResident(r.id);
                                         setResidents(updated);
@@ -6049,6 +6118,700 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* 👤 寮生ステータス閲覧 ＆ アイコン変更 ＆ プロジェクト履歴モーダル */}
+                {selectedRosterResident && (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      inset: 0,
+                      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                      backdropFilter: 'blur(4px)',
+                      zIndex: 100,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 16
+                    }}
+                    onClick={() => {
+                      setSelectedRosterResident(null);
+                      setIsAddingHistory(false);
+                    }}
+                  >
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        backgroundColor: '#fff',
+                        borderRadius: 16,
+                        maxWidth: 620,
+                        width: '100%',
+                        maxHeight: '88vh',
+                        overflowY: 'auto',
+                        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+                        border: '1px solid #e7e5e4',
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}
+                    >
+                      {/* モーダルヘッダー */}
+                      <div
+                        style={{
+                          padding: '16px 20px',
+                          borderBottom: '1px solid #e7e5e4',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: '#fafaf9'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <h3 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', margin: 0 }}>
+                            寮生ステータス詳細
+                          </h3>
+                          {(() => {
+                            const rInfo = getRoleBadgeInfo(selectedRosterResident.role);
+                            return rInfo.isLeadership ? (
+                              <span
+                                style={{
+                                  backgroundColor: '#1c1917',
+                                  color: '#fff',
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: 4
+                                }}
+                              >
+                                {rInfo.badge}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedRosterResident(null);
+                            setIsAddingHistory(false);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#78716c',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        {/* ① 個人のステータス欄（アバター・役職・所属） */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 18,
+                            alignItems: 'flex-start',
+                            backgroundColor: '#fafaf9',
+                            border: '1px solid #e7e5e4',
+                            borderRadius: 12,
+                            padding: 16,
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          {/* アバター ＆ アイコン枠 */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                            <div
+                              style={{
+                                position: 'relative',
+                                width: 72,
+                                height: 72,
+                                borderRadius: '50%',
+                                padding: 2,
+                                backgroundColor: '#fff',
+                                border: '2px solid #1c1917',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                              }}
+                            >
+                              <img
+                                src={selectedRosterResident.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedRosterResident.name)}`}
+                                alt={selectedRosterResident.name}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  borderRadius: '50%',
+                                  objectFit: 'cover'
+                                }}
+                              />
+                              {(() => {
+                                const rInfo = getRoleBadgeInfo(selectedRosterResident.role);
+                                return rInfo.isLeadership ? (
+                                  <span
+                                    style={{
+                                      position: 'absolute',
+                                      bottom: -4,
+                                      right: -4,
+                                      backgroundColor: '#1c1917',
+                                      color: '#fff',
+                                      fontSize: 9,
+                                      fontWeight: 800,
+                                      padding: '2px 6px',
+                                      borderRadius: 10,
+                                      border: '1.5px solid #fff'
+                                    }}
+                                  >
+                                    {rInfo.badge}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
+                            <span style={{ fontSize: 10, color: '#78716c', fontWeight: 600 }}>
+                              アイコン変更枠
+                            </span>
+                          </div>
+
+                          {/* 基本情報 ＆ 役職選択 */}
+                          <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 17, fontWeight: 900, color: '#1c1917' }}>
+                                {selectedRosterResident.name}
+                              </div>
+                              <div style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>
+                                {selectedRosterResident.building === 'rosemary' && '🌿 ローズマリー棟'}
+                                {selectedRosterResident.building === 'basil' && '🌱 バジル棟'}
+                                {selectedRosterResident.building === 'turmeric' && '🟡 ターメリック棟'}
+                                {selectedRosterResident.building === 'paprika' && '🌶️ パプリカ棟'}
+                                {' • '}{selectedRosterResident.unit}
+                                {' • '}
+                                {(selectedRosterResident.roomType || getUnitRoomType(selectedRosterResident.unit)) === '1-person' ? '1人部屋' : '5人部屋'}
+                              </div>
+                            </div>
+
+                            {/* 役職選択ドロップダウン（即時DB保存） */}
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#44403c', marginBottom: 4 }}>
+                                棟内役職
+                              </label>
+                              <select
+                                value={selectedRosterResident.role || '一般寮生'}
+                                onChange={async (e) => {
+                                  const newRole = e.target.value as ResidentRoleKey;
+                                  const updated = await dbService.updateResident(selectedRosterResident.id, {
+                                    role: newRole
+                                  });
+                                  if (updated) {
+                                    setSelectedRosterResident(updated);
+                                    const all = await dbService.getResidents();
+                                    setResidents(all);
+                                  }
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '7px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid #d6d3d1',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  backgroundColor: '#fff',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                {DORM_ROLES_CONFIG.map((role) => (
+                                  <option key={role.key} value={role.key}>
+                                    {role.title} {role.isLeadership ? '★役職' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {selectedRosterResident.memo && (
+                              <div style={{ fontSize: 11, color: '#78716c', backgroundColor: '#fff', padding: '6px 10px', borderRadius: 6, border: '1px solid #e7e5e4' }}>
+                                {selectedRosterResident.memo}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 🎨 アイコン変更パレット（クリックするとド迫力の回転拡大＆蛍光演出が発動！） */}
+                        <div style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, padding: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#1c1917', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Sparkles size={14} color="#ea580c" />
+                              アイコンを変更（クリックで演出発動・DB保存）
+                            </span>
+                            <span style={{ fontSize: 10, color: '#78716c' }}>
+                              蛍光ネオングロー演出
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(42px, 1fr))', gap: 8 }}>
+                            {[
+                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80',
+                              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80',
+                              'https://api.dicebear.com/7.x/bottts/svg?seed=champion',
+                              'https://api.dicebear.com/7.x/bottts/svg?seed=spark',
+                              'https://api.dicebear.com/7.x/bottts/svg?seed=leader'
+                            ].map((url, idx) => {
+                              const isCurrent = selectedRosterResident.avatar === url;
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    if (isCurrent) return;
+                                    const rInfo = getRoleBadgeInfo(selectedRosterResident.role);
+                                    setAnimatingAvatar({
+                                      active: true,
+                                      url: url,
+                                      badgeLabel: rInfo.badge || 'MEMBER',
+                                      residentName: selectedRosterResident.name
+                                    });
+
+                                    setTimeout(async () => {
+                                      const updated = await dbService.updateResident(selectedRosterResident.id, {
+                                        avatar: url
+                                      });
+                                      if (updated) {
+                                        setSelectedRosterResident(updated);
+                                        const all = await dbService.getResidents();
+                                        setResidents(all);
+                                      }
+                                      setAnimatingAvatar(null);
+                                    }, 1800);
+                                  }}
+                                  style={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: '50%',
+                                    padding: 0,
+                                    border: isCurrent ? '2.5px solid #ea580c' : '1px solid #e7e5e4',
+                                    overflow: 'hidden',
+                                    cursor: 'pointer',
+                                    backgroundColor: '#fff',
+                                    boxShadow: isCurrent ? '0 0 0 2px rgba(234,88,12,0.2)' : 'none',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <img src={url} alt="preset" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* ② これまで行ったプロジェクトの履歴（DB保存） */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h4 style={{ fontSize: 14, fontWeight: 900, color: '#1c1917', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Award size={15} color="#1c1917" />
+                              これまで行ったプロジェクトの履歴
+                            </h4>
+                            <button
+                              onClick={() => setIsAddingHistory(!isAddingHistory)}
+                              style={{
+                                backgroundColor: isAddingHistory ? '#78716c' : '#1c1917',
+                                color: '#fff',
+                                border: 'none',
+                                padding: '5px 12px',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4
+                              }}
+                            >
+                              {isAddingHistory ? 'キャンセル' : '＋ 履歴を追加'}
+                            </button>
+                          </div>
+
+                          {/* 新規履歴追加フォーム */}
+                          {isAddingHistory && (
+                            <form
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!newHistoryTitle.trim()) {
+                                  alert('プロジェクト名を入力してください');
+                                  return;
+                                }
+                                const updated = await dbService.addProjectHistoryToResident(selectedRosterResident.id, {
+                                  projectTitle: newHistoryTitle.trim(),
+                                  role: newHistoryRole.trim() || 'メンバー',
+                                  period: newHistoryPeriod.trim() || '2026年',
+                                  status: newHistoryStatus,
+                                  summary: newHistorySummary.trim()
+                                });
+                                if (updated) {
+                                  setSelectedRosterResident(updated);
+                                  const all = await dbService.getResidents();
+                                  setResidents(all);
+                                  setIsAddingHistory(false);
+                                  setNewHistoryTitle('');
+                                  setNewHistorySummary('');
+                                }
+                              }}
+                              style={{
+                                backgroundColor: '#fafaf9',
+                                border: '1px solid #e7e5e4',
+                                borderRadius: 10,
+                                padding: 14,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10
+                              }}
+                            >
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#44403c', marginBottom: 3 }}>
+                                    プロジェクト名 *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={newHistoryTitle}
+                                    onChange={(e) => setNewHistoryTitle(e.target.value)}
+                                    placeholder="例: 中庭BBQ大会"
+                                    style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #d6d3d1', fontSize: 11, boxSizing: 'border-box' }}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#44403c', marginBottom: 3 }}>
+                                    担当役職
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={newHistoryRole}
+                                    onChange={(e) => setNewHistoryRole(e.target.value)}
+                                    placeholder="例: PL, GL, メンバー"
+                                    style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #d6d3d1', fontSize: 11, boxSizing: 'border-box' }}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#44403c', marginBottom: 3 }}>
+                                    時期
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={newHistoryPeriod}
+                                    onChange={(e) => setNewHistoryPeriod(e.target.value)}
+                                    placeholder="例: 2026年秋"
+                                    style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #d6d3d1', fontSize: 11, boxSizing: 'border-box' }}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#44403c', marginBottom: 3 }}>
+                                    状態
+                                  </label>
+                                  <select
+                                    value={newHistoryStatus}
+                                    onChange={(e) => setNewHistoryStatus(e.target.value as any)}
+                                    style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #d6d3d1', fontSize: 11, boxSizing: 'border-box' }}
+                                  >
+                                    <option value="進行中">進行中</option>
+                                    <option value="完了">完了</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#44403c', marginBottom: 3 }}>
+                                  活動メモ・概要
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newHistorySummary}
+                                  onChange={(e) => setNewHistorySummary(e.target.value)}
+                                  placeholder="例: 会場設営・安全対策を担当"
+                                  style={{ width: '100%', padding: '6px 8px', borderRadius: 4, border: '1px solid #d6d3d1', fontSize: 11, boxSizing: 'border-box' }}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                                <button
+                                  type="submit"
+                                  style={{
+                                    backgroundColor: '#ea580c',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '6px 16px',
+                                    borderRadius: 4,
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  履歴を保存
+                                </button>
+                              </div>
+                            </form>
+                          )}
+
+                          {/* 履歴リスト */}
+                          {(!selectedRosterResident.projectHistory || selectedRosterResident.projectHistory.length === 0) ? (
+                            <div style={{ backgroundColor: '#fafaf9', border: '1px dashed #d6d3d1', borderRadius: 8, padding: 18, textAlign: 'center', color: '#78716c', fontSize: 12 }}>
+                              参加したプロジェクト履歴はまだ登録されていません。「＋ 履歴を追加」から登録できます。
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {selectedRosterResident.projectHistory.map((ph, idx) => (
+                                <div
+                                  key={ph.id || idx}
+                                  style={{
+                                    backgroundColor: '#fff',
+                                    border: '1px solid #e7e5e4',
+                                    borderRadius: 8,
+                                    padding: '10px 14px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 4
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <strong style={{ fontSize: 13, color: '#1c1917' }}>
+                                        {ph.projectTitle}
+                                      </strong>
+                                      <span
+                                        style={{
+                                          backgroundColor: '#f5f5f4',
+                                          color: '#1c1917',
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          padding: '1px 6px',
+                                          borderRadius: 4,
+                                          border: '1px solid #e7e5e4'
+                                        }}
+                                      >
+                                        {ph.role}
+                                      </span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#78716c' }}>
+                                      <span>{ph.period}</span>
+                                      <span>•</span>
+                                      <span style={{ color: ph.status === '完了' ? '#78716c' : '#ea580c', fontWeight: 700 }}>
+                                        {ph.status || '進行中'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {ph.summary && (
+                                    <div style={{ fontSize: 11, color: '#57534e' }}>
+                                      {ph.summary}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 🌟 アイコン変更演出オーバーレイ（くるくる回って画面半分ほどまで大きくなり、バーンと枠にハマる演出＋蛍光色グロー） */}
+                {animatingAvatar && animatingAvatar.active && (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      inset: 0,
+                      backgroundColor: 'rgba(5, 7, 15, 0.92)',
+                      backdropFilter: 'blur(12px)',
+                      zIndex: 99999,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* 蛍光色の衝撃波リング（Shockwave） */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        width: 'min(50vw, 360px)',
+                        height: 'min(50vw, 360px)',
+                        borderRadius: '50%',
+                        border: '5px solid #39ff14',
+                        pointerEvents: 'none',
+                        animation: 'megaNeonShockwave 1.8s cubic-bezier(0.1, 0.8, 0.2, 1) forwards'
+                      }}
+                    />
+
+                    {/* くるくる回転＆画面半分まで巨大化＆バーンとハマるメインバッジ */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        width: 'min(48vw, 320px)',
+                        height: 'min(48vw, 320px)',
+                        borderRadius: '50%',
+                        padding: 8,
+                        background: 'linear-gradient(135deg, #00ffff, #39ff14, #ff007f, #ffe600)',
+                        animation: 'megaBadgeSpinAndSlam 1.8s cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          borderRadius: '50%',
+                          overflow: 'hidden',
+                          backgroundColor: '#09090b',
+                          position: 'relative',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          animation: 'neonBorderPulse 1s infinite alternate'
+                        }}
+                      >
+                        <img
+                          src={animatingAvatar.url}
+                          alt={animatingAvatar.residentName}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                        />
+
+                        {animatingAvatar.badgeLabel && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              bottom: 20,
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                              color: '#39ff14',
+                              border: '2px solid #39ff14',
+                              borderRadius: 24,
+                              padding: '6px 20px',
+                              fontSize: 16,
+                              fontWeight: 900,
+                              letterSpacing: '0.08em',
+                              boxShadow: '0 0 25px #39ff14',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {animatingAvatar.badgeLabel}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 演出キャプション */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '12%',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        textAlign: 'center',
+                        color: '#fff',
+                        zIndex: 10
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 13,
+                          letterSpacing: '0.25em',
+                          color: '#39ff14',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          marginBottom: 6,
+                          textShadow: '0 0 12px #39ff14'
+                        }}
+                      >
+                        STATUS BADGE SYNCHRONIZED
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 22,
+                          fontWeight: 900,
+                          color: '#fff',
+                          textShadow: '0 0 25px #00ffff'
+                        }}
+                      >
+                        {animatingAvatar.residentName} のバッジ装着完了！
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* CSSアニメーション定義 */}
+                <style>{`
+                  @keyframes megaBadgeSpinAndSlam {
+                    0% {
+                      transform: translate(-50%, -50%) scale(0.15) rotate(0deg);
+                      opacity: 0.3;
+                      filter: drop-shadow(0 0 20px #00f0ff);
+                    }
+                    30% {
+                      transform: translate(-50%, -50%) scale(0.9) rotate(720deg);
+                      opacity: 1;
+                      filter: drop-shadow(0 0 50px #39ff14) drop-shadow(0 0 80px #00ffff);
+                    }
+                    55% {
+                      transform: translate(-50%, -50%) scale(1.4) rotate(1440deg);
+                      opacity: 1;
+                      filter: drop-shadow(0 0 80px #39ff14) drop-shadow(0 0 120px #ff007f) drop-shadow(0 0 160px #00ffff);
+                    }
+                    75% {
+                      transform: translate(-50%, -50%) scale(1.45) rotate(1800deg);
+                      opacity: 1;
+                      filter: drop-shadow(0 0 90px #00ffff) drop-shadow(0 0 140px #39ff14);
+                    }
+                    90% {
+                      transform: translate(-50%, -50%) scale(0.92) rotate(2160deg);
+                      filter: drop-shadow(0 0 110px #39ff14) drop-shadow(0 0 160px #00ffff);
+                    }
+                    100% {
+                      transform: translate(-50%, -50%) scale(1) rotate(2160deg);
+                      filter: drop-shadow(0 0 40px #39ff14) drop-shadow(0 0 70px #00ffff);
+                    }
+                  }
+
+                  @keyframes megaNeonShockwave {
+                    0% {
+                      transform: translate(-50%, -50%) scale(0.2);
+                      opacity: 1;
+                      border-color: #39ff14;
+                      box-shadow: 0 0 40px #39ff14, inset 0 0 20px #00ffff;
+                    }
+                    50% {
+                      opacity: 0.9;
+                      border-color: #00ffff;
+                      box-shadow: 0 0 80px #00ffff, inset 0 0 40px #ff007f;
+                    }
+                    100% {
+                      transform: translate(-50%, -50%) scale(2.8);
+                      opacity: 0;
+                      border-color: #ff007f;
+                      box-shadow: 0 0 120px #ff007f;
+                    }
+                  }
+
+                  @keyframes neonBorderPulse {
+                    0%, 100% {
+                      box-shadow: 0 0 25px #39ff14, 0 0 50px #00f0ff, inset 0 0 15px #39ff14;
+                    }
+                    50% {
+                      box-shadow: 0 0 50px #00f0ff, 0 0 90px #ff007f, 0 0 120px #39ff14, inset 0 0 25px #00f0ff;
+                    }
+                  }
+                `}</style>
               </div>
             );
           })()}
