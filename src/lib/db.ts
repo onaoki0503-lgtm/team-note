@@ -65,7 +65,7 @@ export interface ProjectMemberRecord {
   role: string
   building: string
   joinedAt: string
-  eventRole?: 'PL' | 'GL' | 'メンバー' | 'EA' // 役職
+  eventRole?: 'PL' | 'GL' | 'メンバー' | 'EA' | string // 役職
   groupName?: string // 所属班（イベント班、装飾班、ディナー班等）
 }
 
@@ -1469,6 +1469,47 @@ export const dbService = {
       return p
     })
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+  },
+
+  // --- スタッフの直接追加 ---
+  async addStaffMemberToProject(
+    projectId: string,
+    member: ProjectMemberRecord
+  ): Promise<ProjectRecord[]> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        const exists = p.members.some((m) => m.residentId === member.residentId || m.name === member.name)
+        if (exists) return p
+        return {
+          ...p,
+          members: [...p.members, member]
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return updated
+  },
+
+  // --- スタッフの削除 ---
+  async removeStaffMemberFromProject(
+    projectId: string,
+    residentId: string
+  ): Promise<ProjectRecord[]> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          members: p.members.filter((m) => m.residentId !== residentId)
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return updated
   }
 }
+
 
