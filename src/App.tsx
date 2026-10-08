@@ -62,6 +62,11 @@ import {
   type ProjectProposalDoc,
   type ProjectRecord
 } from './lib/db';
+import {
+  processAndResizeImage,
+  playBurnImpactSound,
+  RAINBOW_BURN_CSS
+} from './utils/avatarEffect';
 
 interface MapNode {
   id: string;
@@ -767,10 +772,14 @@ export default function App() {
     setNewResidentName('');
   };
 
-  // 📸 アバター画像変更演出＆DB保存ハンドラー
+  // 📸 アバター画像変更演出＆DB保存ハンドラー（プリン事業AIドリブンアプリ同等仕様）
   const triggerAvatarAnimationAndSave = async (dataUrl: string) => {
     if (!selectedRosterResident) return;
     const badge = getRoleBadgeInfo(selectedRosterResident.role).badge || String(selectedRosterResident.role);
+
+    // 🎵 Web Audio API による「ピキーン！バーン！！」インパクト効果音（プリン事業仕様）
+    playBurnImpactSound();
+
     setAnimatingAvatar({
       active: true,
       url: dataUrl,
@@ -793,23 +802,30 @@ export default function App() {
       console.error('Failed to update resident avatar:', err);
     }
 
-    // くるくる回転・巨大化・枠ハマり演出完了（約1.9秒）後にオーバーレイ解除
+    // 虹色バーン着地演出完了（2600ms）後に解除
     setTimeout(() => {
       setAnimatingAvatar(null);
-    }, 1900);
+    }, 2600);
   };
 
-  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedRosterResident) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        triggerAvatarAnimationAndSave(dataUrl);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // 端末の写真・ファイルをCanvasで正方形（256x256）に中央トリミング＆リサイズ
+      const resizedBase64 = await processAndResizeImage(file);
+      triggerAvatarAnimationAndSave(resizedBase64);
+    } catch (err) {
+      console.error('Failed to process image:', err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (dataUrl) {
+          triggerAvatarAnimationAndSave(dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
     e.target.value = '';
   };
 
@@ -7374,54 +7390,109 @@ export default function App() {
                 onChange={handleAvatarFileSelect}
               />
 
-              {/* プロフィールヘッダー（写真変更可能） */}
+              {/* プロフィールヘッダー（写真変更可能・プリン事業同等演出） */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div
-                  onClick={() => avatarFileInputRef.current?.click()}
-                  title="クリックして写真フォルダからアイコンを変更"
-                  style={{
-                    position: 'relative',
-                    cursor: 'pointer',
-                    borderRadius: '50%',
-                    padding: 3,
-                    border: '3px solid #ea580c',
-                    boxShadow: '0 4px 12px rgba(234, 88, 12, 0.25)',
-                    transition: 'all 0.2s ease',
-                    flexShrink: 0
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.05)';
-                    e.currentTarget.style.boxShadow = '0 0 20px rgba(234, 88, 12, 0.6)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(234, 88, 12, 0.25)';
-                  }}
-                >
-                  <img
-                    src={selectedRosterResident.avatar}
-                    alt={selectedRosterResident.name}
-                    style={{ width: 68, height: 68, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
-                  />
-                  {/* カメラアイコンバッジ */}
+                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {/* 虹色回転オーラ ＆ 衝撃波 ＆ スパークル（演出実行中） */}
+                  {animatingAvatar && animatingAvatar.active && (
+                    <>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: -8,
+                          left: -8,
+                          right: -8,
+                          bottom: -8,
+                          borderRadius: '50%',
+                          background: 'conic-gradient(from 0deg, #ff0055, #ff7700, #ffdd00, #00ff77, #00d4ff, #7a00ff, #ff00c8, #ff0055)',
+                          animation: 'rainbowGlowSpin 1.2s linear infinite',
+                          filter: 'blur(4px)',
+                          zIndex: 1
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          borderRadius: '50%',
+                          border: '3px solid #ff00cc',
+                          animation: 'rainbowShockwave 1s cubic-bezier(0.1, 0.9, 0.2, 1) forwards',
+                          zIndex: 0,
+                          pointerEvents: 'none'
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: -12,
+                          right: -12,
+                          animation: 'rainbowSparkleBurst 1s ease-out forwards',
+                          zIndex: 4,
+                          fontSize: '24px',
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        ✨
+                      </div>
+                    </>
+                  )}
+
+                  {/* クリッカブルアバター本体 */}
                   <div
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    title="クリックしてパソコン・スマホの写真やファイルを挿入"
                     style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      right: 0,
-                      backgroundColor: '#ea580c',
-                      color: '#fff',
+                      position: 'relative',
+                      cursor: 'pointer',
                       borderRadius: '50%',
-                      width: 26,
-                      height: 26,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '2px solid #fff',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                      zIndex: 2,
+                      transition: 'transform 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)';
                     }}
                   >
-                    <Camera size={14} />
+                    <img
+                      src={selectedRosterResident.avatar}
+                      alt={selectedRosterResident.name}
+                      style={{
+                        width: 70,
+                        height: 70,
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        display: 'block',
+                        border: animatingAvatar && animatingAvatar.active ? '3px solid #ffffff' : '2px solid #ea580c',
+                        boxShadow: animatingAvatar && animatingAvatar.active ? '0 0 25px rgba(255, 0, 128, 0.95)' : '0 2px 6px rgba(0,0,0,0.12)',
+                        animation: animatingAvatar && animatingAvatar.active ? 'avatarBurnImpact 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards' : 'none'
+                      }}
+                    />
+                    {/* カメラアイコンバッジ */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        right: 0,
+                        backgroundColor: '#ea580c',
+                        color: '#fff',
+                        borderRadius: '50%',
+                        width: 24,
+                        height: 24,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid #fff',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                        zIndex: 3
+                      }}
+                    >
+                      <Camera size={13} />
+                    </div>
                   </div>
                 </div>
 
@@ -7882,16 +7953,19 @@ export default function App() {
         </div>
       )}
 
+      {/* 虹色オーラ ＆ バーン着地アニメーションCSS（プリン事業 AIドリブン経営プロダクト完全同等仕様） */}
+      <style>{RAINBOW_BURN_CSS}</style>
+
       {/* ========================================================= */}
-      {/* 🌟 アイコン変更時：くるくる回転巨大化 ＆ バーンと枠ハマり蛍光ネオン演出 */}
+      {/* 🌟 アイコン変更時：レインボーバーン演出（プリン事業 restaurant_os 完全同等仕様） */}
       {/* ========================================================= */}
       {animatingAvatar && animatingAvatar.active && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(5, 5, 10, 0.92)',
-            backdropFilter: 'blur(16px)',
+            backgroundColor: 'rgba(15, 23, 42, 0.88)',
+            backdropFilter: 'blur(12px)',
             zIndex: 99999,
             display: 'flex',
             flexDirection: 'column',
@@ -7901,184 +7975,116 @@ export default function App() {
             overflow: 'hidden'
           }}
         >
-          {/* キーフレームアニメーション注入 */}
-          <style>{`
-            @keyframes spinScaleInBurn {
-              0% {
-                transform: scale(0.1) rotate(0deg);
-                opacity: 0;
-                filter: drop-shadow(0 0 10px #22c55e);
-              }
-              30% {
-                opacity: 1;
-              }
-              50% {
-                /* くるくる回って画面半分ほどまで大きく飛び出る */
-                transform: scale(2.8) rotate(720deg);
-                box-shadow: 0 0 70px #39ff14, 0 0 120px #00ffff, 0 0 180px #ffe600;
-              }
-              75% {
-                transform: scale(3.0) rotate(720deg);
-                box-shadow: 0 0 100px #39ff14, 0 0 160px #00ffff, 0 0 220px #ff007f;
-              }
-              88% {
-                /* バーン！！と枠にハマる（急激なスナップ＆収縮） */
-                transform: scale(0.92) rotate(720deg);
-                box-shadow: 0 0 40px #39ff14, 0 0 70px #00ffff;
-              }
-              95% {
-                transform: scale(1.08) rotate(720deg);
-              }
-              100% {
-                transform: scale(1.0) rotate(720deg);
-                box-shadow: 0 0 50px #39ff14, 0 0 90px #00ffff;
-              }
-            }
-
-            @keyframes neonPulseGlow {
-              0%, 100% {
-                box-shadow: 0 0 40px #39ff14, 0 0 80px #00ffff, inset 0 0 20px #39ff14;
-              }
-              50% {
-                box-shadow: 0 0 90px #39ff14, 0 0 140px #00ffff, 0 0 180px #ffe600, inset 0 0 35px #00ffff;
-              }
-            }
-
-            @keyframes neonShockwave {
-              0% {
-                transform: scale(0.5);
-                opacity: 1;
-                border-width: 8px;
-              }
-              100% {
-                transform: scale(3.2);
-                opacity: 0;
-                border-width: 1px;
-              }
-            }
-
-            @keyframes neonTextFlicker {
-              0%, 100% {
-                text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14, 0 0 40px #00ffff, 0 0 80px #00ffff;
-                opacity: 1;
-              }
-              50% {
-                text-shadow: 0 0 20px #39ff14, 0 0 40px #00ffff, 0 0 60px #ffe600, 0 0 100px #39ff14;
-                opacity: 0.9;
-              }
-            }
-          `}</style>
-
-          {/* 蛍光衝撃波リング（多重ネオン） */}
-          <div
-            style={{
-              position: 'absolute',
-              width: 260,
-              height: 260,
-              borderRadius: '50%',
-              border: '4px solid #39ff14',
-              boxShadow: '0 0 50px #39ff14, inset 0 0 40px #00ffff',
-              animation: 'neonShockwave 1.6s ease-out infinite'
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              width: 380,
-              height: 380,
-              borderRadius: '50%',
-              border: '4px solid #00ffff',
-              boxShadow: '0 0 70px #00ffff, inset 0 0 50px #39ff14',
-              animation: 'neonShockwave 1.6s 0.35s ease-out infinite'
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              width: 500,
-              height: 500,
-              borderRadius: '50%',
-              border: '3px solid #ffe600',
-              boxShadow: '0 0 90px #ffe600',
-              animation: 'neonShockwave 1.6s 0.7s ease-out infinite'
-            }}
-          />
-
-          {/* メイン演出バッジコンテナ（くるくる回転＆画面半分まで巨大化＆枠ハマり） */}
+          {/* 虹色回転オーラ ＆ 衝撃波 ＆ スパークル */}
           <div
             style={{
               position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              animation: 'spinScaleInBurn 1.9s cubic-bezier(0.2, 0.85, 0.25, 1) forwards'
+              justifyContent: 'center'
             }}
           >
-            {/* 蛍光色に光るバッジ外枠 */}
+            {/* 虹色回転オーラ */}
             <div
               style={{
-                width: 150,
-                height: 150,
+                position: 'absolute',
+                width: 240,
+                height: 240,
+                borderRadius: '50%',
+                background: 'conic-gradient(from 0deg, #ff0055, #ff7700, #ffdd00, #00ff77, #00d4ff, #7a00ff, #ff00c8, #ff0055)',
+                animation: 'rainbowGlowSpin 1.2s linear infinite',
+                filter: 'blur(10px)',
+                zIndex: 1
+              }}
+            />
+            {/* 衝撃波リング */}
+            <div
+              style={{
+                position: 'absolute',
+                width: 220,
+                height: 220,
+                borderRadius: '50%',
+                border: '4px solid #ff00cc',
+                animation: 'rainbowShockwave 1s cubic-bezier(0.1, 0.9, 0.2, 1) forwards',
+                zIndex: 0,
+                pointerEvents: 'none'
+              }}
+            />
+            {/* スパークル */}
+            <div
+              style={{
+                position: 'absolute',
+                top: -30,
+                right: -30,
+                animation: 'rainbowSparkleBurst 1.2s ease-out forwards',
+                zIndex: 4,
+                fontSize: '36px',
+                pointerEvents: 'none'
+              }}
+            >
+              ✨
+            </div>
+
+            {/* メインアバター（avatarBurnImpact による迫力の着地インパクト） */}
+            <div
+              style={{
+                position: 'relative',
+                zIndex: 2,
                 borderRadius: '50%',
                 padding: 6,
-                background: 'linear-gradient(135deg, #39ff14, #00ffff, #ffe600, #ff007f)',
-                animation: 'neonPulseGlow 1.2s ease-in-out infinite',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '3px solid #ffffff'
+                background: '#fff',
+                boxShadow: '0 0 35px rgba(255, 0, 128, 0.9)',
+                animation: 'avatarBurnImpact 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards'
               }}
             >
               <img
                 src={animatingAvatar.url}
                 alt={animatingAvatar.residentName}
                 style={{
-                  width: '100%',
-                  height: '100%',
+                  width: 150,
+                  height: 150,
                   borderRadius: '50%',
                   objectFit: 'cover',
-                  border: '4px solid #000'
+                  display: 'block',
+                  border: '4px solid #ffffff'
                 }}
               />
             </div>
 
-            {/* ステータスバッジ（文字） */}
+            {/* ステータスバッジ */}
             <div
               style={{
-                marginTop: 20,
+                marginTop: 24,
+                zIndex: 3,
                 padding: '8px 24px',
                 borderRadius: 9999,
-                background: 'linear-gradient(90deg, #39ff14, #00ffff)',
-                color: '#000',
+                background: 'linear-gradient(90deg, #ff007f, #00ffcc)',
+                color: '#fff',
                 fontWeight: 900,
-                fontSize: 18,
+                fontSize: 16,
                 letterSpacing: 2,
-                boxShadow: '0 0 35px #39ff14, 0 0 65px #00ffff',
-                textTransform: 'uppercase'
+                boxShadow: '0 0 25px rgba(255, 0, 128, 0.8), 0 0 45px rgba(0, 255, 204, 0.6)',
+                animation: 'avatarBurnImpact 0.85s 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards'
               }}
             >
-              ⚡ {animatingAvatar.badgeLabel} 装着完了！ ⚡
+              ✨ {animatingAvatar.badgeLabel} 装着！ ✨
             </div>
           </div>
 
-          {/* 画面下のネオンテキストメッセージ */}
           <div
             style={{
               position: 'absolute',
               bottom: '12%',
               color: '#ffffff',
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: 900,
-              letterSpacing: 3,
+              letterSpacing: 2,
               textAlign: 'center',
-              animation: 'neonTextFlicker 1.4s ease-in-out infinite'
+              textShadow: '0 0 20px #ff007f, 0 0 40px #00ffcc'
             }}
           >
-            💥 新アイコン適用 ＆ データベース保存中 💥
-            <div style={{ fontSize: 14, color: '#39ff14', marginTop: 8, letterSpacing: 1.5, fontWeight: 700 }}>
-              {animatingAvatar.residentName} さんのステータスが更新されました
-            </div>
+            📸 {animatingAvatar.residentName} さんの写真を更新しました！
           </div>
         </div>
       )}
