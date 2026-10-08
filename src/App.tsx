@@ -5831,7 +5831,7 @@ export default function App() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <FileText size={20} />
                   <h3 style={{ fontSize: 16, fontWeight: 900, margin: 0 }}>
-                    📝 会議・アイデア議事録（{pj.title}）
+                    議事録を追加
                   </h3>
                 </div>
                 <button
@@ -5842,51 +5842,8 @@ export default function App() {
                 </button>
               </div>
 
-              <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-                {/* 既存の議事録一覧 */}
-                <div>
-                  <h4 style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', marginBottom: 8 }}>
-                    📜 保存された議事録ログ（{pj.meetingNotes?.length || 0}件）
-                  </h4>
-
-                  {(!pj.meetingNotes || pj.meetingNotes.length === 0) ? (
-                    <div style={{ backgroundColor: '#f8fafc', padding: 14, borderRadius: 10, border: '1px dashed #cbd5e1', color: '#64748b', fontSize: 12, textAlign: 'center' }}>
-                      まだ議事録が記録されていません。下のフォームから議事録を追加してください。
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {pj.meetingNotes.map((mn, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            backgroundColor: '#fff7ed',
-                            border: '1px solid #fed7aa',
-                            borderRadius: 12,
-                            padding: '12px 14px'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <strong style={{ fontSize: 13, color: '#9a3412' }}>{mn.title}</strong>
-                            <span style={{ fontSize: 11, color: '#7c2d12', fontWeight: 800 }}>📅 {mn.date}</span>
-                          </div>
-                          <p style={{ fontSize: 12, color: '#431407', margin: '0 0 6px', lineHeight: 1.5 }}>
-                            {mn.summary}
-                          </p>
-                          <div style={{ fontSize: 11, color: '#15803d', fontWeight: 800 }}>
-                            ✅ 決定事項: {mn.decisions.join('、 ')}
-                          </div>
-                          {mn.nextTodos && mn.nextTodos.length > 0 && (
-                            <div style={{ fontSize: 11, color: '#b45309', fontWeight: 800, marginTop: 2 }}>
-                              📝 次のTODO: {mn.nextTodos.join('、 ')}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* 新規議事録作成フォーム（文字起こし/メモ入力欄 ＋ 出席者 ＋ Google Meet議事録化） */}
+              <div style={{ padding: '20px', overflowY: 'auto' }}>
+                {/* 新規議事録作成フォーム（文字起こし/メモ入力欄 ＋ 出席者 ＋ 議事録にする） */}
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
@@ -5983,25 +5940,11 @@ export default function App() {
                     setNewMeetingAttendees('');
                   }}
                   style={{
-                    backgroundColor: '#fafaf9',
-                    border: '1.5px solid #e7e5e4',
-                    borderRadius: 14,
-                    padding: '16px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 14
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h4 style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Sparkles size={16} color="#ea580c" />
-                      Google Meet品質 議事録自動作成
-                    </h4>
-                    <span style={{ fontSize: 11, color: '#78716c' }}>
-                      文章・文字起こしを入れるだけで自動構造化
-                    </span>
-                  </div>
-
                   {/* 出席者入力欄 */}
                   <div>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
