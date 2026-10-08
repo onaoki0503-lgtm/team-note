@@ -55,11 +55,11 @@ export interface RoleConfigItem {
 }
 
 export const DORM_ROLES_CONFIG: RoleConfigItem[] = [
-  { key: 'HL', title: 'HL（ハウスリーダー）', badgeLabel: 'HL', isLeadership: true, description: '棟全体の統括代表' },
-  { key: 'EA', title: 'EA（ハウスサブリーダー）', badgeLabel: 'EA (HSL)', isLeadership: true, description: 'イベント・対外企画担当 HSL' },
-  { key: 'IA', title: 'IA（ハウスサブリーダー）', badgeLabel: 'IA (HSL)', isLeadership: true, description: '内部運営・総務担当 HSL' },
-  { key: 'OA', title: 'OA（ハウスサブリーダー）', badgeLabel: 'OA (HSL)', isLeadership: true, description: '広報・運営管理担当 HSL' },
-  { key: 'FL', title: 'FL（フロアリーダー）', badgeLabel: 'FL', isLeadership: true, description: '各階フロアの責任者' },
+  { key: 'HL', title: 'HL ハウスリーダー', badgeLabel: 'HL', isLeadership: true, description: '棟全体の統括代表' },
+  { key: 'EA', title: 'EA ハウスサブリーダー', badgeLabel: 'EA HSL', isLeadership: true, description: 'イベント・対外企画担当 HSL' },
+  { key: 'IA', title: 'IA ハウスサブリーダー', badgeLabel: 'IA HSL', isLeadership: true, description: '内部運営・総務担当 HSL' },
+  { key: 'OA', title: 'OA ハウスサブリーダー', badgeLabel: 'OA HSL', isLeadership: true, description: '広報・運営管理担当 HSL' },
+  { key: 'FL', title: 'FL フロアリーダー', badgeLabel: 'FL', isLeadership: true, description: '各階フロアの責任者' },
   { key: '一般寮生', title: '一般寮生', badgeLabel: '', isLeadership: false, description: '一般入居寮生' }
 ]
 
@@ -67,9 +67,9 @@ export function getRoleBadgeInfo(roleStr?: string): { badge: string; isLeadershi
   if (!roleStr) return { badge: '', isLeadership: false }
   const clean = roleStr.trim()
   if (clean === 'HL' || clean.includes('ハウスリーダー')) return { badge: 'HL', isLeadership: true }
-  if (clean === 'EA' || clean.includes('EA')) return { badge: 'EA (HSL)', isLeadership: true }
-  if (clean === 'IA' || clean.includes('IA')) return { badge: 'IA (HSL)', isLeadership: true }
-  if (clean === 'OA' || clean.includes('OA')) return { badge: 'OA (HSL)', isLeadership: true }
+  if (clean === 'EA' || clean.includes('EA')) return { badge: 'EA HSL', isLeadership: true }
+  if (clean === 'IA' || clean.includes('IA')) return { badge: 'IA HSL', isLeadership: true }
+  if (clean === 'OA' || clean.includes('OA')) return { badge: 'OA HSL', isLeadership: true }
   if (clean === 'FL' || clean.includes('フロアリーダー') || clean.includes('FL')) return { badge: 'FL', isLeadership: true }
   return { badge: '', isLeadership: false }
 }
@@ -1446,6 +1446,20 @@ export const dbService = {
     const current = await this.getProjects()
     const updated = current.map((p) => (p.id === id ? { ...p, progress } : p))
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+  },
+
+  async updateProject(id: string, updates: Partial<ProjectRecord>): Promise<ProjectRecord | null> {
+    const current = await this.getProjects()
+    let updatedProject: ProjectRecord | null = null
+    const updated = current.map((p) => {
+      if (p.id === id) {
+        updatedProject = { ...p, ...updates }
+        return updatedProject
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return updatedProject
   },
 
   // --- スタッフのプロジェクト参加 ＆ 離脱 ---
