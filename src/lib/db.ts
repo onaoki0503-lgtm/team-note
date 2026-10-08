@@ -986,6 +986,13 @@ export const dbService = {
     return newResident
   },
 
+  async deleteResident(id: string): Promise<ResidentRecord[]> {
+    const current = await this.getResidents()
+    const updated = current.filter((r) => r.id !== id)
+    localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(updated))
+    return updated
+  },
+
   // --- プロジェクト ---
   async getProjects(): Promise<ProjectRecord[]> {
     if (isSupabaseConfigured) {
