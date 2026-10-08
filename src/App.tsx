@@ -7392,21 +7392,29 @@ export default function App() {
 
               {/* プロフィールヘッダー（写真変更可能・プリン事業同等演出） */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    position: 'relative',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: animatingAvatar && animatingAvatar.active ? 80 : 2
+                  }}
+                >
                   {/* 虹色回転オーラ ＆ 衝撃波 ＆ スパークル（演出実行中） */}
                   {animatingAvatar && animatingAvatar.active && (
                     <>
                       <div
                         style={{
                           position: 'absolute',
-                          top: -8,
-                          left: -8,
-                          right: -8,
-                          bottom: -8,
+                          top: -12,
+                          left: -12,
+                          right: -12,
+                          bottom: -12,
                           borderRadius: '50%',
                           background: 'conic-gradient(from 0deg, #ff0055, #ff7700, #ffdd00, #00ff77, #00d4ff, #7a00ff, #ff00c8, #ff0055)',
                           animation: 'rainbowGlowSpin 1.2s linear infinite',
-                          filter: 'blur(4px)',
+                          filter: 'blur(6px)',
                           zIndex: 1
                         }}
                       />
@@ -7418,7 +7426,7 @@ export default function App() {
                           right: 0,
                           bottom: 0,
                           borderRadius: '50%',
-                          border: '3px solid #ff00cc',
+                          border: '4px solid #ff00cc',
                           animation: 'rainbowShockwave 1s cubic-bezier(0.1, 0.9, 0.2, 1) forwards',
                           zIndex: 0,
                           pointerEvents: 'none'
@@ -7427,11 +7435,11 @@ export default function App() {
                       <div
                         style={{
                           position: 'absolute',
-                          top: -12,
-                          right: -12,
-                          animation: 'rainbowSparkleBurst 1s ease-out forwards',
+                          top: -18,
+                          right: -18,
+                          animation: 'rainbowSparkleBurst 1.2s ease-out forwards',
                           zIndex: 4,
-                          fontSize: '24px',
+                          fontSize: '32px',
                           pointerEvents: 'none'
                         }}
                       >
@@ -7448,7 +7456,7 @@ export default function App() {
                       position: 'relative',
                       cursor: 'pointer',
                       borderRadius: '50%',
-                      zIndex: 2,
+                      zIndex: animatingAvatar && animatingAvatar.active ? 85 : 2,
                       transition: 'transform 0.15s ease'
                     }}
                     onMouseEnter={(e) => {
@@ -7955,139 +7963,6 @@ export default function App() {
 
       {/* 虹色オーラ ＆ バーン着地アニメーションCSS（プリン事業 AIドリブン経営プロダクト完全同等仕様） */}
       <style>{RAINBOW_BURN_CSS}</style>
-
-      {/* ========================================================= */}
-      {/* 🌟 アイコン変更時：レインボーバーン演出（プリン事業 restaurant_os 完全同等仕様） */}
-      {/* ========================================================= */}
-      {animatingAvatar && animatingAvatar.active && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.88)',
-            backdropFilter: 'blur(12px)',
-            zIndex: 99999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'auto',
-            overflow: 'hidden'
-          }}
-        >
-          {/* 虹色回転オーラ ＆ 衝撃波 ＆ スパークル */}
-          <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            {/* 虹色回転オーラ */}
-            <div
-              style={{
-                position: 'absolute',
-                width: 240,
-                height: 240,
-                borderRadius: '50%',
-                background: 'conic-gradient(from 0deg, #ff0055, #ff7700, #ffdd00, #00ff77, #00d4ff, #7a00ff, #ff00c8, #ff0055)',
-                animation: 'rainbowGlowSpin 1.2s linear infinite',
-                filter: 'blur(10px)',
-                zIndex: 1
-              }}
-            />
-            {/* 衝撃波リング */}
-            <div
-              style={{
-                position: 'absolute',
-                width: 220,
-                height: 220,
-                borderRadius: '50%',
-                border: '4px solid #ff00cc',
-                animation: 'rainbowShockwave 1s cubic-bezier(0.1, 0.9, 0.2, 1) forwards',
-                zIndex: 0,
-                pointerEvents: 'none'
-              }}
-            />
-            {/* スパークル */}
-            <div
-              style={{
-                position: 'absolute',
-                top: -30,
-                right: -30,
-                animation: 'rainbowSparkleBurst 1.2s ease-out forwards',
-                zIndex: 4,
-                fontSize: '36px',
-                pointerEvents: 'none'
-              }}
-            >
-              ✨
-            </div>
-
-            {/* メインアバター（avatarBurnImpact による迫力の着地インパクト） */}
-            <div
-              style={{
-                position: 'relative',
-                zIndex: 2,
-                borderRadius: '50%',
-                padding: 6,
-                background: '#fff',
-                boxShadow: '0 0 35px rgba(255, 0, 128, 0.9)',
-                animation: 'avatarBurnImpact 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards'
-              }}
-            >
-              <img
-                src={animatingAvatar.url}
-                alt={animatingAvatar.residentName}
-                style={{
-                  width: 150,
-                  height: 150,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  display: 'block',
-                  border: '4px solid #ffffff'
-                }}
-              />
-            </div>
-
-            {/* ステータスバッジ */}
-            <div
-              style={{
-                marginTop: 24,
-                zIndex: 3,
-                padding: '8px 24px',
-                borderRadius: 9999,
-                background: 'linear-gradient(90deg, #ff007f, #00ffcc)',
-                color: '#fff',
-                fontWeight: 900,
-                fontSize: 16,
-                letterSpacing: 2,
-                boxShadow: '0 0 25px rgba(255, 0, 128, 0.8), 0 0 45px rgba(0, 255, 204, 0.6)',
-                animation: 'avatarBurnImpact 0.85s 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards'
-              }}
-            >
-              ✨ {animatingAvatar.badgeLabel} 装着！ ✨
-            </div>
-          </div>
-
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '12%',
-              color: '#ffffff',
-              fontSize: 20,
-              fontWeight: 900,
-              letterSpacing: 2,
-              textAlign: 'center',
-              textShadow: '0 0 20px #ff007f, 0 0 40px #00ffcc'
-            }}
-          >
-            📸 {animatingAvatar.residentName} さんの写真を更新しました！
-          </div>
-        </div>
-      )}
 
       {/* ========================================================= */}
       {/* 🚩 新しいチーム・班を追加するモーダル */}

@@ -104,25 +104,29 @@ export const RAINBOW_BURN_CSS = `
     0% {
       transform: scale(0.25) rotate(-25deg);
       opacity: 0.2;
-      filter: brightness(3) contrast(2);
+      filter: brightness(2.5) contrast(1.8);
       box-shadow: 0 0 50px #ff0055, 0 0 100px #00ffff;
     }
     35% {
-      transform: scale(1.65) rotate(10deg);
+      /* 手前に大きくグワッと飛び出す！ */
+      transform: scale(2.4) rotate(12deg);
       opacity: 1;
-      filter: brightness(2);
-      box-shadow: 0 0 70px #ff00ff, 0 0 120px #ffff00;
+      filter: brightness(1.8);
+      box-shadow: 0 0 80px #ff00ff, 0 0 140px #ffff00;
     }
     60% {
+      /* 一気に収縮して枠へ向かう */
       transform: scale(0.88) rotate(-4deg);
-      filter: brightness(1.4);
-      box-shadow: 0 0 40px #00ffcc;
+      filter: brightness(1.3);
+      box-shadow: 0 0 45px #00ffcc;
     }
     80% {
+      /* 枠への着地バウンス */
       transform: scale(1.15) rotate(2deg);
       filter: brightness(1.15);
     }
     100% {
+      /* バーン！と枠にハマって着地完了 */
       transform: scale(1) rotate(0deg);
       filter: brightness(1);
       box-shadow: 0 2px 10px rgba(0,0,0,0.18);
