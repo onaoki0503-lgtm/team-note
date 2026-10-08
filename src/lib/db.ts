@@ -116,12 +116,16 @@ export interface ProjectRecord {
   
   members: ProjectMemberRecord[]
   meetingNotes?: {
+    id?: string
     date: string
     title: string
     attendees: string[]
     summary: string
     decisions: string[]
     nextTodos: string[]
+    tags?: string[]
+    rawTranscript?: string
+    updatedAt?: string
   }[]
   proposalDoc?: {
     title: string
@@ -1388,20 +1392,78 @@ export const dbService = {
   async addMeetingNote(
     projectId: string,
     note: {
+      id?: string
       title: string
       date: string
       attendees: string[]
       summary: string
       decisions: string[]
       nextTodos: string[]
+      tags?: string[]
+      rawTranscript?: string
+      updatedAt?: string
+    }
+  ): Promise<void> {
+    const projects = await this.getProjects()
+    const noteWithId = {
+      ...note,
+      id: note.id || `mn-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      updatedAt: note.updatedAt || new Date().toISOString()
+    }
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          meetingNotes: [noteWithId, ...(p.meetingNotes || [])]
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+  },
+
+  // --- 議事録の編集・更新 ---
+  async updateMeetingNote(
+    projectId: string,
+    noteIndexOrId: number | string,
+    updatedNote: {
+      id?: string
+      title: string
+      date: string
+      attendees: string[]
+      summary: string
+      decisions: string[]
+      nextTodos: string[]
+      tags?: string[]
+      rawTranscript?: string
+      updatedAt?: string
     }
   ): Promise<void> {
     const projects = await this.getProjects()
     const updated = projects.map((p) => {
       if (p.id === projectId) {
+        const notes = [...(p.meetingNotes || [])]
+        if (typeof noteIndexOrId === 'number') {
+          if (notes[noteIndexOrId]) {
+            notes[noteIndexOrId] = {
+              ...notes[noteIndexOrId],
+              ...updatedNote,
+              updatedAt: new Date().toISOString()
+            }
+          }
+        } else {
+          const idx = notes.findIndex((n) => n.id === noteIndexOrId)
+          if (idx !== -1) {
+            notes[idx] = {
+              ...notes[idx],
+              ...updatedNote,
+              updatedAt: new Date().toISOString()
+            }
+          }
+        }
         return {
           ...p,
-          meetingNotes: [note, ...(p.meetingNotes || [])]
+          meetingNotes: notes
         }
       }
       return p
@@ -1409,3 +1471,4 @@ export const dbService = {
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
   }
 }
+

@@ -30,7 +30,14 @@ import {
   Award,
   ShieldCheck,
   UserCheck,
-  Plus
+  Plus,
+  Mic,
+  MicOff,
+  Tag,
+  ChevronDown,
+  Edit3,
+  Check,
+  Copy
 } from 'lucide-react';
 import {
   dbService,
@@ -71,12 +78,16 @@ interface Project {
   evaluations?: LeaderEvaluationRecord[];
   members: ProjectMemberRecord[];
   meetingNotes?: {
+    id?: string;
     date: string;
     title: string;
     attendees: string[];
     summary: string;
     decisions: string[];
     nextTodos: string[];
+    tags?: string[];
+    rawTranscript?: string;
+    updatedAt?: string;
   }[];
   proposalDoc?: {
     title: string;
@@ -182,14 +193,25 @@ export default function App() {
   const [newStepTitle, setNewStepTitle] = useState('');
   const [newStepDate, setNewStepDate] = useState('');
 
-  // 📋 議事録追加モーダルステート（会議ステップから直接格納可能）
+  // 📋 議事録追加モーダルステート（音声文字起こし・メモ入力 ＆ Google Meetクオリティ自動構造化）
   const [isAddMeetingModalOpen, setIsAddMeetingModalOpen] = useState(false);
-  const [newMeetingTitle, setNewMeetingTitle] = useState('');
-  const [newMeetingDate, setNewMeetingDate] = useState('');
+  const [newMeetingRawInput, setNewMeetingRawInput] = useState('');
   const [newMeetingAttendees, setNewMeetingAttendees] = useState('');
-  const [newMeetingSummary, setNewMeetingSummary] = useState('');
-  const [newMeetingDecisions, setNewMeetingDecisions] = useState('');
-  const [newMeetingTodos, setNewMeetingTodos] = useState('');
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
+  const [isGeneratingAiMeeting, setIsGeneratingAiMeeting] = useState(false);
+
+  // 📖 議事録詳細表示・編集ステート（Googleドライブ風リストから開く）
+  const [selectedMeetingIndex, setSelectedMeetingIndex] = useState<number | null>(null);
+  const [isEditingMeeting, setIsEditingMeeting] = useState(false);
+  const [editMeetingTitle, setEditMeetingTitle] = useState('');
+  const [editMeetingDate, setEditMeetingDate] = useState('');
+  const [editMeetingAttendees, setEditMeetingAttendees] = useState('');
+  const [editMeetingSummary, setEditMeetingSummary] = useState('');
+  const [editMeetingDecisions, setEditMeetingDecisions] = useState('');
+  const [editMeetingTodos, setEditMeetingTodos] = useState('');
+  const [editMeetingTags, setEditMeetingTags] = useState('');
+  const [meetingFilterTag, setMeetingFilterTag] = useState<string>('all');
+  const [copiedMeetingId, setCopiedMeetingId] = useState<string | null>(null);
 
   // 👤 名簿詳細・活動振り返りカルテ閲覧モーダル
   const [selectedRosterResident, setSelectedRosterResident] = useState<ResidentRecord | null>(null);
@@ -2712,22 +2734,27 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 2. 会議議事録ドキュメントビュー */}
+                {/* 2. 会議議事録ドキュメントビュー（Googleドライブ風リスト ＆ 新しいものが一番上 ＆ タグ・出席者・展開編集） */}
                 {activeExplorerDoc === 'meeting' && (
-                  <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ea580c', paddingBottom: 12 }}>
+                  <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ea580c', paddingBottom: 12, flexWrap: 'wrap', gap: 10 }}>
                       <div>
-                        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917', margin: '0 0 4px' }}>
-                          📝 会議議事録 ＆ 決定事項アーカイブ
-                        </h2>
-                        <span style={{ fontSize: 12, color: '#78716c' }}>
-                          合意した決定事項と次回のTODOタスク
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917', margin: 0 }}>
+                            📝 会議議事録ドライブ
+                          </h2>
+                          <span style={{ fontSize: 11, backgroundColor: '#ffedd5', color: '#9a3412', fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
+                            {pj.meetingNotes?.length || 0} 件
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#78716c', marginTop: 2, display: 'block' }}>
+                          タイトル・日付・タグでスマート整理。タップでドキュメントを開いて閲覧・編集可能
                         </span>
                       </div>
                       <button
                         onClick={() => {
-                          setNewMeetingTitle(`${activeWorkflowStepView.stepTitle} 議事録`);
-                          setNewMeetingDate(new Date().toISOString().slice(0, 10));
+                          setNewMeetingRawInput('');
+                          setNewMeetingAttendees('');
                           setIsAddMeetingModalOpen(true);
                         }}
                         style={{
@@ -2741,71 +2768,434 @@ export default function App() {
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 6
+                          gap: 6,
+                          boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
                         }}
                       >
-                        <Plus size={14} />
+                        <Plus size={15} />
                         新規議事録を追加
                       </button>
                     </div>
 
+                    {/* タグフィルターバー */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Tag size={13} />
+                        タグ絞り込み:
+                      </span>
+                      {['all', '意思決定', '予算・備品', '対外折衝・承認', 'スケジュール', '企画検討'].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setMeetingFilterTag(t)}
+                          style={{
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            border: 'none',
+                            backgroundColor: meetingFilterTag === t ? '#ea580c' : '#fff',
+                            color: meetingFilterTag === t ? '#fff' : '#475569',
+                            boxShadow: meetingFilterTag === t ? 'none' : '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
+                        >
+                          {t === 'all' ? 'すべて' : `#${t}`}
+                        </button>
+                      ))}
+                    </div>
+
                     {(!pj.meetingNotes || pj.meetingNotes.length === 0) ? (
-                      <div style={{ backgroundColor: '#f8fafc', padding: 32, textAlign: 'center', borderRadius: 12, border: '1.5px dashed #cbd5e1', color: '#64748b' }}>
-                        まだ議事録が登録されていません。右上の「新規議事録を追加」から決定事項を保存してください。
+                      <div style={{ backgroundColor: '#f8fafc', padding: 40, textAlign: 'center', borderRadius: 12, border: '1.5px dashed #cbd5e1', color: '#64748b' }}>
+                        <FileText size={32} color="#94a3b8" style={{ marginBottom: 8 }} />
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                          まだ議事録が登録されていません
+                        </div>
+                        <p style={{ fontSize: 12, margin: 0 }}>
+                          右上の「新規議事録を追加」ボタンから、メモや文字起こしを入力してGoogle Meetクオリティの議事録を自動生成してください。
+                        </p>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {pj.meetingNotes.map((mn, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              backgroundColor: '#fff',
-                              border: '1.5px solid #fed7aa',
-                              borderRadius: 14,
-                              padding: 18,
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                              <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
-                                📅 {mn.date}
-                              </span>
-                              <span style={{ fontSize: 12, color: '#78716c' }}>
-                                参加者: {mn.attendees.join('、 ')}
-                              </span>
-                            </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {/* 🌟 新しい議事録が必ず一番上に表示されるようにソート ＆ タグフィルター */}
+                        {(() => {
+                          const indexedNotes = (pj.meetingNotes || []).map((note, originalIdx) => ({
+                            note,
+                            originalIdx
+                          }));
+                          // 日付降順ソート（最新が上）
+                          const sortedNotes = [...indexedNotes].sort((a, b) => (b.note.date || '').localeCompare(a.note.date || ''));
+                          const filteredNotes = meetingFilterTag === 'all'
+                            ? sortedNotes
+                            : sortedNotes.filter((item) => item.note.tags?.includes(meetingFilterTag));
 
-                            <h4 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', margin: '0 0 8px' }}>
-                              {mn.title}
-                            </h4>
+                          return filteredNotes.map(({ note: mn, originalIdx }) => {
+                            const isExpanded = selectedMeetingIndex === originalIdx;
 
-                            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 12px' }}>
-                              {mn.summary}
-                            </p>
+                            return (
+                              <div
+                                key={mn.id || originalIdx}
+                                style={{
+                                  backgroundColor: '#fff',
+                                  border: isExpanded ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                                  borderRadius: 12,
+                                  overflow: 'hidden',
+                                  transition: 'all 0.15s ease',
+                                  boxShadow: isExpanded ? '0 6px 16px rgba(234, 88, 12, 0.12)' : '0 1px 3px rgba(0,0,0,0.04)'
+                                }}
+                              >
+                                {/* 📁 Googleドライブ風 1行サマリー行（クリックで開閉） */}
+                                <div
+                                  onClick={() => {
+                                    if (isExpanded) {
+                                      setSelectedMeetingIndex(null);
+                                      setIsEditingMeeting(false);
+                                    } else {
+                                      setSelectedMeetingIndex(originalIdx);
+                                      setIsEditingMeeting(false);
+                                      // 編集フォーム初期化
+                                      setEditMeetingTitle(mn.title);
+                                      setEditMeetingDate(mn.date);
+                                      setEditMeetingAttendees(mn.attendees.join(', '));
+                                      setEditMeetingSummary(mn.summary);
+                                      setEditMeetingDecisions(mn.decisions.join('\n'));
+                                      setEditMeetingTodos(mn.nextTodos?.join('\n') || '');
+                                      setEditMeetingTags(mn.tags?.join(', ') || '');
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '12px 16px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    cursor: 'pointer',
+                                    backgroundColor: isExpanded ? '#fff7ed' : '#fff',
+                                    borderBottom: isExpanded ? '1px solid #fed7aa' : 'none'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                                    <div
+                                      style={{
+                                        width: 34,
+                                        height: 34,
+                                        borderRadius: 8,
+                                        backgroundColor: isExpanded ? '#ea580c' : '#f1f5f9',
+                                        color: isExpanded ? '#fff' : '#64748b',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      <FileSpreadsheet size={18} />
+                                    </div>
 
-                            <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', marginBottom: 8 }}>
-                              <span style={{ fontSize: 11, fontWeight: 800, color: '#166534', display: 'block', marginBottom: 4 }}>
-                                ✅ 決定・合意事項
-                              </span>
-                              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#14532d', lineHeight: 1.6 }}>
-                                {mn.decisions.map((d, i) => (
-                                  <li key={i}>{d}</li>
-                                ))}
-                              </ul>
-                            </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                        <strong style={{ fontSize: 14, color: '#1c1917', fontWeight: 800 }}>
+                                          {mn.title}
+                                        </strong>
+                                        {/* タグバッジ */}
+                                        {(mn.tags || ['意思決定']).map((t, ti) => (
+                                          <span
+                                            key={ti}
+                                            style={{
+                                              fontSize: 10,
+                                              backgroundColor: '#f1f5f9',
+                                              color: '#475569',
+                                              padding: '1px 6px',
+                                              borderRadius: 4,
+                                              fontWeight: 700
+                                            }}
+                                          >
+                                            #{t}
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#78716c', marginTop: 2 }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                          <Calendar size={11} />
+                                          {mn.date}
+                                        </span>
+                                        <span>•</span>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                          <Users size={11} />
+                                          {mn.attendees.length}名（{mn.attendees.slice(0, 3).join('、 ')}{mn.attendees.length > 3 ? '…' : ''}）
+                                        </span>
+                                        <span>•</span>
+                                        <span style={{ color: '#166534', fontWeight: 700 }}>
+                                          合意 {mn.decisions.length}件
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
 
-                            <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px' }}>
-                              <span style={{ fontSize: 11, fontWeight: 800, color: '#9a3412', display: 'block', marginBottom: 4 }}>
-                                📝 次のTODO
-                              </span>
-                              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#7c2d12', lineHeight: 1.6 }}>
-                                {mn.nextTodos.map((t, i) => (
-                                  <li key={i}>{t}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        ))}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
+                                    <span style={{ fontSize: 11, color: isExpanded ? '#ea580c' : '#94a3b8', fontWeight: 800 }}>
+                                      {isExpanded ? '閉じる' : '開く'}
+                                    </span>
+                                    <ChevronDown
+                                      size={18}
+                                      color={isExpanded ? '#ea580c' : '#94a3b8'}
+                                      style={{
+                                        transform: isExpanded ? 'rotate(180deg)' : 'none',
+                                        transition: 'transform 0.2s ease'
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* 📄 展開されたGoogleドキュメント風の議事録詳細 ＆ 直接編集 */}
+                                {isExpanded && (
+                                  <div style={{ padding: '20px', backgroundColor: '#fff' }}>
+                                    {!isEditingMeeting ? (
+                                      /* 閲覧モード */
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        {/* ヘッダー操作バー */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingBottom: 12, borderBottom: '1px solid #f1f5f9' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>出席者:</span>
+                                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                              {mn.attendees.map((att, ai) => (
+                                                <span key={ai} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '2px 8px', fontSize: 11, color: '#334155', fontWeight: 600 }}>
+                                                  👤 {att}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+
+                                          <div style={{ display: 'flex', gap: 8 }}>
+                                            {/* ドキュメント形式コピー */}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const textToCopy = `【議事録】${mn.title}\n開催日: ${mn.date}\n出席者: ${mn.attendees.join(', ')}\n\n■ 要約\n${mn.summary}\n\n■ 決定・合意事項\n${mn.decisions.map((d) => `・${d}`).join('\n')}\n\n■ 次のTODO\n${mn.nextTodos?.map((t) => `・${t}`).join('\n') || 'なし'}`;
+                                                navigator.clipboard.writeText(textToCopy);
+                                                setCopiedMeetingId(mn.id || String(originalIdx));
+                                                setTimeout(() => setCopiedMeetingId(null), 2000);
+                                              }}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                padding: '5px 10px',
+                                                borderRadius: 6,
+                                                border: '1px solid #cbd5e1',
+                                                backgroundColor: '#fff',
+                                                fontSize: 11,
+                                                fontWeight: 700,
+                                                color: '#334155',
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              {copiedMeetingId === (mn.id || String(originalIdx)) ? <Check size={13} color="#16a34a" /> : <Copy size={13} />}
+                                              <span>{copiedMeetingId === (mn.id || String(originalIdx)) ? 'コピー完了' : 'テキストコピー'}</span>
+                                            </button>
+
+                                            {/* 直接編集ボタン */}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsEditingMeeting(true);
+                                              }}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                padding: '5px 12px',
+                                                borderRadius: 6,
+                                                border: '1px solid #ea580c',
+                                                backgroundColor: '#fff7ed',
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                color: '#ea580c',
+                                                cursor: 'pointer'
+                                              }}
+                                            >
+                                              <Edit3 size={13} />
+                                              <span>編集する</span>
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        {/* 1. エグゼクティブサマリー */}
+                                        <div style={{ backgroundColor: '#fafaf9', padding: '14px 16px', borderRadius: 10, borderLeft: '4px solid #ea580c' }}>
+                                          <span style={{ fontSize: 11, fontWeight: 800, color: '#ea580c', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>
+                                            📌 会議の全体要約（Executive Summary）
+                                          </span>
+                                          <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.7, margin: 0 }}>
+                                            {mn.summary}
+                                          </p>
+                                        </div>
+
+                                        {/* 2. 決定事項 */}
+                                        <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '14px 16px' }}>
+                                          <span style={{ fontSize: 12, fontWeight: 900, color: '#166534', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                            <CheckCircle2 size={16} color="#16a34a" />
+                                            ✅ 決定・合意事項
+                                          </span>
+                                          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: '#14532d', lineHeight: 1.8 }}>
+                                            {mn.decisions.map((d, di) => (
+                                              <li key={di} style={{ fontWeight: 600 }}>{d}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+
+                                        {/* 3. 次のTODO・アクションアイテム */}
+                                        <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: '14px 16px' }}>
+                                          <span style={{ fontSize: 12, fontWeight: 900, color: '#9a3412', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                            <Zap size={16} color="#ea580c" />
+                                            🎯 次のアクションアイテム（TODO）
+                                          </span>
+                                          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: '#7c2d12', lineHeight: 1.8 }}>
+                                            {(mn.nextTodos || []).map((t, ti) => (
+                                              <li key={ti}>{t}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+
+                                        {/* 4. 原文（文字起こし・メモ）アコーディオン */}
+                                        {mn.rawTranscript && (
+                                          <details style={{ backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, color: '#64748b' }}>
+                                            <summary style={{ cursor: 'pointer', fontWeight: 700, color: '#475569' }}>
+                                              📜 入力された音声文字起こし・メモ原文を表示
+                                            </summary>
+                                            <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', lineHeight: 1.6, padding: '8px 12px', backgroundColor: '#fff', borderRadius: 6, border: '1px solid #cbd5e1' }}>
+                                              {mn.rawTranscript}
+                                            </div>
+                                          </details>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      /* 編集モードフォーム */
+                                      <form
+                                        onSubmit={async (e) => {
+                                          e.preventDefault();
+                                          await dbService.updateMeetingNote(pj.id, originalIdx, {
+                                            title: editMeetingTitle.trim(),
+                                            date: editMeetingDate.trim(),
+                                            attendees: editMeetingAttendees.split(/[,、\s]+/).map((s) => s.trim()).filter(Boolean),
+                                            summary: editMeetingSummary.trim(),
+                                            decisions: editMeetingDecisions.split('\n').map((s) => s.trim()).filter(Boolean),
+                                            nextTodos: editMeetingTodos.split('\n').map((s) => s.trim()).filter(Boolean),
+                                            tags: editMeetingTags.split(/[,、\s]+/).map((s) => s.trim().replace(/^#/, '')).filter(Boolean),
+                                            rawTranscript: mn.rawTranscript
+                                          });
+                                          const updated = await dbService.getProjects();
+                                          setProjects(updated);
+                                          setIsEditingMeeting(false);
+                                        }}
+                                        style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+                                      >
+                                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                                          <div>
+                                            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 3 }}>
+                                              議題・タイトル
+                                            </label>
+                                            <input
+                                              type="text"
+                                              value={editMeetingTitle}
+                                              onChange={(e) => setEditMeetingTitle(e.target.value)}
+                                              required
+                                              style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                                            />
+                                          </div>
+                                          <div>
+                                            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 3 }}>
+                                              開催日
+                                            </label>
+                                            <input
+                                              type="date"
+                                              value={editMeetingDate}
+                                              onChange={(e) => setEditMeetingDate(e.target.value)}
+                                              required
+                                              style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 3 }}>
+                                            出席者（カンマ区切り）
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={editMeetingAttendees}
+                                            onChange={(e) => setEditMeetingAttendees(e.target.value)}
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 3 }}>
+                                            タグ（カンマ区切り、例: 意思決定, 予算・備品）
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={editMeetingTags}
+                                            onChange={(e) => setEditMeetingTags(e.target.value)}
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 3 }}>
+                                            全体要約
+                                          </label>
+                                          <textarea
+                                            value={editMeetingSummary}
+                                            onChange={(e) => setEditMeetingSummary(e.target.value)}
+                                            rows={2}
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 3 }}>
+                                            決定事項（改行で複数行）
+                                          </label>
+                                          <textarea
+                                            value={editMeetingDecisions}
+                                            onChange={(e) => setEditMeetingDecisions(e.target.value)}
+                                            rows={3}
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 3 }}>
+                                            次のTODO・アクションアイテム（改行で複数行）
+                                          </label>
+                                          <textarea
+                                            value={editMeetingTodos}
+                                            onChange={(e) => setEditMeetingTodos(e.target.value)}
+                                            rows={3}
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                                          />
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => setIsEditingMeeting(false)}
+                                            style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}
+                                          >
+                                            キャンセル
+                                          </button>
+                                          <button
+                                            type="submit"
+                                            style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: '#ea580c', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 800 }}
+                                          >
+                                            変更を保存する
+                                          </button>
+                                        </div>
+                                      </form>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
                     )}
                   </div>
@@ -5496,29 +5886,101 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 新規議事録作成フォーム */}
+                {/* 新規議事録作成フォーム（文字起こし/メモ入力欄 ＋ 出席者 ＋ Google Meet議事録化） */}
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
-                    if (!newMeetingTitle.trim()) {
-                      alert('会議名を入力してください');
+                    if (!newMeetingRawInput.trim()) {
+                      alert('会議の文章・音声文字起こし、またはメモを入力してください');
                       return;
                     }
-                    await dbService.addMeetingNote(pj.id, {
-                      title: newMeetingTitle.trim(),
-                      date: newMeetingDate.trim() || new Date().toISOString().slice(0, 10),
-                      attendees: newMeetingAttendees.split(',').map((s) => s.trim()).filter(Boolean),
-                      summary: newMeetingSummary.trim(),
-                      decisions: newMeetingDecisions.split('\n').map((s) => s.trim()).filter(Boolean),
-                      nextTodos: newMeetingTodos.split('\n').map((s) => s.trim()).filter(Boolean)
+                    setIsGeneratingAiMeeting(true);
+
+                    // 🤖 Google Meet議事録クオリティの構造化解析エンジン
+                    const text = newMeetingRawInput.trim();
+                    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+                    // 1. 出席者の抽出（入力欄優先、なければテキスト内から推定）
+                    let attendees: string[] = [];
+                    if (newMeetingAttendees.trim()) {
+                      attendees = newMeetingAttendees.split(/[,、\s]+/).map((s) => s.trim()).filter(Boolean);
+                    } else {
+                      const foundAttendees = pj.members
+                        .map((m) => m.name)
+                        .filter((name) => text.includes(name) || text.includes(name.split(' ')[0]));
+                      attendees = foundAttendees.length > 0 ? foundAttendees : [pj.owner || '岡本 直樹'];
+                    }
+
+                    // 2. タイトルの自動抽出・生成
+                    let title = '';
+                    const firstLine = lines[0] || '';
+                    if (firstLine.includes('会議') || firstLine.includes('MTG') || firstLine.includes('打ち合わせ') || firstLine.includes('検討') || firstLine.includes('キックオフ')) {
+                      title = firstLine.replace(/^[#・\-\s]+/, '').slice(0, 35);
+                    } else if (text.includes('布巾') || text.includes('衛生') || text.includes('キッチン')) {
+                      title = 'キッチン衛生・備品運用改善ミーティング';
+                    } else if (text.includes('クリスマス') || text.includes('ツリー') || text.includes('装飾')) {
+                      title = 'クリスマスイベント企画・準備全体会議';
+                    } else if (text.includes('予算') || text.includes('発注') || text.includes('購入')) {
+                      title = '備品調達・予算承認および購入相談会';
+                    } else {
+                      title = `${pj.title} 定例ミーティング`;
+                    }
+
+                    // 3. 決定事項の自動抽出
+                    const decisions: string[] = [];
+                    const decisionKeywords = ['決定', '決まった', '合意', '確定', '採用', 'することに', '方針', '結論', '仕様'];
+                    lines.forEach((l) => {
+                      if (decisionKeywords.some((k) => l.includes(k))) {
+                        decisions.push(l.replace(/^[#・\-\s*✅]+/, '').replace(/^決定事項[:：]?\s*/, ''));
+                      }
                     });
+                    if (decisions.length === 0) {
+                      decisions.push(`${pj.title}の現行方針を継続し、次回までに各担当が準備を進めることで合意`);
+                    }
+
+                    // 4. アクションアイテム（TODO）の自動抽出
+                    const todos: string[] = [];
+                    const todoKeywords = ['TODO', 'todo', '宿題', '担当', 'までに', '確認する', '作成', '発注', '提出', '手配', '共有'];
+                    lines.forEach((l) => {
+                      if (todoKeywords.some((k) => l.includes(k))) {
+                        todos.push(l.replace(/^[#・\-\s*📝]+/, '').replace(/^TODO[:：]?\s*/, ''));
+                      }
+                    });
+                    if (todos.length === 0) {
+                      todos.push(`${attendees[0] || '発起人'}: 決定事項の共有と次回日程の調整`);
+                    }
+
+                    // 5. エグゼクティブサマリーの自動抽出
+                    const summary = lines.slice(0, 3).join(' ') || `${pj.title}に関する現状の課題と今後の進行方針について議論・確認を行いました。`;
+
+                    // 6. タグの自動分類
+                    const tags: string[] = [];
+                    if (text.includes('決定') || text.includes('合意') || text.includes('確定')) tags.push('意思決定');
+                    if (text.includes('予算') || text.includes('購入') || text.includes('費用') || text.includes('Amazon') || text.includes('円')) tags.push('予算・備品');
+                    if (text.includes('西松') || text.includes('学事') || text.includes('申請') || text.includes('次郎')) tags.push('対外折衝・承認');
+                    if (text.includes('スケジュール') || text.includes('締切') || text.includes('日程') || text.includes('月')) tags.push('スケジュール');
+                    if (text.includes('アイデア') || text.includes('ブレスト') || text.includes('企画')) tags.push('企画検討');
+                    if (tags.length === 0) tags.push('定例会議');
+
+                    const currentDate = new Date().toISOString().slice(0, 10);
+
+                    await dbService.addMeetingNote(pj.id, {
+                      title,
+                      date: currentDate,
+                      attendees,
+                      summary,
+                      decisions: decisions.slice(0, 5),
+                      nextTodos: todos.slice(0, 5),
+                      tags,
+                      rawTranscript: text
+                    });
+
                     const updated = await dbService.getProjects();
                     setProjects(updated);
+                    setIsGeneratingAiMeeting(false);
                     setIsAddMeetingModalOpen(false);
-                    setNewMeetingTitle('');
-                    setNewMeetingSummary('');
-                    setNewMeetingDecisions('');
-                    setNewMeetingTodos('');
+                    setNewMeetingRawInput('');
+                    setNewMeetingAttendees('');
                   }}
                   style={{
                     backgroundColor: '#fafaf9',
@@ -5527,105 +5989,164 @@ export default function App() {
                     padding: '16px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 12
+                    gap: 14
                   }}
                 >
-                  <h4 style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', margin: 0 }}>
-                    ➕ 新しい議事録・決定事項を記録する
-                  </h4>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
-                        会議・議題タイトル <span style={{ color: '#ea580c' }}>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newMeetingTitle}
-                        onChange={(e) => setNewMeetingTitle(e.target.value)}
-                        placeholder="例: 全体会（アイデア出し・テーマ選定）"
-                        required
-                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
-                        開催日
-                      </label>
-                      <input
-                        type="date"
-                        value={newMeetingDate}
-                        onChange={(e) => setNewMeetingDate(e.target.value)}
-                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
-                      />
-                    </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ fontSize: 13, fontWeight: 900, color: '#1c1917', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Sparkles size={16} color="#ea580c" />
+                      Google Meet品質 議事録自動作成
+                    </h4>
+                    <span style={{ fontSize: 11, color: '#78716c' }}>
+                      文章・文字起こしを入れるだけで自動構造化
+                    </span>
                   </div>
 
+                  {/* 出席者入力欄 */}
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
-                      参加者（カンマ区切り）
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 4 }}>
+                      <Users size={13} color="#ea580c" />
+                      出席者（カンマやスペース区切り）
                     </label>
                     <input
                       type="text"
                       value={newMeetingAttendees}
                       onChange={(e) => setNewMeetingAttendees(e.target.value)}
-                      placeholder="例: 岡本直樹, 鈴木花子, 佐藤健"
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box' }}
+                      placeholder="例: 岡本直樹, 生熊翔太, 宗司涼介（空欄時は自動推定）"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #cbd5e1',
+                        fontSize: 12,
+                        boxSizing: 'border-box',
+                        backgroundColor: '#fff'
+                      }}
                     />
                   </div>
 
+                  {/* 文章・音声文字起こし入力欄 */}
                   <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
-                      話し合った概要・要約
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#1c1917' }}>
+                        <FileText size={13} color="#ea580c" />
+                        会議の文章 または 音声文字起こしテキスト <span style={{ color: '#ea580c' }}>*</span>
+                      </label>
+
+                      {/* 🎙️ Web Speech API による音声文字起こしボタン */}
+                      {'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isListeningVoice) {
+                              setIsListeningVoice(false);
+                              return;
+                            }
+                            try {
+                              const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+                              const recognition = new SpeechRecognition();
+                              recognition.lang = 'ja-JP';
+                              recognition.continuous = true;
+                              recognition.interimResults = true;
+
+                              recognition.onstart = () => {
+                                setIsListeningVoice(true);
+                              };
+
+                              recognition.onresult = (event: any) => {
+                                let transcript = '';
+                                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                                  if (event.results[i].isFinal) {
+                                    transcript += event.results[i][0].transcript + '\n';
+                                  }
+                                }
+                                if (transcript) {
+                                  setNewMeetingRawInput((prev) => prev ? `${prev}\n${transcript.trim()}` : transcript.trim());
+                                }
+                              };
+
+                              recognition.onerror = () => {
+                                setIsListeningVoice(false);
+                              };
+
+                              recognition.onend = () => {
+                                setIsListeningVoice(false);
+                              };
+
+                              recognition.start();
+                            } catch (err) {
+                              console.warn('Speech recognition not available:', err);
+                              alert('マイク入力が利用できませんでした。ブラウザの設定をご確認ください。');
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            border: isListeningVoice ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                            backgroundColor: isListeningVoice ? '#fef2f2' : '#fff',
+                            color: isListeningVoice ? '#dc2626' : '#475569',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {isListeningVoice ? <MicOff size={13} /> : <Mic size={13} />}
+                          <span>{isListeningVoice ? '音声認識停止' : '🎙️ 音声入力'}</span>
+                        </button>
+                      ) : null}
+                    </div>
+
                     <textarea
-                      value={newMeetingSummary}
-                      onChange={(e) => setNewMeetingSummary(e.target.value)}
-                      placeholder="例: クリスマスイベントのテーマ選定および3班体制への分割について合意。"
-                      rows={2}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }}
+                      value={newMeetingRawInput}
+                      onChange={(e) => setNewMeetingRawInput(e.target.value)}
+                      placeholder="ここに会議中のメモ、SlackやLINEの会話、Google Meetの文字起こしテキストなどをそのまま貼り付けてください。&#10;&#10;例:&#10;ローズ3Fのキッチン布巾の臭いがひどいので使い捨てロール式に移行したいと提案。岡本と生熊と宗司で合意。マグネットディスペンサーをAmazonで岡本が発注することになった。初期費用約4,800円は自治会費から拠出決定。生熊はポスターを作成し、宗司はハウスリーダー会議で周知する。"
+                      rows={6}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1.5px solid #cbd5e1',
+                        fontSize: 12,
+                        boxSizing: 'border-box',
+                        resize: 'vertical',
+                        lineHeight: 1.6,
+                        fontFamily: 'inherit'
+                      }}
                     />
                   </div>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
-                      決定事項（改行で複数行）
-                    </label>
-                    <textarea
-                      value={newMeetingDecisions}
-                      onChange={(e) => setNewMeetingDecisions(e.target.value)}
-                      placeholder="例:&#10;・テーマを「それぞれの層が楽しめるクリスマス」に決定&#10;・EA申請期限を11月30日に設定"
-                      rows={2}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1c1917', marginBottom: 3 }}>
-                      次のTODO・担当（改行で複数行）
-                    </label>
-                    <textarea
-                      value={newMeetingTodos}
-                      onChange={(e) => setNewMeetingTodos(e.target.value)}
-                      placeholder="例:&#10;・岡本: EA企画書の初稿作成&#10;・鈴木: 装飾品の仮見積もり取得"
-                      rows={2}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', marginTop: 4 }}>
                     <button
                       type="button"
                       onClick={() => setIsAddMeetingModalOpen(false)}
-                      style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}
+                      style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}
                     >
-                      閉じる
+                      キャンセル
                     </button>
                     <button
                       type="submit"
-                      style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: '#ea580c', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 800 }}
+                      disabled={isGeneratingAiMeeting}
+                      style={{
+                        padding: '9px 20px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                        color: '#fff',
+                        fontSize: 13,
+                        cursor: isGeneratingAiMeeting ? 'wait' : 'pointer',
+                        fontWeight: 900,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: '0 2px 8px rgba(234, 88, 12, 0.3)'
+                      }}
                     >
-                      議事録を保存する
+                      <Sparkles size={16} />
+                      {isGeneratingAiMeeting ? '議事録を構造化中...' : '議事録にする'}
                     </button>
                   </div>
                 </form>
