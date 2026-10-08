@@ -5294,20 +5294,6 @@ export default function App() {
               });
             };
 
-            // 棟全体の統計
-            const totalCapacity = BUILDING_FLOORS_CONFIG.reduce((acc, f) => {
-              return acc + f.units.reduce((uAcc, u) => uAcc + u.capacity, 0);
-            }, 0);
-            const totalResidentsCount = targetResidents.length;
-            const fivePersonUnits = BUILDING_FLOORS_CONFIG.flatMap((f) => f.units).filter((u) => u.roomType === '5-person');
-            const onePersonUnits = BUILDING_FLOORS_CONFIG.flatMap((f) => f.units).filter((u) => u.roomType === '1-person');
-
-            const fivePersonResidentsCount = fivePersonUnits.reduce((acc, u) => acc + getResidentsInUnit(u.unitNumber).length, 0);
-            const fivePersonCapacity = fivePersonUnits.reduce((acc, u) => acc + u.capacity, 0);
-
-            const onePersonResidentsCount = onePersonUnits.reduce((acc, u) => acc + getResidentsInUnit(u.unitNumber).length, 0);
-            const onePersonCapacity = onePersonUnits.reduce((acc, u) => acc + u.capacity, 0);
-
             // 選択中の階に応じたユニット候補
             const currentFloorConfig = BUILDING_FLOORS_CONFIG.find((f) => f.floor === newResidentFloor);
             const availableUnits = currentFloorConfig ? currentFloorConfig.units : [];
@@ -5403,133 +5389,75 @@ export default function App() {
                 </div>
 
                 <div style={{ maxWidth: 960, width: '100%', margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  {/* 4棟切り替えタブ ＆ 棟別ステータスサマリー */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {[
-                        { key: 'rosemary', label: '🌿 ローズマリー棟' },
-                        { key: 'basil', label: '🌱 バジル棟' },
-                        { key: 'turmeric', label: '🟡 ターメリック棟' },
-                        { key: 'paprika', label: '🌶️ パプリカ棟' }
-                      ].map((b) => {
-                        const isSelected = selectedRosterBuilding === b.key;
-                        const bResidents = residents.filter((r) => r.building === b.key);
-                        return (
-                          <button
-                            key={b.key}
-                            onClick={() => {
-                              setSelectedRosterBuilding(b.key as any);
-                              setNewResidentBuilding(b.key as any);
-                            }}
+                  {/* 4棟切り替えタブ */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'rosemary', label: '🌿 ローズマリー棟' },
+                      { key: 'basil', label: '🌱 バジル棟' },
+                      { key: 'turmeric', label: '🟡 ターメリック棟' },
+                      { key: 'paprika', label: '🌶️ パプリカ棟' }
+                    ].map((b) => {
+                      const isSelected = selectedRosterBuilding === b.key;
+                      const bResidents = residents.filter((r) => r.building === b.key);
+                      return (
+                        <button
+                          key={b.key}
+                          onClick={() => {
+                            setSelectedRosterBuilding(b.key as any);
+                            setNewResidentBuilding(b.key as any);
+                          }}
+                          style={{
+                            padding: '9px 16px',
+                            borderRadius: 10,
+                            fontSize: 13,
+                            fontWeight: 800,
+                            backgroundColor: isSelected ? '#ea580c' : '#fff',
+                            border: isSelected ? '1.5px solid #ea580c' : '1px solid #e7e5e4',
+                            color: isSelected ? '#fff' : '#44403c',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            boxShadow: isSelected ? '0 2px 8px rgba(234, 88, 12, 0.2)' : 'none'
+                          }}
+                        >
+                          <span>{b.label}</span>
+                          <span
                             style={{
-                              padding: '10px 18px',
-                              borderRadius: 12,
-                              fontSize: 14,
-                              fontWeight: 800,
-                              backgroundColor: isSelected ? '#ea580c' : '#fff',
-                              border: isSelected ? '2px solid #ea580c' : '1px solid #d6d3d1',
-                              color: isSelected ? '#fff' : '#44403c',
-                              cursor: 'pointer',
-                              boxShadow: isSelected ? '0 4px 12px rgba(234, 88, 12, 0.25)' : 'none',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8
+                              fontSize: 11,
+                              padding: '1px 6px',
+                              borderRadius: 8,
+                              backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : '#f5f5f4',
+                              color: isSelected ? '#fff' : '#78716c'
                             }}
                           >
-                            <span>{b.label}</span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                padding: '1px 7px',
-                                borderRadius: 10,
-                                backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
-                                color: isSelected ? '#fff' : '#64748b'
-                              }}
-                            >
-                              {bResidents.length}名
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* 棟統計インフォバー（5人部屋と1人部屋の区分を明確化） */}
-                    <div
-                      style={{
-                        backgroundColor: '#fff',
-                        border: '1.5px solid #fed7aa',
-                        borderRadius: 14,
-                        padding: '12px 18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: 12,
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.03)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                        <div>
-                          <span style={{ fontSize: 11, color: '#78716c', fontWeight: 700 }}>棟全体 入居者</span>
-                          <div style={{ fontSize: 16, fontWeight: 900, color: '#1c1917' }}>
-                            {totalResidentsCount} / {totalCapacity} 名
-                            <span style={{ fontSize: 12, color: totalCapacity - totalResidentsCount > 0 ? '#ea580c' : '#15803d', marginLeft: 6, fontWeight: 800 }}>
-                              {totalCapacity - totalResidentsCount > 0 ? `(空き ${totalCapacity - totalResidentsCount}名)` : '(満室)'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div style={{ height: 28, width: 1, backgroundColor: '#e2e8f0' }} />
-
-                        <div>
-                          <span style={{ fontSize: 11, color: '#78716c', fontWeight: 700 }}>👥 5人部屋ユニット (計14部屋)</span>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: '#1d4ed8' }}>
-                            {fivePersonResidentsCount} / {fivePersonCapacity} 名
-                            <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>
-                              (空き {fivePersonCapacity - fivePersonResidentsCount}名)
-                            </span>
-                          </div>
-                        </div>
-
-                        <div style={{ height: 28, width: 1, backgroundColor: '#e2e8f0' }} />
-
-                        <div>
-                          <span style={{ fontSize: 11, color: '#78716c', fontWeight: 700 }}>🚪 1階 1人部屋個室 (計2部屋)</span>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: '#7c3aed' }}>
-                            {onePersonResidentsCount} / {onePersonCapacity} 名
-                            <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>
-                              (空室 {onePersonCapacity - onePersonResidentsCount}室)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ fontSize: 11, color: '#9a3412', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}>
-                        全4階・各階4ユニット構成
-                      </div>
-                    </div>
+                            {bResidents.length}名
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* ① 寮生を追加するセクション（スタッフ画面同様のシンプル設計） */}
+                  {/* ① 寮生を追加するセクション（モノトーン＋オレンジボタン） */}
                   <div
                     style={{
                       backgroundColor: '#fff',
-                      border: '1.5px solid #fed7aa',
-                      borderRadius: 14,
-                      padding: '16px 20px',
+                      border: '1px solid #e7e5e4',
+                      borderRadius: 12,
+                      padding: '16px 18px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 12,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h4 style={{ fontSize: 14, fontWeight: 900, color: '#1c1917', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <UserPlus size={16} color="#ea580c" />
-                        寮生を追加する（部屋割り当て）
+                        <UserPlus size={16} color="#1c1917" />
+                        寮生を追加する
                       </h4>
                       <span style={{ fontSize: 11, color: '#78716c' }}>
-                        棟・階・ユニット（5人部屋 / 1人部屋）を選んで登録
+                        棟・階・ユニットを選んで登録
                       </span>
                     </div>
 
@@ -5552,7 +5480,7 @@ export default function App() {
                         );
 
                         if (existingInUnit.length >= capacity) {
-                          if (!confirm(`【注意】${newResidentUnit}（定員${capacity}名）は現在既に${existingInUnit.length}名入居中です。定員を超えて登録しますか？`)) {
+                          if (!confirm(`【確認】${newResidentUnit}（定員${capacity}名）は現在既に${existingInUnit.length}名入居中です。追加登録しますか？`)) {
                             return;
                           }
                         }
@@ -5576,14 +5504,14 @@ export default function App() {
                         const updatedResidents = await dbService.getResidents();
                         setResidents(updatedResidents);
                         setNewResidentName('');
-                        alert(`${newResidentName.trim()}さんを ${newResidentUnit}（${roomType === '1-person' ? '1人部屋' : '5人部屋'}）に追加しました`);
+                        alert(`${newResidentName.trim()}さんを ${newResidentUnit} に追加しました`);
                       }}
                       style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
                     >
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
                         {/* 氏名 */}
                         <div>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#44403c', marginBottom: 4 }}>
                             氏名 <span style={{ color: '#ea580c' }}>*</span>
                           </label>
                           <input
@@ -5595,8 +5523,8 @@ export default function App() {
                             style={{
                               width: '100%',
                               padding: '8px 10px',
-                              borderRadius: 8,
-                              border: '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              border: '1px solid #d6d3d1',
                               fontSize: 12,
                               backgroundColor: '#fff',
                               boxSizing: 'border-box'
@@ -5606,7 +5534,7 @@ export default function App() {
 
                         {/* 所属棟 */}
                         <div>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#44403c', marginBottom: 4 }}>
                             所属棟 <span style={{ color: '#ea580c' }}>*</span>
                           </label>
                           <select
@@ -5619,8 +5547,8 @@ export default function App() {
                             style={{
                               width: '100%',
                               padding: '8px 10px',
-                              borderRadius: 8,
-                              border: '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              border: '1px solid #d6d3d1',
                               fontSize: 12,
                               backgroundColor: '#fff',
                               boxSizing: 'border-box'
@@ -5635,7 +5563,7 @@ export default function App() {
 
                         {/* 階数 */}
                         <div>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#44403c', marginBottom: 4 }}>
                             階数 <span style={{ color: '#ea580c' }}>*</span>
                           </label>
                           <select
@@ -5648,8 +5576,8 @@ export default function App() {
                             style={{
                               width: '100%',
                               padding: '8px 10px',
-                              borderRadius: 8,
-                              border: '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              border: '1px solid #d6d3d1',
                               fontSize: 12,
                               backgroundColor: '#fff',
                               boxSizing: 'border-box'
@@ -5664,7 +5592,7 @@ export default function App() {
 
                         {/* ユニット選択 */}
                         <div>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#44403c', marginBottom: 4 }}>
                             ユニット・部屋番号 <span style={{ color: '#ea580c' }}>*</span>
                           </label>
                           <select
@@ -5673,8 +5601,8 @@ export default function App() {
                             style={{
                               width: '100%',
                               padding: '8px 10px',
-                              borderRadius: 8,
-                              border: '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              border: '1px solid #d6d3d1',
                               fontSize: 12,
                               backgroundColor: '#fff',
                               boxSizing: 'border-box',
@@ -5683,16 +5611,9 @@ export default function App() {
                           >
                             {availableUnits.map((u) => {
                               const inCount = getResidentsInUnit(u.unitNumber).length;
-                              const isFull = inCount >= u.capacity;
-                              const isPartial = inCount < u.capacity && inCount > 0;
-                              const statusText = isFull
-                                ? '満室'
-                                : isPartial
-                                ? `${inCount}/${u.capacity}名 (空き${u.capacity - inCount}名)`
-                                : `空室 (${u.capacity}名空き)`;
                               return (
                                 <option key={u.unitNumber} value={u.unitName}>
-                                  {u.unitName} [{u.label}] — {statusText}
+                                  {u.unitName} ({u.label}) — {inCount}/{u.capacity}名
                                 </option>
                               );
                             })}
@@ -5701,7 +5622,7 @@ export default function App() {
 
                         {/* 役職・役割 */}
                         <div>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#44403c', marginBottom: 4 }}>
                             担当・役職（任意）
                           </label>
                           <input
@@ -5712,8 +5633,8 @@ export default function App() {
                             style={{
                               width: '100%',
                               padding: '8px 10px',
-                              borderRadius: 8,
-                              border: '1px solid #cbd5e1',
+                              borderRadius: 6,
+                              border: '1px solid #d6d3d1',
                               fontSize: 12,
                               backgroundColor: '#fff',
                               boxSizing: 'border-box'
@@ -5730,17 +5651,16 @@ export default function App() {
                             color: '#fff',
                             border: 'none',
                             padding: '9px 22px',
-                            borderRadius: 8,
+                            borderRadius: 6,
                             fontSize: 12,
                             fontWeight: 800,
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 6,
-                            boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
+                            gap: 6
                           }}
                         >
-                          <UserPlus size={15} />
+                          <UserPlus size={14} />
                           名簿に追加
                         </button>
                       </div>
@@ -5748,27 +5668,27 @@ export default function App() {
                   </div>
 
                   {/* ==================================================== */}
-                  {/* メイン表示 A：🏢 部屋割りマップ（4F〜1F・各階4ユニット） */}
+                  {/* メイン表示 A：🏢 部屋割りマップ（モノトーン基調） */}
                   {/* ==================================================== */}
                   {rosterViewMode === 'units' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                       {BUILDING_FLOORS_CONFIG.map((floorConfig) => (
                         <div
                           key={floorConfig.floor}
                           style={{
                             backgroundColor: '#fff',
-                            borderRadius: 14,
-                            border: '1.5px solid #fed7aa',
+                            borderRadius: 12,
+                            border: '1px solid #e7e5e4',
                             overflow: 'hidden',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                           }}
                         >
-                          {/* 階ヘッダー */}
+                          {/* 階ヘッダー（モノトーン） */}
                           <div
                             style={{
-                              backgroundColor: '#fff7ed',
-                              borderBottom: '1px solid #fed7aa',
-                              padding: '12px 18px',
+                              backgroundColor: '#f5f5f4',
+                              borderBottom: '1px solid #e7e5e4',
+                              padding: '10px 16px',
                               display: 'flex',
                               justifyContent: 'space-between',
                               alignItems: 'center',
@@ -5777,111 +5697,94 @@ export default function App() {
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <span style={{ fontSize: 16, fontWeight: 900, color: '#9a3412' }}>
+                              <span style={{ fontSize: 15, fontWeight: 900, color: '#1c1917' }}>
                                 {floorConfig.label}
                               </span>
                               {floorConfig.floor === 1 ? (
-                                <span style={{ backgroundColor: '#ede9fe', color: '#6d28d9', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
-                                  🚪 1人部屋個室 (Unit 103・104) ＆ 👥 5人部屋 (Unit 101・102)
+                                <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600 }}>
+                                  5人部屋 (101・102) / 1人部屋 (103・104)
                                 </span>
                               ) : (
-                                <span style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6 }}>
-                                  👥 全4ユニット 5人部屋
+                                <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600 }}>
+                                  5人部屋 (全4ユニット)
                                 </span>
                               )}
                             </div>
 
                             <span style={{ fontSize: 12, color: '#78716c', fontWeight: 700 }}>
-                              {floorConfig.units.reduce((acc, u) => acc + getResidentsInUnit(u.unitNumber).length, 0)} / {floorConfig.units.reduce((acc, u) => acc + u.capacity, 0)} 名入居
+                              {floorConfig.units.reduce((acc, u) => acc + getResidentsInUnit(u.unitNumber).length, 0)} / {floorConfig.units.reduce((acc, u) => acc + u.capacity, 0)} 名
                             </span>
                           </div>
 
-                          {/* 4つのユニットカード（グリッド） */}
+                          {/* 4つのユニットカード（モノトーン） */}
                           <div
                             style={{
-                              padding: 16,
+                              padding: 14,
                               display: 'grid',
                               gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                              gap: 14
+                              gap: 12
                             }}
                           >
                             {floorConfig.units.map((unit) => {
                               const occupants = getResidentsInUnit(unit.unitNumber);
                               const count = occupants.length;
                               const capacity = unit.capacity;
-                              const isFull = count >= capacity;
-                              const isPartial = count > 0 && count < capacity;
-                              const isEmpty = count === 0;
                               const isSingle = unit.roomType === '1-person';
 
                               return (
                                 <div
                                   key={unit.unitNumber}
                                   style={{
-                                    backgroundColor: isEmpty ? '#f8fafc' : '#fff',
-                                    border: isSingle ? '1.5px solid #c4b5fd' : '1px solid #e2e8f0',
-                                    borderRadius: 12,
+                                    backgroundColor: '#fff',
+                                    border: '1px solid #e7e5e4',
+                                    borderRadius: 10,
                                     padding: '12px 14px',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: 10,
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                                    transition: 'all 0.15s ease'
+                                    gap: 10
                                   }}
                                 >
-                                  {/* ユニットヘッダー */}
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <strong style={{ fontSize: 15, color: '#1c1917' }}>
-                                          {unit.unitName}
-                                        </strong>
-                                        {/* 区分バッジ */}
-                                        {isSingle ? (
-                                          <span style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
-                                            🚪 1人部屋
-                                          </span>
-                                        ) : (
-                                          <span style={{ backgroundColor: '#dbeafe', color: '#1e40af', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
-                                            👥 5人部屋
-                                          </span>
-                                        )}
-                                      </div>
+                                  {/* ユニットヘッダー（モノトーン） */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <strong style={{ fontSize: 15, color: '#1c1917' }}>
+                                        {unit.unitName}
+                                      </strong>
+                                      {/* 区分表示（モノトーン） */}
+                                      {isSingle ? (
+                                        <span style={{ fontSize: 11, color: '#1c1917', fontWeight: 700, backgroundColor: '#f5f5f4', padding: '1px 6px', borderRadius: 4, border: '1px solid #e7e5e4' }}>
+                                          1人部屋
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600 }}>
+                                          5人部屋
+                                        </span>
+                                      )}
                                     </div>
 
-                                    {/* 人数ステータスバッジ */}
-                                    {isFull ? (
-                                      <span style={{ backgroundColor: '#dcfce7', color: '#15803d', fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6 }}>
-                                        {count}/{capacity} 満室
-                                      </span>
-                                    ) : isPartial ? (
-                                      <span style={{ backgroundColor: '#fef3c7', color: '#b45309', fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6 }}>
-                                        {count}/{capacity} (空き{capacity - count})
-                                      </span>
-                                    ) : (
-                                      <span style={{ backgroundColor: '#f1f5f9', color: '#64748b', fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 6 }}>
-                                        0/{capacity} 空室
-                                      </span>
-                                    )}
+                                    {/* シンプルな人数表示（空き表記なし） */}
+                                    <span style={{ fontSize: 12, color: '#78716c', fontWeight: 700 }}>
+                                      {count} / {capacity}
+                                    </span>
                                   </div>
 
-                                  {/* スロット視覚インジケーター */}
+                                  {/* スロットインジケーター（モノトーン：黒と薄いグレー） */}
                                   <div style={{ display: 'flex', gap: 4 }}>
                                     {Array.from({ length: capacity }).map((_, idx) => (
                                       <div
                                         key={idx}
                                         style={{
                                           flex: 1,
-                                          height: 5,
-                                          borderRadius: 3,
-                                          backgroundColor: idx < count ? (isSingle ? '#9333ea' : '#ea580c') : '#e2e8f0'
+                                          height: 4,
+                                          borderRadius: 2,
+                                          backgroundColor: idx < count ? '#44403c' : '#e7e5e4'
                                         }}
                                       />
                                     ))}
                                   </div>
 
                                   {/* 入居者一覧 */}
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 40 }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 36 }}>
                                     {occupants.map((occ) => (
                                       <div
                                         key={occ.id}
@@ -5892,20 +5795,21 @@ export default function App() {
                                           padding: '5px 8px',
                                           backgroundColor: '#fafaf9',
                                           borderRadius: 6,
-                                          fontSize: 12
+                                          fontSize: 12,
+                                          border: '1px solid #f5f5f4'
                                         }}
                                       >
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                                           <img
                                             src={occ.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(occ.name)}`}
                                             alt={occ.name}
-                                            style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                            style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
                                           />
-                                          <span style={{ fontWeight: 800, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          <span style={{ fontWeight: 700, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {occ.name}
                                           </span>
                                           {occ.role && occ.role !== '一般寮生' && (
-                                            <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, flexShrink: 0 }}>
+                                            <span style={{ backgroundColor: '#f5f5f4', color: '#57534e', fontSize: 10, padding: '1px 5px', borderRadius: 3, border: '1px solid #e7e5e4', flexShrink: 0 }}>
                                               {occ.role}
                                             </span>
                                           )}
@@ -5923,21 +5827,21 @@ export default function App() {
                                           style={{
                                             background: 'transparent',
                                             border: 'none',
-                                            color: '#cbd5e1',
+                                            color: '#a8a29e',
                                             cursor: 'pointer',
                                             padding: 2,
                                             display: 'flex',
                                             alignItems: 'center'
                                           }}
                                           onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.color = '#cbd5e1'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.color = '#a8a29e'; }}
                                         >
                                           <Trash2 size={13} />
                                         </button>
                                       </div>
                                     ))}
 
-                                    {/* 空きスロットがある場合 */}
+                                    {/* 空き枠追加ボタン（シンプルなモノトーン） */}
                                     {count < capacity && (
                                       <button
                                         onClick={() => {
@@ -5946,28 +5850,26 @@ export default function App() {
                                           window.scrollTo({ top: 0, behavior: 'smooth' });
                                         }}
                                         style={{
-                                          border: '1px dashed #cbd5e1',
-                                          backgroundColor: 'transparent',
-                                          color: '#64748b',
+                                          border: '1px dashed #d6d3d1',
+                                          backgroundColor: '#fff',
+                                          color: '#78716c',
                                           padding: '5px 8px',
                                           borderRadius: 6,
                                           fontSize: 11,
-                                          fontWeight: 700,
+                                          fontWeight: 600,
                                           cursor: 'pointer',
                                           textAlign: 'center'
                                         }}
                                         onMouseEnter={(e) => {
-                                          e.currentTarget.style.borderColor = '#ea580c';
-                                          e.currentTarget.style.color = '#ea580c';
-                                          e.currentTarget.style.backgroundColor = '#fff7ed';
+                                          e.currentTarget.style.borderColor = '#1c1917';
+                                          e.currentTarget.style.color = '#1c1917';
                                         }}
                                         onMouseLeave={(e) => {
-                                          e.currentTarget.style.borderColor = '#cbd5e1';
-                                          e.currentTarget.style.color = '#64748b';
-                                          e.currentTarget.style.backgroundColor = 'transparent';
+                                          e.currentTarget.style.borderColor = '#d6d3d1';
+                                          e.currentTarget.style.color = '#78716c';
                                         }}
                                       >
-                                        ＋ 空き枠に追加 ({capacity - count}名募集)
+                                        ＋ 追加
                                       </button>
                                     )}
                                   </div>
@@ -5981,16 +5883,16 @@ export default function App() {
                   )}
 
                   {/* ==================================================== */}
-                  {/* メイン表示 B：📋 寮生一覧リスト（スタッフ画面スタイル） */}
+                  {/* メイン表示 B：📋 寮生一覧リスト（モノトーン基調） */}
                   {/* ==================================================== */}
                   {rosterViewMode === 'list' && (
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10, borderBottom: '1.5px solid #f1f5f9', paddingBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10, borderBottom: '1px solid #e7e5e4', paddingBottom: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <h4 style={{ fontSize: 16, fontWeight: 900, color: '#1c1917', margin: 0 }}>
+                          <h4 style={{ fontSize: 15, fontWeight: 900, color: '#1c1917', margin: 0 }}>
                             寮生一覧
                           </h4>
-                          <span style={{ fontSize: 12, fontWeight: 800, backgroundColor: '#ffedd5', color: '#9a3412', padding: '2px 10px', borderRadius: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, backgroundColor: '#f5f5f4', color: '#1c1917', padding: '2px 8px', borderRadius: 6, border: '1px solid #e7e5e4' }}>
                             {targetResidents.filter((r) => {
                               const rType = r.roomType || getUnitRoomType(r.unit);
                               const matchesType = rosterFilterRoomType === 'all' || rType === rosterFilterRoomType;
@@ -6005,8 +5907,8 @@ export default function App() {
                           <div style={{ display: 'flex', gap: 4 }}>
                             {[
                               { key: 'all', label: 'すべて' },
-                              { key: '5-person', label: '👥 5人部屋' },
-                              { key: '1-person', label: '🚪 1人部屋' }
+                              { key: '5-person', label: '5人部屋' },
+                              { key: '1-person', label: '1人部屋' }
                             ].map((btn) => (
                               <button
                                 key={btn.key}
@@ -6015,10 +5917,11 @@ export default function App() {
                                   padding: '5px 10px',
                                   borderRadius: 6,
                                   fontSize: 11,
-                                  fontWeight: 800,
-                                  backgroundColor: rosterFilterRoomType === btn.key ? '#ea580c' : '#f1f5f9',
-                                  color: rosterFilterRoomType === btn.key ? '#fff' : '#475569',
-                                  border: 'none',
+                                  fontWeight: 700,
+                                  backgroundColor: rosterFilterRoomType === btn.key ? '#ea580c' : '#f5f5f4',
+                                  color: rosterFilterRoomType === btn.key ? '#fff' : '#44403c',
+                                  border: '1px solid',
+                                  borderColor: rosterFilterRoomType === btn.key ? '#ea580c' : '#e7e5e4',
                                   cursor: 'pointer'
                                 }}
                               >
@@ -6038,7 +5941,7 @@ export default function App() {
                                 width: '100%',
                                 padding: '5px 8px 5px 26px',
                                 borderRadius: 6,
-                                border: '1px solid #cbd5e1',
+                                border: '1px solid #d6d3d1',
                                 fontSize: 11,
                                 backgroundColor: '#fff',
                                 boxSizing: 'border-box'
@@ -6055,11 +5958,11 @@ export default function App() {
                         const matchesQuery = !rosterSearchQuery.trim() || r.name.toLowerCase().includes(rosterSearchQuery.toLowerCase()) || r.unit.toLowerCase().includes(rosterSearchQuery.toLowerCase());
                         return matchesType && matchesQuery;
                       }).length === 0 ? (
-                        <div style={{ backgroundColor: '#fff', padding: 32, borderRadius: 12, border: '1.5px dashed #cbd5e1', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                        <div style={{ backgroundColor: '#fff', padding: 32, borderRadius: 10, border: '1px dashed #d6d3d1', textAlign: 'center', color: '#78716c', fontSize: 13 }}>
                           該当する寮生が見つかりません。上のフォームから新しく寮生を追加してください。
                         </div>
                       ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
                           {targetResidents
                             .filter((r) => {
                               const rType = r.roomType || getUnitRoomType(r.unit);
@@ -6080,33 +5983,35 @@ export default function App() {
                                     gap: 12,
                                     padding: '12px 14px',
                                     backgroundColor: '#fff',
-                                    border: isSingle ? '1.5px solid #ddd6fe' : '1px solid #e2e8f0',
-                                    borderRadius: 12,
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                                    border: '1px solid #e7e5e4',
+                                    borderRadius: 10,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                                   }}
                                 >
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                                     <img
                                       src={r.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(r.name)}`}
                                       alt={r.name}
-                                      style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1.5px solid #fed7aa' }}
+                                      style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid #e7e5e4' }}
                                     />
                                     <div style={{ minWidth: 0 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <strong style={{ fontSize: 14, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {r.name}
                                         </strong>
-                                        <span style={{ backgroundColor: '#ffedd5', color: '#9a3412', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>
-                                          {r.role || '一般寮生'}
-                                        </span>
+                                        {r.role && (
+                                          <span style={{ backgroundColor: '#f5f5f4', color: '#57534e', fontSize: 10, padding: '1px 5px', borderRadius: 3, border: '1px solid #e7e5e4', flexShrink: 0 }}>
+                                            {r.role}
+                                          </span>
+                                        )}
                                       </div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: 11, color: '#64748b' }}>
-                                        <span style={{ fontWeight: 800, color: '#1e293b' }}>{r.unit}</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: 11, color: '#78716c' }}>
+                                        <span style={{ fontWeight: 700, color: '#1c1917' }}>{r.unit}</span>
                                         <span>•</span>
                                         {isSingle ? (
-                                          <span style={{ color: '#7c3aed', fontWeight: 800 }}>🚪 1人部屋</span>
+                                          <span style={{ color: '#1c1917', fontWeight: 700, backgroundColor: '#f5f5f4', padding: '0 4px', borderRadius: 2 }}>1人部屋</span>
                                         ) : (
-                                          <span style={{ color: '#1d4ed8', fontWeight: 800 }}>👥 5人部屋</span>
+                                          <span>5人部屋</span>
                                         )}
                                       </div>
                                     </div>
@@ -6123,19 +6028,18 @@ export default function App() {
                                     style={{
                                       background: 'transparent',
                                       border: 'none',
-                                      color: '#94a3b8',
+                                      color: '#a8a29e',
                                       cursor: 'pointer',
                                       padding: '6px',
                                       borderRadius: 6,
                                       display: 'flex',
                                       alignItems: 'center',
-                                      justifyContent: 'center',
-                                      transition: 'color 0.15s ease'
+                                      justifyContent: 'center'
                                     }}
                                     onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = '#a8a29e'; }}
                                   >
-                                    <Trash2 size={16} />
+                                    <Trash2 size={15} />
                                   </button>
                                 </div>
                               );
