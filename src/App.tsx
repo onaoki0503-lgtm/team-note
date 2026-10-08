@@ -5954,12 +5954,9 @@ export default function App() {
                                             {roleInfo.isLeadership && (
                                               <span
                                                 style={{
-                                                  backgroundColor: '#1c1917',
-                                                  color: '#fff',
-                                                  fontSize: 10,
+                                                  color: '#ea580c',
+                                                  fontSize: 11,
                                                   fontWeight: 800,
-                                                  padding: '1px 6px',
-                                                  borderRadius: 4,
                                                   letterSpacing: '0.02em',
                                                   flexShrink: 0
                                                 }}
@@ -6169,12 +6166,9 @@ export default function App() {
                                         {roleInfo.isLeadership && (
                                           <span
                                             style={{
-                                              backgroundColor: '#1c1917',
-                                              color: '#fff',
-                                              fontSize: 10,
+                                              color: '#ea580c',
+                                              fontSize: 11,
                                               fontWeight: 800,
-                                              padding: '1px 6px',
-                                              borderRadius: 4,
                                               letterSpacing: '0.02em',
                                               flexShrink: 0
                                             }}
@@ -7509,33 +7503,21 @@ export default function App() {
                     <h2 style={{ fontSize: 19, fontWeight: 900, color: '#0f172a', margin: 0 }}>
                       {selectedRosterResident.name}
                     </h2>
-                    {/* 役職ステータスバッジ（文字付き） */}
+                    {/* 役職ステータス表示（背景なく文字のみ） */}
                     {(() => {
                       const badgeInfo = getRoleBadgeInfo(selectedRosterResident.role);
-                      const roleKey = selectedRosterResident.role;
-                      let badgeBg = '#f1f5f9';
-                      let badgeColor = '#475569';
-                      let badgeBorder = '#cbd5e1';
-                      if (roleKey === 'HL') { badgeBg = '#fef3c7'; badgeColor = '#b45309'; badgeBorder = '#fcd34d'; }
-                      else if (roleKey === 'EA') { badgeBg = '#e0f2fe'; badgeColor = '#0369a1'; badgeBorder = '#7dd3fc'; }
-                      else if (roleKey === 'IA') { badgeBg = '#dcfce7'; badgeColor = '#15803d'; badgeBorder = '#86efac'; }
-                      else if (roleKey === 'OA') { badgeBg = '#f3e8ff'; badgeColor = '#7e22ce'; badgeBorder = '#d8b4fe'; }
-                      else if (roleKey === 'FL') { badgeBg = '#ffedd5'; badgeColor = '#c2410c'; badgeBorder = '#fdba74'; }
+                      const roleDisplay = badgeInfo.badge || selectedRosterResident.role;
 
                       return (
                         <span
                           style={{
-                            backgroundColor: badgeBg,
-                            color: badgeColor,
-                            border: `1px solid ${badgeBorder}`,
-                            fontSize: 11,
-                            fontWeight: 900,
-                            padding: '3px 9px',
-                            borderRadius: 6,
+                            color: badgeInfo.isLeadership ? '#ea580c' : '#64748b',
+                            fontSize: 13,
+                            fontWeight: 800,
                             letterSpacing: 0.5
                           }}
                         >
-                          役職: {badgeInfo.badge || roleKey}
+                          {roleDisplay}
                         </span>
                       );
                     })()}
