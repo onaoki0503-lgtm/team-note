@@ -98,7 +98,7 @@ export interface ProjectRecord {
   owner: string
   ownerId?: string
   nextAction: string
-  proposalsCount: number
+  proposalsCount?: number
   createdAt: string
   description?: string
   bannerImage?: string
@@ -127,19 +127,60 @@ export interface ProjectRecord {
     rawTranscript?: string
     updatedAt?: string
   }[]
-  proposalDoc?: {
-    title: string
-    purpose: string
-    background: string
-    hackStrategy: string
-    budget: string
-    steps: string[]
-  }
+  proposalDoc?: ProjectProposalDoc
+  proposalAttachments?: ProposalAttachment[]
   schedule?: {
     date: string
     milestone: string
     completed: boolean
   }[]
+}
+
+export interface ProposalAttachment {
+  id: string
+  name: string
+  size: number
+  type: 'pdf' | 'docx' | 'doc' | 'xlsx' | 'other'
+  uploadedAt: string
+  uploadedBy: string
+  dataUrl?: string
+}
+
+export interface ProposalOperationFlowItem {
+  target: string
+  content: string
+}
+
+export interface ProposalImprovementItem {
+  audience: string
+  title: string
+  desc: string
+}
+
+export interface ProposalBudgetItem {
+  name: string
+  spec: string
+  quantity: string
+  cost: string
+}
+
+export interface ProjectProposalDoc {
+  title: string
+  subtitle?: string
+  recipient?: string
+  submissionDate?: string
+  purpose: string
+  background: string
+  problems?: string[]
+  proposalOverview?: string
+  flowItems?: ProposalOperationFlowItem[]
+  improvements?: ProposalImprovementItem[]
+  budgetItems?: ProposalBudgetItem[]
+  totalBudget?: string
+  hackStrategy?: string
+  budget?: string
+  steps?: string[]
+  summary?: string
 }
 
 export interface WorkReportRecord {
@@ -415,18 +456,72 @@ export const INITIAL_PROJECTS: ProjectRecord[] = [
       }
     ],
     proposalDoc: {
-      title: 'Hヴィレッジ 共用キッチン衛生向上プロジェクト企画書',
-      purpose: '共用キッチンの布巾による雑菌繁殖・生乾き臭の根本解決と、全寮生の調理衛生環境の向上。',
+      title: 'Hヴィレッジ 共用キッチンにおける衛生改善および回収作業効率化に向けた',
+      subtitle: '「布巾・台拭き 3ボックス方式」導入のご提案',
+      recipient: '西松地所株式会社 様 / 寮母・管理スタッフの皆様',
+      submissionDate: '2026年10月',
+      purpose: 'Hヴィレッジ（全16フロア）の共用キッチンでは、食器拭き（青色）と台拭き（ピンク色）の布巾が配備され、寮母様による3日に1回の洗濯・交換が行われています。しかし現状は、一度使用された濡れた布巾がキッチンに置かれたまま再使用される運用となっており、前回のローズマリーハウス全員会議においても、「布巾が汚いせいで洗った食器を拭けない」という意見が最も多く出されました。そこで、回収用と補充用のボックスを分けて設置する「3ボックス方式」を導入し、寮生が清潔な布巾を使用できる環境の整備と、回収・補充作業の効率化を図る運用改善をご提案いたします。',
       background: '各ユニットの綿布巾は濡れたまま放置されがちで、衛生面での不満が多数報告されていた。洗濯・漂白のルール化は持続性に欠けるため、物理的に使い捨て方式へ切り替える。',
+      problems: [
+        '一度使用された濡れた布巾を再使用することになり、衛生的でない。',
+        '油汚れや生乾き臭が気になり、備え付けの布巾を使用しづらい。',
+        '食器用（青）と台拭き（ピンク）の区別が曖昧になりやすい。',
+        '結果として備え付けの布巾が使われず、各自でタオルを持ち込んだり、使い捨てペーパー類を消費している。'
+      ],
+      proposalOverview: '各フロアのキッチンに「①使用済み回収BOX」「②清潔な食器拭きBOX（青）」「③清潔な台拭きBOX（ピンク）」の3つの専用ボックスを設置し、使ったら回収BOXへ入れる1回使い切り運用を徹底します。',
+      flowItems: [
+        {
+          target: '寮生の利用手順',
+          content: '・調理時や食器洗い時、ストックBOX（青またはピンク）からタオルを取り出して使用する。\n・使用後は、シンクに置かず「使用済み回収BOX」へ投入する（1回使い切り）。'
+        },
+        {
+          target: '回収・補充手順（定期巡回時）',
+          content: '・「使用済み回収BOX」からタオルを回収袋に移す。\n・洗濯済みのタオルを、それぞれのストックBOXに補充する。'
+        }
+      ],
+      improvements: [
+        {
+          audience: '寮生側',
+          title: '衛生面の改善',
+          desc: '乾いた布巾を取り出して使用するため、濡れた布巾の再使用を防ぎ、衛生的に食器を拭くことができます。また用途の混同を防止できます。'
+        },
+        {
+          audience: '寮母様側',
+          title: '回収・補充作業の効率化',
+          desc: '回収はボックスから行い、補充もボックスへ行う手順となるため、各フロアで布巾を探す作業がなくなり、作業負担が軽減されます。'
+        },
+        {
+          audience: '施設管理側',
+          title: 'キッチンの整理・美観維持',
+          desc: '布巾の定位置が決まることで、シンク周りへの放置を防止できます。既存の備品と市販ボックスを活用して導入できます。'
+        }
+      ],
+      budgetItems: [
+        { name: 'ストックボックス', spec: 'プラスチック製/メッシュ製バスケット（通気性のあるもの）', quantity: '48個（3個 × 16フロア）', cost: '約5,280円（1個110円計算）' },
+        { name: '分別ラベル', spec: '防水ラミネート（青・ピンク・グレー／日英併記）', quantity: '16組', cost: '約1,000円' },
+        { name: '利用案内ポスター', spec: 'A4ラミネート（キッチン壁面掲示用、日英併記）', quantity: '16枚', cost: '約500円（寮生側で作成可）' },
+        { name: '布巾（補充用）', spec: '既存備品の活用＋不足分のみ補充', quantity: '-', cost: '既存備品で対応可能' }
+      ],
+      totalBudget: '約 7,000 円 〜 10,000 円',
       hackStrategy: '共用部への固定器具工事申請（学事・西松）を回避するため、「既存の金属面（冷蔵庫・レンジフード）への強力マグネット固定」を採用し、現状復旧不要な備品運用として即時実装する。',
-      budget: '初期費用 4,800円（ディスペンサー2個＋ロール6本） / 月額維持費 約1,200円（自治会費充当）',
+      budget: '約 7,000 円 〜 10,000 円（自治会費充当）',
       steps: [
-        'ローズ3Fでの先行実証実験（1週間）完了',
-        '寮生フィードバックアンケート回収 ＆ 満足度90%確認',
-        '4棟全キッチンスペースへの一斉配備',
-        '業務報告（はたらくタブ）での定期残量チェック体制の確立'
-      ]
+        '1. 事前確認：西松地所様および寮母様との設置場所・ボックス仕様の確認',
+        '2. 試験導入：1〜2棟（特定フロア）で試験運用を実施し、使用量や回収状況を確認',
+        '3. 全フロア導入：ボックスおよび案内を設置し、運用を開始'
+      ],
+      summary: '本提案は、寮生から出ている衛生面に関する課題を解消し、あわせて回収・補充手順を整理・効率化することを目的としています。まずは一部フロアでの試験導入を含め、ご検討いただけますようお願いいたします。'
     },
+    proposalAttachments: [
+      {
+        id: 'att-1',
+        name: '共用キッチン衛生改善_3ボックス方式導入のご提案_西松地所提出版.pdf',
+        size: 1420500,
+        type: 'pdf',
+        uploadedAt: '2026-10-04 14:20',
+        uploadedBy: '岡本 直樹'
+      }
+    ],
     schedule: [
       { date: '2026-10-01', milestone: '課題抽出 ＆ プロジェクト立ち上げ', completed: true },
       { date: '2026-10-03', milestone: 'ディスペンサー試作機設置（ローズ3F）', completed: true },
@@ -1503,6 +1598,68 @@ export const dbService = {
         return {
           ...p,
           members: p.members.filter((m) => m.residentId !== residentId)
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return updated
+  },
+
+  // --- 企画書添付ファイルの追加（PDF/Word等） ---
+  async uploadProposalAttachment(
+    projectId: string,
+    attachment: ProposalAttachment
+  ): Promise<ProjectRecord[]> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        const existing = p.proposalAttachments || []
+        return {
+          ...p,
+          proposalAttachments: [attachment, ...existing]
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return updated
+  },
+
+  // --- 企画書添付ファイルの削除 ---
+  async deleteProposalAttachment(
+    projectId: string,
+    attachmentId: string
+  ): Promise<ProjectRecord[]> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        const existing = p.proposalAttachments || []
+        return {
+          ...p,
+          proposalAttachments: existing.filter((a) => a.id !== attachmentId)
+        }
+      }
+      return p
+    })
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(updated))
+    return updated
+  },
+
+  // --- アプリ内企画書（ProjectProposalDoc）の更新 ---
+  async updateProposalDoc(
+    projectId: string,
+    proposalDoc: ProjectProposalDoc
+  ): Promise<ProjectRecord[]> {
+    const projects = await this.getProjects()
+    const updated = projects.map((p) => {
+      if (p.id === projectId) {
+        return {
+          ...p,
+          proposalDoc: {
+            ...(p.proposalDoc || {}),
+            ...proposalDoc
+          }
         }
       }
       return p

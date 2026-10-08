@@ -37,7 +37,13 @@ import {
   ChevronDown,
   Edit3,
   Check,
-  Copy
+  Copy,
+  Upload,
+  Paperclip,
+  Printer,
+  Download,
+  Eye,
+  ExternalLink
 } from 'lucide-react';
 import {
   dbService,
@@ -46,9 +52,9 @@ import {
   type CurrentUser,
   type ResidentRecord,
   type ProjectMemberRecord,
-  type LeaderEvaluationRecord,
-  type EventGroup,
-  type EventWorkflowStep
+  type ProposalAttachment,
+  type ProjectProposalDoc,
+  type ProjectRecord
 } from './lib/db';
 
 interface MapNode {
@@ -57,52 +63,7 @@ interface MapNode {
   category: 'core' | 'idea' | 'detail' | 'obstacle';
 }
 
-interface Project {
-  id: string;
-  title: string;
-  category: string;
-  description?: string;
-  bannerImage?: string;
-  progress: number;
-  owner: string;
-  ownerId?: string;
-  status: any;
-  nextAction: string;
-  createdAt?: string;
-  projectType?: 'event' | 'operation';
-  isEventWorkflow?: boolean;
-  workflowStage?: string;
-  workflowSteps?: EventWorkflowStep[];
-  theme?: string;
-  groups?: EventGroup[];
-  evaluations?: LeaderEvaluationRecord[];
-  members: ProjectMemberRecord[];
-  meetingNotes?: {
-    id?: string;
-    date: string;
-    title: string;
-    attendees: string[];
-    summary: string;
-    decisions: string[];
-    nextTodos: string[];
-    tags?: string[];
-    rawTranscript?: string;
-    updatedAt?: string;
-  }[];
-  proposalDoc?: {
-    title: string;
-    purpose: string;
-    background: string;
-    hackStrategy: string;
-    budget: string;
-    steps: string[];
-  };
-  schedule?: {
-    date: string;
-    milestone: string;
-    completed: boolean;
-  }[];
-}
+type Project = ProjectRecord;
 
 interface Report {
   id: string;
@@ -216,6 +177,13 @@ export default function App() {
   // 👥 スタッフ追加入力ステート
   const [newStaffResidentId, setNewStaffResidentId] = useState('');
   const [newStaffRole, setNewStaffRole] = useState('スタッフ');
+
+  // 📑 企画書ビュー用ステート（アプリ作成 vs 添付ファイル）
+  const [proposalSubTab, setProposalSubTab] = useState<'app' | 'attachment'>('app');
+  const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null);
+  const [isEditProposalModalOpen, setIsEditProposalModalOpen] = useState(false);
+  const [editProposalDoc, setEditProposalDoc] = useState<ProjectProposalDoc | null>(null);
+  const [uploadingProposal, setUploadingProposal] = useState(false);
 
   // 👤 寮生詳細モーダル
   const [selectedRosterResident, setSelectedRosterResident] = useState<ResidentRecord | null>(null);
@@ -2020,63 +1988,835 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 1. 企画書タブ */}
+                {/* 1. 企画書タブ（アプリ作成企画書 ＆ 添付ファイル企画書の2パターン両対応） */}
                 {selectedProjectTab === 'proposal' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', padding: 14, borderRadius: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <Sparkles size={16} color="#ea580c" />
-                        <h4 style={{ fontSize: 14, fontWeight: 900, color: '#9a3412' }}>企画の目的・目指す状態</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                    {/* 上部切り替えツールバー（3枚目画像スタイルのスマートなタブバー） */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        backgroundColor: '#f8fafc',
+                        padding: '10px 14px',
+                        borderRadius: 14,
+                        border: '1px solid #e2e8f0',
+                        boxSizing: 'border-box',
+                        width: '100%'
+                      }}
+                    >
+                      {/* 左: サブタブ切り替え */}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => setProposalSubTab('app')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 16px',
+                            borderRadius: 10,
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            backgroundColor: proposalSubTab === 'app' ? '#ea580c' : '#fff',
+                            color: proposalSubTab === 'app' ? '#fff' : '#475569',
+                            boxShadow: proposalSubTab === 'app' ? '0 2px 8px rgba(234, 88, 12, 0.25)' : 'none',
+                            border: proposalSubTab === 'app' ? 'none' : '1px solid #cbd5e1'
+                          }}
+                        >
+                          <FileText size={15} />
+                          アプリで作成した企画書
+                        </button>
+
+                        <button
+                          onClick={() => setProposalSubTab('attachment')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 16px',
+                            borderRadius: 10,
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            backgroundColor: proposalSubTab === 'attachment' ? '#ea580c' : '#fff',
+                            color: proposalSubTab === 'attachment' ? '#fff' : '#475569',
+                            boxShadow: proposalSubTab === 'attachment' ? '0 2px 8px rgba(234, 88, 12, 0.25)' : 'none',
+                            border: proposalSubTab === 'attachment' ? 'none' : '1px solid #cbd5e1'
+                          }}
+                        >
+                          <Paperclip size={15} />
+                          添付した企画書（PDF / Word）
+                          <span
+                            style={{
+                              fontSize: 11,
+                              padding: '1px 7px',
+                              borderRadius: 10,
+                              backgroundColor: proposalSubTab === 'attachment' ? 'rgba(255,255,255,0.3)' : '#e2e8f0',
+                              color: proposalSubTab === 'attachment' ? '#fff' : '#334155',
+                              fontWeight: 900
+                            }}
+                          >
+                            {pj.proposalAttachments?.length || 0}
+                          </span>
+                        </button>
                       </div>
-                      <p style={{ fontSize: 13, color: '#431407', lineHeight: 1.6 }}>
-                        {pj.proposalDoc?.purpose || pj.description || '寮生同士の快適な生活と新しい体験を創出する。'}
-                      </p>
+
+                      {/* 右: アクションボタン */}
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {proposalSubTab === 'app' ? (
+                          <>
+                            <button
+                              onClick={() => window.print()}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '7px 12px',
+                                borderRadius: 8,
+                                border: '1px solid #cbd5e1',
+                                backgroundColor: '#fff',
+                                color: '#334155',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                              title="PDFとして印刷・保存"
+                            >
+                              <Printer size={14} />
+                              印刷・PDF出力
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (pj.proposalDoc) {
+                                  setEditProposalDoc({ ...pj.proposalDoc });
+                                } else {
+                                  setEditProposalDoc({
+                                    title: pj.title,
+                                    purpose: pj.description || '',
+                                    background: '',
+                                    budget: '',
+                                    hackStrategy: ''
+                                  });
+                                }
+                                setIsEditProposalModalOpen(true);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '7px 12px',
+                                borderRadius: 8,
+                                border: '1px solid #fed7aa',
+                                backgroundColor: '#fff7ed',
+                                color: '#c2410c',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Edit3 size={14} />
+                              内容を編集
+                            </button>
+                          </>
+                        ) : (
+                          <label
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '7px 14px',
+                              borderRadius: 8,
+                              backgroundColor: '#ea580c',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
+                            }}
+                          >
+                            <Upload size={14} />
+                            {uploadingProposal ? '追加処理中...' : 'ドキュメントを追加（PDF・Docx）'}
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.xlsx"
+                              style={{ display: 'none' }}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setUploadingProposal(true);
+                                try {
+                                  const ext = file.name.split('.').pop()?.toLowerCase();
+                                  const fileType: 'pdf' | 'docx' | 'doc' | 'xlsx' | 'other' =
+                                    ext === 'pdf' ? 'pdf' : (ext === 'docx' ? 'docx' : (ext === 'doc' ? 'doc' : 'other'));
+
+                                  const reader = new FileReader();
+                                  reader.onload = async () => {
+                                    const dataUrl = reader.result as string;
+                                    const newAttachment: ProposalAttachment = {
+                                      id: `att-${Date.now()}`,
+                                      name: file.name,
+                                      size: file.size,
+                                      type: fileType,
+                                      uploadedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                                      uploadedBy: currentUser.name,
+                                      dataUrl: dataUrl
+                                    };
+                                    const updated = await dbService.uploadProposalAttachment(pj.id, newAttachment);
+                                    setProjects(updated);
+                                    setSelectedAttachmentId(newAttachment.id);
+                                    setUploadingProposal(false);
+                                    alert(`企画書「${file.name}」を追加しました！`);
+                                  };
+                                  reader.readAsDataURL(file);
+                                } catch (err) {
+                                  setUploadingProposal(false);
+                                  alert('ファイルの追加に失敗しました');
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
                     </div>
 
-                    <div style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', padding: 14, borderRadius: 12 }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', marginBottom: 6 }}>
-                        📋 現状の課題と背景
-                      </h4>
-                      <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
-                        {pj.proposalDoc?.background || pj.description || '既存の仕組みやルールでは解決できなかった課題を整理。'}
-                      </p>
-                    </div>
+                    {/* ========================================================= */}
+                    {/* パターン1: アプリで作成した企画書（添付PDF完全再現の公式企画書） */}
+                    {/* ========================================================= */}
+                    {proposalSubTab === 'app' && (
+                      <div
+                        style={{
+                          backgroundColor: '#fff',
+                          border: '1.5px solid #e2e8f0',
+                          borderRadius: 16,
+                          padding: '28px 24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 24,
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+                          boxSizing: 'border-box',
+                          width: '100%',
+                          maxWidth: '100%',
+                          overflowX: 'hidden'
+                        }}
+                      >
+                        {/* 企画提案書 ヘッダー */}
+                        <div style={{ borderBottom: '2px solid #0284c7', paddingBottom: 16 }}>
+                          <span
+                            style={{
+                              backgroundColor: '#e0f2fe',
+                              color: '#0369a1',
+                              fontSize: 11,
+                              fontWeight: 900,
+                              padding: '3px 10px',
+                              borderRadius: 6,
+                              display: 'inline-block',
+                              marginBottom: 8
+                            }}
+                          >
+                            企画提案書
+                          </span>
+                          <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: '0 0 6px', lineHeight: 1.4 }}>
+                            {pj.proposalDoc?.title || pj.title}
+                          </h2>
+                          {pj.proposalDoc?.subtitle && (
+                            <h3 style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', margin: '0 0 12px' }}>
+                              {pj.proposalDoc.subtitle}
+                            </h3>
+                          )}
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontSize: 12,
+                              color: '#64748b',
+                              flexWrap: 'wrap',
+                              gap: 8,
+                              backgroundColor: '#f8fafc',
+                              padding: '8px 12px',
+                              borderRadius: 8
+                            }}
+                          >
+                            <span>
+                              提出先：<strong>{pj.proposalDoc?.recipient || '西松地所株式会社 様 / 寮母・管理スタッフの皆様'}</strong>
+                            </span>
+                            <span>
+                              提出日：<strong>{pj.proposalDoc?.submissionDate || pj.createdAt || '2026年10月'}</strong>
+                            </span>
+                          </div>
+                        </div>
 
-                    <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 14, borderRadius: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <ShieldAlert size={16} color="#dc2626" />
-                        <h4 style={{ fontSize: 13, fontWeight: 900, color: '#991b1b' }}>規約の抜け道・突破戦略（HACK）</h4>
-                      </div>
-                      <p style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 1.6 }}>
-                        {pj.proposalDoc?.hackStrategy || '工事や高額予算を発生させず、運用ルールや既存設備の代替利用で解決する。'}
-                      </p>
-                    </div>
+                        {/* 1. 企画の趣旨・背景 */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              1. 企画の趣旨・背景
+                            </h4>
+                          </div>
+                          <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
+                            {pj.proposalDoc?.purpose || pj.description || 'Hヴィレッジ共用キッチンにおける衛生環境の向上と運用の持続可能性を確保する。'}
+                          </p>
+                        </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>必要予算</span>
-                        <p style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
-                          {pj.proposalDoc?.budget || '自己資金・有志カンパまたは自治会費'}
-                        </p>
-                      </div>
-                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 12, borderRadius: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>次やること</span>
-                        <p style={{ fontSize: 13, fontWeight: 800, color: '#ea580c', marginTop: 4 }}>
-                          {pj.nextAction}
-                        </p>
-                      </div>
-                    </div>
+                        {/* 2. 生じている課題（寮生側） */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              2. 生じている課題（寮生側）
+                            </h4>
+                          </div>
 
-                    {pj.proposalDoc?.steps && (
-                      <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', padding: 14, borderRadius: 12 }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', marginBottom: 8 }}>
-                          📌 具体的な実行ステップ
-                        </h4>
-                        <ol style={{ paddingLeft: 20, margin: 0, fontSize: 13, color: '#44403c', lineHeight: 1.8 }}>
-                          {pj.proposalDoc.steps.map((st, i) => (
-                            <li key={i}>{st}</li>
-                          ))}
-                        </ol>
+                          <div
+                            style={{
+                              backgroundColor: '#fff1f2',
+                              border: '1px solid #fecdd3',
+                              borderRadius: 10,
+                              padding: '10px 14px',
+                              marginBottom: 10
+                            }}
+                          >
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#be123c', display: 'block', marginBottom: 2 }}>
+                              【前回のハウス全員会議で最も多く出された意見】
+                            </span>
+                            <span style={{ fontSize: 13, color: '#9f1239', fontWeight: 700 }}>
+                              ・「一度使われて湿った布巾が放置されており、汚いせいで洗った食器を拭けない」
+                            </span>
+                          </div>
+
+                          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: '#334155', lineHeight: 1.8 }}>
+                            {(pj.proposalDoc?.problems || [
+                              '一度使用された濡れた布巾を再使用することになり、衛生的でない。',
+                              '油汚れや生乾き臭が気になり、備え付けの布巾を使用しづらい。',
+                              '食器用（青）と台拭き（ピンク）の区別が曖昧になりやすい。',
+                              '結果として備え付けの布巾が使われず、各自でタオルを持ち込んだり、使い捨てペーパー類を消費している。'
+                            ]).map((prob, idx) => (
+                              <li key={idx}>{prob}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* 3. 提案内容：「3ボックス方式」の概要 */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              3. 提案内容：「3ボックス方式」の概要
+                            </h4>
+                          </div>
+
+                          <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.7, margin: '0 0 12px' }}>
+                            {pj.proposalDoc?.proposalOverview || '各フロアのキッチンに、以下の3つの専用ボックスを設置します。'}
+                          </p>
+
+                          {/* 3ボックス図解カード */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 14 }}>
+                            <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 10, padding: '12px 14px' }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#334155', display: 'block', marginBottom: 4 }}>
+                                ① 使用済み回収BOX
+                              </span>
+                              <p style={{ margin: 0, fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+                                使用したタオル（食器拭き・台拭き共通）を投入。通気性のあるカゴ形状。
+                              </p>
+                            </div>
+
+                            <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px' }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#1d4ed8', display: 'block', marginBottom: 4 }}>
+                                ② 清潔な食器拭きBOX（青）
+                              </span>
+                              <p style={{ margin: 0, fontSize: 12, color: '#1e40af', lineHeight: 1.5 }}>
+                                洗濯済みの青色タオルを保管。食器専用。
+                              </p>
+                            </div>
+
+                            <div style={{ backgroundColor: '#fdf2f8', border: '1px solid #fbcfe8', borderRadius: 10, padding: '12px 14px' }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#be185d', display: 'block', marginBottom: 4 }}>
+                                ③ 清潔な台拭きBOX（ピンク）
+                              </span>
+                              <p style={{ margin: 0, fontSize: 12, color: '#9d174d', lineHeight: 1.5 }}>
+                                洗濯済みのピンク色タオルを保管。調理台専用。
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 運用フロー表 */}
+                          <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 10, overflow: 'hidden' }}>
+                            <div style={{ backgroundColor: '#f5f5f4', padding: '8px 12px', fontSize: 12, fontWeight: 900, color: '#292524' }}>
+                              運用フロー
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                  <th style={{ width: '130px', padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#475569' }}>対象</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#475569' }}>手順・内容</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(pj.proposalDoc?.flowItems || [
+                                  {
+                                    target: '寮生の利用手順',
+                                    content: '・調理時や食器洗い時、ストックBOX（青またはピンク）からタオルを取り出して使用する。\n・使用後は、シンクに置かず「使用済み回収BOX」へ投入する（1回使い切り）。'
+                                  },
+                                  {
+                                    target: '回収・補充手順\n（定期巡回時）',
+                                    content: '・「使用済み回収BOX」からタオルを回収袋に移す。\n・洗濯済みのタオルを、それぞれのストックBOXに補充する。'
+                                  }
+                                ]).map((flow, fi) => (
+                                  <tr key={fi} style={{ borderBottom: fi === 0 ? '1px solid #e2e8f0' : 'none' }}>
+                                    <td style={{ padding: '10px 12px', fontWeight: 800, color: '#1e293b', verticalAlign: 'top', whiteSpace: 'pre-line' }}>
+                                      {flow.target}
+                                    </td>
+                                    <td style={{ padding: '10px 12px', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                                      {flow.content}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* 4. 導入による改善点 */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              4. 導入による改善点
+                            </h4>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                            {(pj.proposalDoc?.improvements || [
+                              {
+                                audience: '寮生側',
+                                title: '衛生面の改善',
+                                desc: '乾いた布巾を取り出して使用するため、濡れた布巾の再使用を防ぎ、衛生的に食器を拭くことができます。また用途の混同を防止できます。'
+                              },
+                              {
+                                audience: '寮母様側',
+                                title: '回収・補充作業の効率化',
+                                desc: '回収はボックスから行い、補充もボックスへ行う手順となるため、各フロアで布巾を探す作業がなくなり、作業負担が軽減されます。'
+                              },
+                              {
+                                audience: '施設管理側',
+                                title: 'キッチンの整理・美観維持',
+                                desc: '布巾の定位置が決まることで、シンク周りへの放置を防止できます。既存の備品と市販ボックスを活用して導入できます。'
+                              }
+                            ]).map((imp, ii) => (
+                              <div
+                                key={ii}
+                                style={{
+                                  backgroundColor: '#f8fafc',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: 12,
+                                  padding: '14px 16px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 6
+                                }}
+                              >
+                                <span style={{ fontSize: 11, fontWeight: 900, color: '#0284c7', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: 4, alignSelf: 'flex-start' }}>
+                                  {imp.audience}
+                                </span>
+                                <strong style={{ fontSize: 13, color: '#0f172a' }}>{imp.title}</strong>
+                                <p style={{ margin: 0, fontSize: 12, color: '#475569', lineHeight: 1.6 }}>{imp.desc}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 5. 必要資材および費用概算 */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              5. 必要資材および費用概算
+                            </h4>
+                          </div>
+
+                          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', marginBottom: 8 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>品名</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>仕様</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>数量</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#334155' }}>概算費用（税込）</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(pj.proposalDoc?.budgetItems || [
+                                  { name: 'ストックボックス', spec: 'プラスチック製/メッシュ製バスケット（通気性のあるもの）', quantity: '48個（3個 × 16フロア）', cost: '約 5,280 円（1個110円計算）' },
+                                  { name: '分別ラベル', spec: '防水ラミネート（青・ピンク・グレー／日英併記）', quantity: '16組', cost: '約 1,000 円' },
+                                  { name: '利用案内ポスター', spec: 'A4ラミネート（キッチン壁面掲示用、日英併記）', quantity: '16枚', cost: '約 500 円（寮生側で作成可）' },
+                                  { name: '布巾（補充用）', spec: '既存備品の活用＋不足分のみ補充', quantity: '-', cost: '既存備品で対応可能' }
+                                ]).map((b, bi) => (
+                                  <tr key={bi} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '8px 12px', fontWeight: 800, color: '#0f172a' }}>{b.name}</td>
+                                    <td style={{ padding: '8px 12px', color: '#475569' }}>{b.spec}</td>
+                                    <td style={{ padding: '8px 12px', color: '#475569' }}>{b.quantity}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>{b.cost}</td>
+                                  </tr>
+                                ))}
+                                <tr style={{ backgroundColor: '#fff7ed', fontWeight: 900 }}>
+                                  <td colSpan={3} style={{ padding: '10px 12px', color: '#9a3412', textAlign: 'right' }}>合計概算費用：</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ea580c', fontSize: 14 }}>
+                                    {pj.proposalDoc?.totalBudget || '約 7,000 円 〜 10,000 円'}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* 6. 導入手順（案）＆ まとめ */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              6. 導入手順（案）
+                            </h4>
+                          </div>
+
+                          <ol style={{ margin: '0 0 14px', paddingLeft: 20, fontSize: 13, color: '#334155', lineHeight: 1.8 }}>
+                            {(pj.proposalDoc?.steps || [
+                              '1. 事前確認：西松地所様および寮母様との設置場所・ボックス仕様の確認',
+                              '2. 試験導入：1〜2棟（特定フロア）で試験運用を実施し、使用量や回収状況を確認',
+                              '3. 全フロア導入：ボックスおよび案内を設置し、運用を開始'
+                            ]).map((st, si) => (
+                              <li key={si}>{st}</li>
+                            ))}
+                          </ol>
+
+                          <div style={{ backgroundColor: '#f8fafc', borderLeft: '4px solid #0284c7', padding: '12px 14px', borderRadius: '0 8px 8px 0' }}>
+                            <strong style={{ fontSize: 12, color: '#0369a1', display: 'block', marginBottom: 4 }}>まとめ：</strong>
+                            <p style={{ margin: 0, fontSize: 12, color: '#334155', lineHeight: 1.6 }}>
+                              {pj.proposalDoc?.summary || '本提案は、寮生から出ている衛生面に関する課題を解消し、あわせて回収・補充手順を整理・効率化することを目的としています。まずは一部フロアでの試験導入を含め、ご検討いただけますようお願いいたします。'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* 規約突破戦略（HACK） */}
+                        {pj.proposalDoc?.hackStrategy && (
+                          <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <ShieldAlert size={15} color="#dc2626" />
+                              <strong style={{ fontSize: 12, color: '#991b1b' }}>規約の抜け道・突破戦略（HACK）</strong>
+                            </div>
+                            <p style={{ margin: 0, fontSize: 12, color: '#7f1d1d', lineHeight: 1.6 }}>
+                              {pj.proposalDoc.hackStrategy}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ========================================================= */}
+                    {/* パターン2: 添付した企画書（3枚目画像のドキュメント管理ビュー） */}
+                    {/* ========================================================= */}
+                    {proposalSubTab === 'attachment' && (
+                      <div
+                        style={{
+                          backgroundColor: '#fff',
+                          border: '1.5px solid #e2e8f0',
+                          borderRadius: 16,
+                          padding: '24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 18,
+                          boxSizing: 'border-box',
+                          width: '100%',
+                          maxWidth: '100%'
+                        }}
+                      >
+                        {(!pj.proposalAttachments || pj.proposalAttachments.length === 0) ? (
+                          /* 3枚目画像と完全一致のエンプティステート */
+                          <div
+                            style={{
+                              padding: '60px 20px',
+                              textAlign: 'center',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 12,
+                              backgroundColor: '#f8fafc',
+                              borderRadius: 14,
+                              border: '2px dashed #cbd5e1'
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 72,
+                                height: 72,
+                                borderRadius: '50%',
+                                backgroundColor: '#f1f5f9',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: 4
+                              }}
+                            >
+                              <FileText size={36} color="#94a3b8" />
+                            </div>
+
+                            <h3 style={{ fontSize: 17, fontWeight: 900, color: '#334155', margin: 0 }}>
+                              アップロードされたドキュメントがありません
+                            </h3>
+                            <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+                              「ドキュメントを追加」からPDFやWord等のファイルをアップロードできます
+                            </p>
+
+                            <label
+                              style={{
+                                marginTop: 8,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '10px 20px',
+                                borderRadius: 10,
+                                backgroundColor: '#ea580c',
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)'
+                              }}
+                            >
+                              <Plus size={16} />
+                              ドキュメントを追加
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.xlsx"
+                                style={{ display: 'none' }}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  setUploadingProposal(true);
+                                  try {
+                                    const ext = file.name.split('.').pop()?.toLowerCase();
+                                    const fileType: 'pdf' | 'docx' | 'doc' | 'xlsx' | 'other' =
+                                      ext === 'pdf' ? 'pdf' : (ext === 'docx' ? 'docx' : (ext === 'doc' ? 'doc' : 'other'));
+
+                                    const reader = new FileReader();
+                                    reader.onload = async () => {
+                                      const dataUrl = reader.result as string;
+                                      const newAttachment: ProposalAttachment = {
+                                        id: `att-${Date.now()}`,
+                                        name: file.name,
+                                        size: file.size,
+                                        type: fileType,
+                                        uploadedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                                        uploadedBy: currentUser.name,
+                                        dataUrl: dataUrl
+                                      };
+                                      const updated = await dbService.uploadProposalAttachment(pj.id, newAttachment);
+                                      setProjects(updated);
+                                      setSelectedAttachmentId(newAttachment.id);
+                                      setUploadingProposal(false);
+                                      alert(`企画書「${file.name}」を追加しました！`);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  } catch (err) {
+                                    setUploadingProposal(false);
+                                    alert('ファイルの追加に失敗しました');
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        ) : (
+                          /* 添付ファイル一覧 ＆ プレビュー */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <h4 style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                                添付ファイル一覧（{pj.proposalAttachments.length} 件）
+                              </h4>
+                              <span style={{ fontSize: 12, color: '#64748b' }}>
+                                クリックしてプレビューやダウンロードが可能です
+                              </span>
+                            </div>
+
+                            {/* ファイル一覧カード */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {pj.proposalAttachments.map((att) => {
+                                const isSelected = (selectedAttachmentId || pj.proposalAttachments![0].id) === att.id;
+                                return (
+                                  <div
+                                    key={att.id}
+                                    onClick={() => setSelectedAttachmentId(att.id)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: 12,
+                                      padding: '12px 16px',
+                                      borderRadius: 12,
+                                      border: isSelected ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                                      backgroundColor: isSelected ? '#fff7ed' : '#f8fafc',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                                      <div
+                                        style={{
+                                          width: 38,
+                                          height: 38,
+                                          borderRadius: 8,
+                                          backgroundColor: att.type === 'pdf' ? '#fee2e2' : '#e0e7ff',
+                                          color: att.type === 'pdf' ? '#dc2626' : '#4338ca',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontWeight: 900,
+                                          fontSize: 11,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        {att.type.toUpperCase()}
+                                      </div>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {att.name}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 10, marginTop: 2 }}>
+                                          <span>{(att.size / 1024 / 1024).toFixed(1)} MB</span>
+                                          <span>追加者: {att.uploadedBy}</span>
+                                          <span>{att.uploadedAt}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                      {att.dataUrl && (
+                                        <a
+                                          href={att.dataUrl}
+                                          download={att.name}
+                                          onClick={(e) => e.stopPropagation()}
+                                          style={{
+                                            padding: '6px 10px',
+                                            borderRadius: 6,
+                                            border: '1px solid #cbd5e1',
+                                            backgroundColor: '#fff',
+                                            color: '#475569',
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            textDecoration: 'none'
+                                          }}
+                                        >
+                                          <Download size={13} />
+                                          保存
+                                        </a>
+                                      )}
+                                      <button
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (!confirm(`企画書「${att.name}」を削除しますか？`)) return;
+                                          const updated = await dbService.deleteProposalAttachment(pj.id, att.id);
+                                          setProjects(updated);
+                                          if (selectedAttachmentId === att.id) {
+                                            setSelectedAttachmentId(null);
+                                          }
+                                        }}
+                                        style={{
+                                          padding: '6px 8px',
+                                          borderRadius: 6,
+                                          border: 'none',
+                                          backgroundColor: 'transparent',
+                                          color: '#94a3b8',
+                                          cursor: 'pointer'
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* プレビュー表示エリア */}
+                            {(() => {
+                              const activeAtt = pj.proposalAttachments.find((a) => a.id === (selectedAttachmentId || pj.proposalAttachments![0].id)) || pj.proposalAttachments[0];
+                              if (!activeAtt) return null;
+
+                              return (
+                                <div style={{ marginTop: 12, backgroundColor: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 14, padding: 18 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <Eye size={16} color="#ea580c" />
+                                      <h5 style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                                        {activeAtt.name} のプレビュー
+                                      </h5>
+                                    </div>
+                                    {activeAtt.dataUrl && (
+                                      <a
+                                        href={activeAtt.dataUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ fontSize: 12, color: '#0284c7', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                                      >
+                                        <ExternalLink size={13} />
+                                        別タブで開く
+                                      </a>
+                                    )}
+                                  </div>
+
+                                  {activeAtt.type === 'pdf' && activeAtt.dataUrl ? (
+                                    <div style={{ width: '100%', height: 500, borderRadius: 10, overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+                                      <iframe
+                                        src={activeAtt.dataUrl}
+                                        title={activeAtt.name}
+                                        style={{ width: '100%', height: '100%', border: 'none' }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: 10, border: '1px dashed #cbd5e1' }}>
+                                      <FileText size={40} color="#0284c7" style={{ margin: '0 auto 8px' }} />
+                                      <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+                                        {activeAtt.name}
+                                      </h4>
+                                      <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+                                        このファイル形式はブラウザ上での直接インラインプレビューに対応していません。ダウンロードして内容をご確認ください。
+                                      </p>
+                                      {activeAtt.dataUrl && (
+                                        <a
+                                          href={activeAtt.dataUrl}
+                                          download={activeAtt.name}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            padding: '8px 16px',
+                                            borderRadius: 8,
+                                            backgroundColor: '#0284c7',
+                                            color: '#fff',
+                                            fontSize: 13,
+                                            fontWeight: 800,
+                                            textDecoration: 'none'
+                                          }}
+                                        >
+                                          <Download size={15} />
+                                          ファイルをダウンロード
+                                        </a>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2604,75 +3344,675 @@ export default function App() {
                   padding: '24px 32px'
                 }}
               >
-                {/* 1. 企画書・要件書ドキュメントビュー */}
+                {/* 1. 企画書・要件書ドキュメントビュー（アプリ作成企画書 ＆ 添付ファイルの2パターン両対応） */}
                 {activeExplorerDoc === 'proposal' && (
-                  <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ea580c', paddingBottom: 12 }}>
-                      <div>
-                        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#1c1917', margin: '0 0 4px' }}>
-                          📄 {pj.proposalDoc?.title || `${pj.title} 企画書・要件仕様書`}
-                        </h2>
-                        <span style={{ fontSize: 12, color: '#78716c' }}>
-                          作成日: {pj.createdAt || '2026-10-06'} • 発起人: {pj.owner} • カテゴリ: {pj.category}
-                        </span>
+                  <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18, width: '100%', boxSizing: 'border-box' }}>
+                    {/* 上部切り替えツールバー */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        backgroundColor: '#f8fafc',
+                        padding: '10px 14px',
+                        borderRadius: 14,
+                        border: '1px solid #e2e8f0'
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                          onClick={() => setProposalSubTab('app')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 16px',
+                            borderRadius: 10,
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            backgroundColor: proposalSubTab === 'app' ? '#ea580c' : '#fff',
+                            color: proposalSubTab === 'app' ? '#fff' : '#475569',
+                            boxShadow: proposalSubTab === 'app' ? '0 2px 8px rgba(234, 88, 12, 0.25)' : 'none',
+                            border: proposalSubTab === 'app' ? 'none' : '1px solid #cbd5e1'
+                          }}
+                        >
+                          <FileText size={15} />
+                          アプリで作成した企画書
+                        </button>
+
+                        <button
+                          onClick={() => setProposalSubTab('attachment')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 16px',
+                            borderRadius: 10,
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            backgroundColor: proposalSubTab === 'attachment' ? '#ea580c' : '#fff',
+                            color: proposalSubTab === 'attachment' ? '#fff' : '#475569',
+                            boxShadow: proposalSubTab === 'attachment' ? '0 2px 8px rgba(234, 88, 12, 0.25)' : 'none',
+                            border: proposalSubTab === 'attachment' ? 'none' : '1px solid #cbd5e1'
+                          }}
+                        >
+                          <Paperclip size={15} />
+                          添付した企画書（PDF / Word）
+                          <span
+                            style={{
+                              fontSize: 11,
+                              padding: '1px 7px',
+                              borderRadius: 10,
+                              backgroundColor: proposalSubTab === 'attachment' ? 'rgba(255,255,255,0.3)' : '#e2e8f0',
+                              color: proposalSubTab === 'attachment' ? '#fff' : '#334155',
+                              fontWeight: 900
+                            }}
+                          >
+                            {pj.proposalAttachments?.length || 0}
+                          </span>
+                        </button>
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: '#ea580c', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: 8, border: '1px solid #fed7aa' }}>
-                        進捗: {pj.progress}%
-                      </span>
-                    </div>
 
-                    <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', padding: 16, borderRadius: 12 }}>
-                      <h4 style={{ fontSize: 14, fontWeight: 900, color: '#9a3412', margin: '0 0 6px' }}>
-                        🎯 企画の目的・目指す状態
-                      </h4>
-                      <p style={{ fontSize: 13, color: '#431407', lineHeight: 1.7, margin: 0 }}>
-                        {pj.proposalDoc?.purpose || pj.description || '寮生同士の快適な生活と新しい体験を創出する。'}
-                      </p>
-                    </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {proposalSubTab === 'app' ? (
+                          <>
+                            <button
+                              onClick={() => window.print()}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '7px 12px',
+                                borderRadius: 8,
+                                border: '1px solid #cbd5e1',
+                                backgroundColor: '#fff',
+                                color: '#334155',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Printer size={14} />
+                              印刷・PDF出力
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (pj.proposalDoc) {
+                                  setEditProposalDoc({ ...pj.proposalDoc });
+                                } else {
+                                  setEditProposalDoc({
+                                    title: pj.title,
+                                    purpose: pj.description || '',
+                                    background: '',
+                                    budget: '',
+                                    hackStrategy: ''
+                                  });
+                                }
+                                setIsEditProposalModalOpen(true);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '7px 12px',
+                                borderRadius: 8,
+                                border: '1px solid #fed7aa',
+                                backgroundColor: '#fff7ed',
+                                color: '#c2410c',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Edit3 size={14} />
+                              内容を編集
+                            </button>
+                          </>
+                        ) : (
+                          <label
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '7px 14px',
+                              borderRadius: 8,
+                              backgroundColor: '#ea580c',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
+                            }}
+                          >
+                            <Upload size={14} />
+                            {uploadingProposal ? '追加処理中...' : 'ドキュメントを追加（PDF・Docx）'}
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.xlsx"
+                              style={{ display: 'none' }}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setUploadingProposal(true);
+                                try {
+                                  const ext = file.name.split('.').pop()?.toLowerCase();
+                                  const fileType: 'pdf' | 'docx' | 'doc' | 'xlsx' | 'other' =
+                                    ext === 'pdf' ? 'pdf' : (ext === 'docx' ? 'docx' : (ext === 'doc' ? 'doc' : 'other'));
 
-                    <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', padding: 16, borderRadius: 12 }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', margin: '0 0 6px' }}>
-                        📋 現状の課題と背景
-                      </h4>
-                      <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.7, margin: 0 }}>
-                        {pj.proposalDoc?.background || pj.description || '既存の仕組みやルールでは解決できなかった課題を整理。'}
-                      </p>
-                    </div>
-
-                    <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', padding: 16, borderRadius: 12 }}>
-                      <h4 style={{ fontSize: 13, fontWeight: 900, color: '#991b1b', margin: '0 0 6px' }}>
-                        🛡️ 規約の抜け道・突破戦略（HACK）
-                      </h4>
-                      <p style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 1.7, margin: 0 }}>
-                        {pj.proposalDoc?.hackStrategy || '工事や高額予算を発生させず、運用ルールや既存設備の代替利用で解決する。'}
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 14, borderRadius: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>必要予算</span>
-                        <p style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
-                          {pj.proposalDoc?.budget || '自己資金・有志カンパまたは自治会費'}
-                        </p>
+                                  const reader = new FileReader();
+                                  reader.onload = async () => {
+                                    const dataUrl = reader.result as string;
+                                    const newAttachment: ProposalAttachment = {
+                                      id: `att-${Date.now()}`,
+                                      name: file.name,
+                                      size: file.size,
+                                      type: fileType,
+                                      uploadedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                                      uploadedBy: currentUser.name,
+                                      dataUrl: dataUrl
+                                    };
+                                    const updated = await dbService.uploadProposalAttachment(pj.id, newAttachment);
+                                    setProjects(updated);
+                                    setSelectedAttachmentId(newAttachment.id);
+                                    setUploadingProposal(false);
+                                    alert(`企画書「${file.name}」を追加しました！`);
+                                  };
+                                  reader.readAsDataURL(file);
+                                } catch (err) {
+                                  setUploadingProposal(false);
+                                  alert('ファイルの追加に失敗しました');
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
                       </div>
-                      <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: 14, borderRadius: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b' }}>次やること</span>
-                        <p style={{ fontSize: 14, fontWeight: 800, color: '#ea580c', marginTop: 4 }}>
-                          {pj.nextAction}
-                        </p>
-                      </div>
                     </div>
 
-                    {pj.proposalDoc?.steps && (
-                      <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e2e8f0', padding: 16, borderRadius: 12 }}>
-                        <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', margin: '0 0 8px' }}>
-                          📌 具体的な実行ステップ
-                        </h4>
-                        <ol style={{ paddingLeft: 20, margin: 0, fontSize: 13, color: '#44403c', lineHeight: 1.8 }}>
-                          {pj.proposalDoc.steps.map((st, i) => (
-                            <li key={i}>{st}</li>
-                          ))}
-                        </ol>
+                    {/* パターン1: アプリで作成した企画書（公式提案書） */}
+                    {proposalSubTab === 'app' && (
+                      <div
+                        style={{
+                          backgroundColor: '#fff',
+                          border: '1.5px solid #e2e8f0',
+                          borderRadius: 16,
+                          padding: '28px 24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 24,
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+                          boxSizing: 'border-box',
+                          width: '100%'
+                        }}
+                      >
+                        <div style={{ borderBottom: '2px solid #0284c7', paddingBottom: 16 }}>
+                          <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: 11, fontWeight: 900, padding: '3px 10px', borderRadius: 6, display: 'inline-block', marginBottom: 8 }}>
+                            企画提案書
+                          </span>
+                          <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: '0 0 6px', lineHeight: 1.4 }}>
+                            {pj.proposalDoc?.title || pj.title}
+                          </h2>
+                          {pj.proposalDoc?.subtitle && (
+                            <h3 style={{ fontSize: 16, fontWeight: 900, color: '#0284c7', margin: '0 0 12px' }}>
+                              {pj.proposalDoc.subtitle}
+                            </h3>
+                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#64748b', flexWrap: 'wrap', gap: 8, backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: 8 }}>
+                            <span>提出先：<strong>{pj.proposalDoc?.recipient || '西松地所株式会社 様 / 寮母・管理スタッフの皆様'}</strong></span>
+                            <span>提出日：<strong>{pj.proposalDoc?.submissionDate || pj.createdAt || '2026年10月'}</strong></span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              1. 企画の趣旨・背景
+                            </h4>
+                          </div>
+                          <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
+                            {pj.proposalDoc?.purpose || pj.description || 'Hヴィレッジ共用キッチンにおける衛生環境の向上と運用の持続可能性を確保する。'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              2. 生じている課題（寮生側）
+                            </h4>
+                          </div>
+                          <div style={{ backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 10, padding: '10px 14px', marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#be123c', display: 'block', marginBottom: 2 }}>
+                              【前回のハウス全員会議で最も多く出された意見】
+                            </span>
+                            <span style={{ fontSize: 13, color: '#9f1239', fontWeight: 700 }}>
+                              ・「一度使われて湿った布巾が放置されており、汚いせいで洗った食器を拭けない」
+                            </span>
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: '#334155', lineHeight: 1.8 }}>
+                            {(pj.proposalDoc?.problems || [
+                              '一度使用された濡れた布巾を再使用することになり、衛生的でない。',
+                              '油汚れや生乾き臭が気になり、備え付けの布巾を使用しづらい。',
+                              '食器用（青）と台拭き（ピンク）の区別が曖昧になりやすい。',
+                              '結果として備え付けの布巾が使われず、各自でタオルを持ち込んだり、使い捨てペーパー類を消費している。'
+                            ]).map((prob, idx) => (
+                              <li key={idx}>{prob}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                              3. 提案内容：「3ボックス方式」の概要
+                            </h4>
+                          </div>
+                          <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.7, margin: '0 0 12px' }}>
+                            {pj.proposalDoc?.proposalOverview || '各フロアのキッチンに、以下の3つの専用ボックスを設置します。'}
+                          </p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 14 }}>
+                            <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 10, padding: '12px 14px' }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#334155', display: 'block', marginBottom: 4 }}>① 使用済み回収BOX</span>
+                              <p style={{ margin: 0, fontSize: 12, color: '#475569', lineHeight: 1.5 }}>使用したタオル（食器拭き・台拭き共通）を投入。通気性のあるカゴ形状。</p>
+                            </div>
+                            <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px' }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#1d4ed8', display: 'block', marginBottom: 4 }}>② 清潔な食器拭きBOX（青）</span>
+                              <p style={{ margin: 0, fontSize: 12, color: '#1e40af', lineHeight: 1.5 }}>洗濯済みの青色タオルを保管。食器専用。</p>
+                            </div>
+                            <div style={{ backgroundColor: '#fdf2f8', border: '1px solid #fbcfe8', borderRadius: 10, padding: '12px 14px' }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: '#be185d', display: 'block', marginBottom: 4 }}>③ 清潔な台拭きBOX（ピンク）</span>
+                              <p style={{ margin: 0, fontSize: 12, color: '#9d174d', lineHeight: 1.5 }}>洗濯済みのピンク色タオルを保管。調理台専用。</p>
+                            </div>
+                          </div>
+                          <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 10, overflow: 'hidden' }}>
+                            <div style={{ backgroundColor: '#f5f5f4', padding: '8px 12px', fontSize: 12, fontWeight: 900, color: '#292524' }}>運用フロー</div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                  <th style={{ width: '130px', padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#475569' }}>対象</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#475569' }}>手順・内容</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(pj.proposalDoc?.flowItems || [
+                                  { target: '寮生の利用手順', content: '・調理時や食器洗い時、ストックBOX（青またはピンク）からタオルを取り出して使用する。\n・使用後は、シンクに置かず「使用済み回収BOX」へ投入する（1回使い切り）。' },
+                                  { target: '回収・補充手順\n（定期巡回時）', content: '・「使用済み回収BOX」からタオルを回収袋に移す。\n・洗濯済みのタオルを、それぞれのストックBOXに補充する。' }
+                                ]).map((flow, fi) => (
+                                  <tr key={fi} style={{ borderBottom: fi === 0 ? '1px solid #e2e8f0' : 'none' }}>
+                                    <td style={{ padding: '10px 12px', fontWeight: 800, color: '#1e293b', verticalAlign: 'top', whiteSpace: 'pre-line' }}>{flow.target}</td>
+                                    <td style={{ padding: '10px 12px', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{flow.content}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>4. 導入による改善点</h4>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                            {(pj.proposalDoc?.improvements || [
+                              { audience: '寮生側', title: '衛生面の改善', desc: '乾いた布巾を取り出して使用するため、濡れた布巾の再使用を防ぎ、衛生的に食器を拭くことができます。また用途の混同を防止できます。' },
+                              { audience: '寮母様側', title: '回収・補充作業の効率化', desc: '回収はボックスから行い、補充もボックスへ行う手順となるため、各フロアで布巾を探す作業がなくなり、作業負担が軽減されます。' },
+                              { audience: '施設管理側', title: 'キッチンの整理・美観維持', desc: '布巾の定位置が決まることで、シンク周りへの放置を防止できます。既存の備品と市販ボックスを活用して導入できます。' }
+                            ]).map((imp, ii) => (
+                              <div key={ii} style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 900, color: '#0284c7', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: 4, alignSelf: 'flex-start' }}>{imp.audience}</span>
+                                <strong style={{ fontSize: 13, color: '#0f172a' }}>{imp.title}</strong>
+                                <p style={{ margin: 0, fontSize: 12, color: '#475569', lineHeight: 1.6 }}>{imp.desc}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>5. 必要資材および費用概算</h4>
+                          </div>
+                          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>品名</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>仕様</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>数量</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#334155' }}>概算費用（税込）</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(pj.proposalDoc?.budgetItems || [
+                                  { name: 'ストックボックス', spec: 'プラスチック製/メッシュ製バスケット（通気性のあるもの）', quantity: '48個（3個 × 16フロア）', cost: '約 5,280 円（1個110円計算）' },
+                                  { name: '分別ラベル', spec: '防水ラミネート（青・ピンク・グレー／日英併記）', quantity: '16組', cost: '約 1,000 円' },
+                                  { name: '利用案内ポスター', spec: 'A4ラミネート（キッチン壁面掲示用、日英併記）', quantity: '16枚', cost: '約 500 円（寮生側で作成可）' },
+                                  { name: '布巾（補充用）', spec: '既存備品の活用＋不足分のみ補充', quantity: '-', cost: '既存備品で対応可能' }
+                                ]).map((b, bi) => (
+                                  <tr key={bi} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '8px 12px', fontWeight: 800, color: '#0f172a' }}>{b.name}</td>
+                                    <td style={{ padding: '8px 12px', color: '#475569' }}>{b.spec}</td>
+                                    <td style={{ padding: '8px 12px', color: '#475569' }}>{b.quantity}</td>
+                                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>{b.cost}</td>
+                                  </tr>
+                                ))}
+                                <tr style={{ backgroundColor: '#fff7ed', fontWeight: 900 }}>
+                                  <td colSpan={3} style={{ padding: '10px 12px', color: '#9a3412', textAlign: 'right' }}>合計概算費用：</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ea580c', fontSize: 14 }}>{pj.proposalDoc?.totalBudget || '約 7,000 円 〜 10,000 円'}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <div style={{ width: 4, height: 18, backgroundColor: '#0284c7', borderRadius: 2 }} />
+                            <h4 style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', margin: 0 }}>6. 導入手順（案）</h4>
+                          </div>
+                          <ol style={{ margin: '0 0 14px', paddingLeft: 20, fontSize: 13, color: '#334155', lineHeight: 1.8 }}>
+                            {(pj.proposalDoc?.steps || [
+                              '1. 事前確認：西松地所様および寮母様との設置場所・ボックス仕様の確認',
+                              '2. 試験導入：1〜2棟（特定フロア）で試験運用を実施し、使用量や回収状況を確認',
+                              '3. 全フロア導入：ボックスおよび案内を設置し、運用を開始'
+                            ]).map((st, si) => (
+                              <li key={si}>{st}</li>
+                            ))}
+                          </ol>
+                          <div style={{ backgroundColor: '#f8fafc', borderLeft: '4px solid #0284c7', padding: '12px 14px', borderRadius: '0 8px 8px 0' }}>
+                            <strong style={{ fontSize: 12, color: '#0369a1', display: 'block', marginBottom: 4 }}>まとめ：</strong>
+                            <p style={{ margin: 0, fontSize: 12, color: '#334155', lineHeight: 1.6 }}>{pj.proposalDoc?.summary || '本提案は、寮生から出ている衛生面に関する課題を解消し、あわせて回収・補充手順を整理・効率化することを目的としています。まずは一部フロアでの試験導入を含め、ご検討いただけますようお願いいたします。'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* パターン2: 添付した企画書（3枚目画像スタイルのファイル管理ビュー） */}
+                    {proposalSubTab === 'attachment' && (
+                      <div
+                        style={{
+                          backgroundColor: '#fff',
+                          border: '1.5px solid #e2e8f0',
+                          borderRadius: 16,
+                          padding: '24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 18,
+                          boxSizing: 'border-box',
+                          width: '100%'
+                        }}
+                      >
+                        {(!pj.proposalAttachments || pj.proposalAttachments.length === 0) ? (
+                          <div
+                            style={{
+                              padding: '60px 20px',
+                              textAlign: 'center',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 12,
+                              backgroundColor: '#f8fafc',
+                              borderRadius: 14,
+                              border: '2px dashed #cbd5e1'
+                            }}
+                          >
+                            <div style={{ width: 72, height: 72, borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                              <FileText size={36} color="#94a3b8" />
+                            </div>
+                            <h3 style={{ fontSize: 17, fontWeight: 900, color: '#334155', margin: 0 }}>
+                              アップロードされたドキュメントがありません
+                            </h3>
+                            <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+                              「ドキュメントを追加」からPDFやWord等のファイルをアップロードできます
+                            </p>
+                            <label
+                              style={{
+                                marginTop: 8,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '10px 20px',
+                                borderRadius: 10,
+                                backgroundColor: '#ea580c',
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)'
+                              }}
+                            >
+                              <Plus size={16} />
+                              ドキュメントを追加
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.xlsx"
+                                style={{ display: 'none' }}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  setUploadingProposal(true);
+                                  try {
+                                    const ext = file.name.split('.').pop()?.toLowerCase();
+                                    const fileType: 'pdf' | 'docx' | 'doc' | 'xlsx' | 'other' =
+                                      ext === 'pdf' ? 'pdf' : (ext === 'docx' ? 'docx' : (ext === 'doc' ? 'doc' : 'other'));
+                                    const reader = new FileReader();
+                                    reader.onload = async () => {
+                                      const dataUrl = reader.result as string;
+                                      const newAttachment: ProposalAttachment = {
+                                        id: `att-${Date.now()}`,
+                                        name: file.name,
+                                        size: file.size,
+                                        type: fileType,
+                                        uploadedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                                        uploadedBy: currentUser.name,
+                                        dataUrl: dataUrl
+                                      };
+                                      const updated = await dbService.uploadProposalAttachment(pj.id, newAttachment);
+                                      setProjects(updated);
+                                      setSelectedAttachmentId(newAttachment.id);
+                                      setUploadingProposal(false);
+                                      alert(`企画書「${file.name}」を追加しました！`);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  } catch (err) {
+                                    setUploadingProposal(false);
+                                    alert('ファイルの追加に失敗しました');
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <h4 style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                                添付ファイル一覧（{pj.proposalAttachments.length} 件）
+                              </h4>
+                              <span style={{ fontSize: 12, color: '#64748b' }}>クリックしてプレビューやダウンロードが可能です</span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {pj.proposalAttachments.map((att) => {
+                                const isSelected = (selectedAttachmentId || pj.proposalAttachments![0].id) === att.id;
+                                return (
+                                  <div
+                                    key={att.id}
+                                    onClick={() => setSelectedAttachmentId(att.id)}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: 12,
+                                      padding: '12px 16px',
+                                      borderRadius: 12,
+                                      border: isSelected ? '2px solid #ea580c' : '1px solid #e2e8f0',
+                                      backgroundColor: isSelected ? '#fff7ed' : '#f8fafc',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                                      <div
+                                        style={{
+                                          width: 38,
+                                          height: 38,
+                                          borderRadius: 8,
+                                          backgroundColor: att.type === 'pdf' ? '#fee2e2' : '#e0e7ff',
+                                          color: att.type === 'pdf' ? '#dc2626' : '#4338ca',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontWeight: 900,
+                                          fontSize: 11,
+                                          flexShrink: 0
+                                        }}
+                                      >
+                                        {att.type.toUpperCase()}
+                                      </div>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {att.name}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 10, marginTop: 2 }}>
+                                          <span>{(att.size / 1024 / 1024).toFixed(1)} MB</span>
+                                          <span>追加者: {att.uploadedBy}</span>
+                                          <span>{att.uploadedAt}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                      {att.dataUrl && (
+                                        <a
+                                          href={att.dataUrl}
+                                          download={att.name}
+                                          onClick={(e) => e.stopPropagation()}
+                                          style={{
+                                            padding: '6px 10px',
+                                            borderRadius: 6,
+                                            border: '1px solid #cbd5e1',
+                                            backgroundColor: '#fff',
+                                            color: '#475569',
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            textDecoration: 'none'
+                                          }}
+                                        >
+                                          <Download size={13} />
+                                          保存
+                                        </a>
+                                      )}
+                                      <button
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (!confirm(`企画書「${att.name}」を削除しますか？`)) return;
+                                          const updated = await dbService.deleteProposalAttachment(pj.id, att.id);
+                                          setProjects(updated);
+                                          if (selectedAttachmentId === att.id) {
+                                            setSelectedAttachmentId(null);
+                                          }
+                                        }}
+                                        style={{
+                                          padding: '6px 8px',
+                                          borderRadius: 6,
+                                          border: 'none',
+                                          backgroundColor: 'transparent',
+                                          color: '#94a3b8',
+                                          cursor: 'pointer'
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {(() => {
+                              const activeAtt = pj.proposalAttachments.find((a) => a.id === (selectedAttachmentId || pj.proposalAttachments![0].id)) || pj.proposalAttachments[0];
+                              if (!activeAtt) return null;
+
+                              return (
+                                <div style={{ marginTop: 12, backgroundColor: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: 14, padding: 18 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <Eye size={16} color="#ea580c" />
+                                      <h5 style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                                        {activeAtt.name} のプレビュー
+                                      </h5>
+                                    </div>
+                                    {activeAtt.dataUrl && (
+                                      <a
+                                        href={activeAtt.dataUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ fontSize: 12, color: '#0284c7', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                                      >
+                                        <ExternalLink size={13} />
+                                        別タブで開く
+                                      </a>
+                                    )}
+                                  </div>
+
+                                  {activeAtt.type === 'pdf' && activeAtt.dataUrl ? (
+                                    <div style={{ width: '100%', height: 500, borderRadius: 10, overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+                                      <iframe
+                                        src={activeAtt.dataUrl}
+                                        title={activeAtt.name}
+                                        style={{ width: '100%', height: '100%', border: 'none' }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div style={{ padding: '40px 20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: 10, border: '1px dashed #cbd5e1' }}>
+                                      <FileText size={40} color="#0284c7" style={{ margin: '0 auto 8px' }} />
+                                      <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+                                        {activeAtt.name}
+                                      </h4>
+                                      <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+                                        このファイル形式はブラウザ上での直接インラインプレビューに対応していません。ダウンロードして内容をご確認ください。
+                                      </p>
+                                      {activeAtt.dataUrl && (
+                                        <a
+                                          href={activeAtt.dataUrl}
+                                          download={activeAtt.name}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            padding: '8px 16px',
+                                            borderRadius: 8,
+                                            backgroundColor: '#0284c7',
+                                            color: '#fff',
+                                            fontSize: 13,
+                                            fontWeight: 800,
+                                            textDecoration: 'none'
+                                          }}
+                                        >
+                                          <Download size={15} />
+                                          ファイルをダウンロード
+                                        </a>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -6042,6 +7382,217 @@ export default function App() {
           </div>
         );
       })()}
+
+      {/* ========================================================= */}
+      {/* ✏️ 企画書編集モーダル */}
+      {/* ========================================================= */}
+      {isEditProposalModalOpen && editProposalDoc && selectedProjectId && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 110,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: 20,
+              maxWidth: 720,
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* ヘッダー */}
+            <div
+              style={{
+                backgroundColor: '#0284c7',
+                color: '#fff',
+                padding: '16px 22px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Edit3 size={20} />
+                <h3 style={{ fontSize: 17, fontWeight: 900, margin: 0 }}>
+                  企画提案書の内容を編集
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsEditProposalModalOpen(false)}
+                style={{ background: 'transparent', color: '#fff', border: 'none', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* 編集フォーム */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const updated = await dbService.updateProposalDoc(selectedProjectId, editProposalDoc);
+                setProjects(updated);
+                setIsEditProposalModalOpen(false);
+                alert('企画書を更新しました！');
+              }}
+              style={{
+                padding: '20px 24px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16
+              }}
+            >
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                  企画タイトル
+                </label>
+                <input
+                  type="text"
+                  value={editProposalDoc.title}
+                  onChange={(e) => setEditProposalDoc({ ...editProposalDoc, title: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                  サブタイトル（導入のご提案など）
+                </label>
+                <input
+                  type="text"
+                  value={editProposalDoc.subtitle || ''}
+                  onChange={(e) => setEditProposalDoc({ ...editProposalDoc, subtitle: e.target.value })}
+                  placeholder="例: 「布巾・台拭き 3ボックス方式」導入のご提案"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                    提出先
+                  </label>
+                  <input
+                    type="text"
+                    value={editProposalDoc.recipient || ''}
+                    onChange={(e) => setEditProposalDoc({ ...editProposalDoc, recipient: e.target.value })}
+                    placeholder="例: 西松地所株式会社 様 / 寮母・管理スタッフの皆様"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                    提出日
+                  </label>
+                  <input
+                    type="text"
+                    value={editProposalDoc.submissionDate || ''}
+                    onChange={(e) => setEditProposalDoc({ ...editProposalDoc, submissionDate: e.target.value })}
+                    placeholder="例: 2026年10月"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                  1. 企画の趣旨・背景
+                </label>
+                <textarea
+                  value={editProposalDoc.purpose}
+                  onChange={(e) => setEditProposalDoc({ ...editProposalDoc, purpose: e.target.value })}
+                  rows={4}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, lineHeight: 1.6, boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                  2. 生じている課題（寮生側）※改行で箇条書き
+                </label>
+                <textarea
+                  value={(editProposalDoc.problems || []).join('\n')}
+                  onChange={(e) => setEditProposalDoc({
+                    ...editProposalDoc,
+                    problems: e.target.value.split('\n').filter((l) => l.trim().length > 0)
+                  })}
+                  rows={4}
+                  placeholder="1行に1つの課題を入力してください"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, lineHeight: 1.6, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                  3. 提案内容の概要
+                </label>
+                <textarea
+                  value={editProposalDoc.proposalOverview || ''}
+                  onChange={(e) => setEditProposalDoc({ ...editProposalDoc, proposalOverview: e.target.value })}
+                  rows={3}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, lineHeight: 1.6, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                  5. 合計概算費用
+                </label>
+                <input
+                  type="text"
+                  value={editProposalDoc.totalBudget || editProposalDoc.budget || ''}
+                  onChange={(e) => setEditProposalDoc({ ...editProposalDoc, totalBudget: e.target.value, budget: e.target.value })}
+                  placeholder="例: 約 7,000 円 〜 10,000 円"
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
+                  まとめ・お願い
+                </label>
+                <textarea
+                  value={editProposalDoc.summary || ''}
+                  onChange={(e) => setEditProposalDoc({ ...editProposalDoc, summary: e.target.value })}
+                  rows={3}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, lineHeight: 1.6, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditProposalModalOpen(false)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 700 }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: '#0284c7', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 900 }}
+                >
+                  企画書を保存
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
