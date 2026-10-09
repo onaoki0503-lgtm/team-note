@@ -119,7 +119,7 @@ const getDeterministicJitter = (id: string) => {
   return { dX, dY, rot, radius };
 };
 
-// 掲示板ゾーンスロットの安全座標定義 重なり合わないようゾーンごとに離隔
+// 掲示板スロットの安全座標定義 重なり合わないよう画面外周に分散配置
 interface BoardSlotZone {
   top: string;
   left?: string;
@@ -128,24 +128,75 @@ interface BoardSlotZone {
   baseRotate: number;
 }
 
-const BOARD_ZONES: BoardSlotZone[] = [
-  { top: '12%', left: '4%', baseRotate: -1.5 },
-  { top: '14%', right: '5%', baseRotate: 1.8 },
-  { top: '26%', left: '2%', baseRotate: 0.9 },
-  { top: '27%', right: '3%', baseRotate: -1.2 },
-  { top: '41%', left: '3%', baseRotate: -0.8 },
-  { top: '43%', right: '4%', baseRotate: 1.4 },
-  { top: '8%', left: '48%', transform: 'translateX(-50%)', baseRotate: -0.3 },
-  { top: '59%', left: '5%', baseRotate: 1.1 },
-  { top: '61%', right: '5%', baseRotate: -0.9 },
-  { top: '68%', left: '52%', transform: 'translateX(-50%)', baseRotate: 0.6 }
+// 中央ボタンを避けた36箇所の安全座標スロット群
+const BOARD_SLOTS: BoardSlotZone[] = [
+  // 1〜10 上部と中段上と左右
+  { top: '10%', left: '4%', baseRotate: -1.5 },
+  { top: '11%', right: '5%', baseRotate: 1.8 },
+  { top: '7%', left: '50%', transform: 'translateX(-50%)', baseRotate: -0.4 },
+  { top: '18%', left: '2%', baseRotate: 1.2 },
+  { top: '19%', right: '3%', baseRotate: -1.4 },
+  { top: '17%', left: '52%', transform: 'translateX(-50%)', baseRotate: 0.8 },
+  { top: '26%', left: '3%', baseRotate: -1.0 },
+  { top: '27%', right: '4%', baseRotate: 1.5 },
+  { top: '35%', left: '2%', baseRotate: 1.6 },
+  { top: '36%', right: '3%', baseRotate: -1.8 },
+
+  // 11〜20 中段下と左右と下部
+  { top: '44%', left: '3%', baseRotate: -0.7 },
+  { top: '45%', right: '2%', baseRotate: 1.1 },
+  { top: '53%', left: '2%', baseRotate: 1.3 },
+  { top: '54%', right: '4%', baseRotate: -1.5 },
+  { top: '62%', left: '4%', baseRotate: -1.2 },
+  { top: '63%', right: '3%', baseRotate: 1.4 },
+  { top: '70%', left: '6%', baseRotate: 0.9 },
+  { top: '71%', right: '5%', baseRotate: -1.1 },
+  { top: '67%', left: '50%', transform: 'translateX(-50%)', baseRotate: -0.6 },
+  { top: '74%', left: '48%', transform: 'translateX(-50%)', baseRotate: 0.7 },
+
+  // 21〜30 斜めコーナーと隙間ポケット
+  { top: '13%', left: '26%', baseRotate: -1.1 },
+  { top: '14%', right: '25%', baseRotate: 1.3 },
+  { top: '22%', left: '22%', baseRotate: 0.6 },
+  { top: '23%', right: '22%', baseRotate: -0.9 },
+  { top: '58%', left: '20%', baseRotate: -1.4 },
+  { top: '59%', right: '21%', baseRotate: 1.2 },
+  { top: '66%', left: '24%', baseRotate: 0.8 },
+  { top: '67%', right: '25%', baseRotate: -0.7 },
+  { top: '30%', left: '16%', baseRotate: -1.3 },
+  { top: '31%', right: '15%', baseRotate: 1.0 },
+
+  // 31〜36 さらなる分散ポケット
+  { top: '49%', left: '17%', baseRotate: 0.9 },
+  { top: '50%', right: '16%', baseRotate: -1.2 },
+  { top: '9%', left: '15%', baseRotate: 1.4 },
+  { top: '9%', right: '16%', baseRotate: -1.3 },
+  { top: '75%', left: '18%', baseRotate: -0.8 },
+  { top: '75%', right: '16%', baseRotate: 1.1 }
 ];
 
-// 件数に応じた動的スケール計算 スペースに応じて小さく自動調整
+// 何個でも重ならずに配置するための動的スロット計算関数
+const getBoardSlot = (index: number): BoardSlotZone => {
+  const baseSlot = BOARD_SLOTS[index % BOARD_SLOTS.length];
+  const round = Math.floor(index / BOARD_SLOTS.length);
+  if (round === 0) {
+    return baseSlot;
+  }
+  // スロット数を上回る件数の場合 周回ごとにオフセットを微細付与
+  const jitterX = ((round * 7) % 15) - 7;
+  const jitterY = ((round * 5) % 13) - 6;
+  return {
+    ...baseSlot,
+    transform: baseSlot.transform
+      ? `${baseSlot.transform} translate(${jitterX}px, ${jitterY}px)`
+      : `translate(${jitterX}px, ${jitterY}px)`
+  };
+};
+
+// 件数に応じた動的スケール計算 件数が増えるほど自動でコンパクトに縮小
 const getScaleConfig = (count: number) => {
   if (count <= 2) {
     return {
-      scale: 1,
       fontSize: 13,
       padding: '10px 14px',
       maxWidth: 220,
@@ -157,7 +208,6 @@ const getScaleConfig = (count: number) => {
   }
   if (count <= 4) {
     return {
-      scale: 0.92,
       fontSize: 12,
       padding: '8px 12px',
       maxWidth: 185,
@@ -169,7 +219,6 @@ const getScaleConfig = (count: number) => {
   }
   if (count <= 6) {
     return {
-      scale: 0.84,
       fontSize: 11,
       padding: '6px 10px',
       maxWidth: 155,
@@ -179,16 +228,48 @@ const getScaleConfig = (count: number) => {
       gap: 3
     };
   }
-  // 7件以上
+  if (count <= 9) {
+    return {
+      fontSize: 10,
+      padding: '5px 8px',
+      maxWidth: 135,
+      heartSize: 10,
+      likesFontSize: 9,
+      authorFontSize: 9,
+      gap: 3
+    };
+  }
+  if (count <= 14) {
+    return {
+      fontSize: 9.5,
+      padding: '4px 7px',
+      maxWidth: 118,
+      heartSize: 9.5,
+      likesFontSize: 8.5,
+      authorFontSize: 8.5,
+      gap: 2
+    };
+  }
+  if (count <= 19) {
+    return {
+      fontSize: 8.5,
+      padding: '3px 6px',
+      maxWidth: 102,
+      heartSize: 9,
+      likesFontSize: 8,
+      authorFontSize: 8,
+      gap: 2
+    };
+  }
+  // 20件以上
   return {
-    scale: 0.76,
-    fontSize: 10,
-    padding: '5px 8px',
-    maxWidth: 138,
-    heartSize: 10,
-    likesFontSize: 9,
-    authorFontSize: 9,
-    gap: 3
+    fontSize: 8,
+    padding: '3px 5px',
+    maxWidth: 90,
+    heartSize: 8,
+    likesFontSize: 7.5,
+    authorFontSize: 7.5,
+    gap: 1.5
   };
 };
 
@@ -395,16 +476,6 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
   const [commentInput, setCommentInput] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [activeCycleOffset, setActiveCycleOffset] = useState(0);
-
-  // 吹き出しのゆっくり交代 通常9秒
-  useEffect(() => {
-    if (isPaused || ideas.length <= BOARD_ZONES.length) return;
-    const interval = setInterval(() => {
-      setActiveCycleOffset((prev) => (prev + 1) % Math.max(ideas.length, 1));
-    }, 9000);
-    return () => clearInterval(interval);
-  }, [isPaused, ideas.length]);
 
   // 送信ハンドラー
   const handleSendComment = () => {
@@ -424,26 +495,8 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
     setCommentInput('');
   };
 
-  // 表示する吹き出しの選定 不規則掲示板レイアウト
-  // 最大ゾーン数まで同時に並べて表示
-  const maxZones = BOARD_ZONES.length;
-  const latestNewIdea = ideas.find((i) => i.isNew);
-
-  let displayedIdeas: IdeaItem[] = [];
-
-  if (ideas.length <= maxZones) {
-    displayedIdeas = ideas;
-  } else {
-    // ゾーン数を超える場合は新着優先＋サイクルで巡回
-    if (latestNewIdea) {
-      const restIdeas = ideas.filter((i) => i.id !== latestNewIdea.id);
-      const sliced = restIdeas.slice(0, maxZones - 1);
-      displayedIdeas = [latestNewIdea, ...sliced];
-    } else {
-      const rotated = [...ideas.slice(activeCycleOffset), ...ideas.slice(0, activeCycleOffset)];
-      displayedIdeas = rotated.slice(0, maxZones);
-    }
-  }
+  // 全てのアイデアを切り捨てずに同時に表示 何個でも出現可能
+  const displayedIdeas = ideas;
 
   // 件数に応じたスケール構成を取得
   const scaleConfig = getScaleConfig(displayedIdeas.length);
@@ -466,9 +519,9 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
         zIndex: 10
       }}
     >
-      {/* 掲示板ゾーンに不規則に散らばる吹き出し群 */}
+      {/* 掲示板ゾーンに不規則に散らばる吹き出し群 何個でも同時に表示 */}
       {displayedIdeas.map((idea, index) => {
-        const zone = BOARD_ZONES[index % BOARD_ZONES.length];
+        const zone = getBoardSlot(index);
         return (
           <SingleBubble
             key={idea.id}
