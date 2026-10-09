@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Heart } from 'lucide-react';
+import { Send, Heart, Trash2 } from 'lucide-react';
 
 export interface IdeaItem {
   id: string;
@@ -25,7 +25,24 @@ interface IdeaBubbleProps {
   onPauseChange: (paused: boolean) => void;
   onAddNewIdea: (text: string) => void;
   onToggleLike: (ideaId: string) => void;
+  onDeleteIdea: (ideaId: string) => void;
 }
+
+// 文章が成立しているかの判定関数
+export const checkIdeaSentenceValidity = (text: string): { valid: boolean; reason?: string } => {
+  const trimmed = text.trim();
+  if (trimmed.length < 4) {
+    return { valid: false, reason: '4文字以上の文章でつぶやいてください' };
+  }
+  if (/^(.)\1+$/.test(trimmed)) {
+    return { valid: false, reason: '意味の通る文章でつぶやいてください' };
+  }
+  const meaningfulChars = trimmed.replace(/[\s.,!?;:・…~〜！？。、]/g, '');
+  if (meaningfulChars.length < 3) {
+    return { valid: false, reason: '文章として伝わるアイデアをつぶやいてください' };
+  }
+  return { valid: true };
+};
 
 // 文字がタイピングのように出現するコンポーネント
 interface TypingTextProps {
@@ -80,7 +97,9 @@ interface SingleBubbleProps {
   idea: IdeaItem;
   position: 'top-left' | 'top-right' | 'top-center';
   currentUserId: string;
+  currentUserName?: string;
   onLike: (id: string) => void;
+  onDelete: (id: string) => void;
   onClick: (idea: IdeaItem) => void;
 }
 
@@ -88,13 +107,20 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
   idea,
   position,
   currentUserId,
+  currentUserName,
   onLike,
+  onDelete,
   onClick
 }) => {
   const [justLiked, setJustLiked] = useState(false);
 
   const isLikedByMe = idea.likedUserIds?.includes(currentUserId);
   const likesCount = idea.likes || 0;
+
+  // 企画を打ち込んだ人のみ削除可能
+  const isAuthor =
+    Boolean(currentUserId && idea.authorId === currentUserId) ||
+    Boolean(currentUserName && idea.authorName === currentUserName);
 
   // 枠線の色設定
   const borderColor =
@@ -136,6 +162,11 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
     setTimeout(() => setJustLiked(false), 400);
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(idea.id);
+  };
+
   return (
     <div
       onClick={() => onClick(idea)}
@@ -170,7 +201,7 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
         <TypingBubbleText text={idea.text} isNew={idea.isNew} />
       </div>
 
-      {/* いいねボタンと投稿者情報行 */}
+      {/* いいねボタンと投稿者情報・削除ボタン行 */}
       <div
         style={{
           display: 'flex',
@@ -180,13 +211,35 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
           marginTop: 2
         }}
       >
-        {idea.authorName ? (
-          <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>
-            {idea.authorName}
-          </span>
-        ) : (
-          <span />
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {idea.authorName && (
+            <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>
+              {idea.authorName}
+            </span>
+          )}
+          {/* 投稿者本人のみ削除ボタンを表示 */}
+          {isAuthor && (
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: '#9CA3AF',
+                cursor: 'pointer',
+                padding: '2px',
+                minHeight: 'auto',
+                transition: 'color 0.15s ease'
+              }}
+              title="つぶやきを削除"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+        </div>
 
         {/* いいねボタン */}
         <button
@@ -225,14 +278,18 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
 export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
   ideas,
   currentUserId,
+  currentUserName,
   onOpenIdeaInputWithText,
   onSelectProject,
   isPaused,
   onAddNewIdea,
-  onToggleLike
+  onToggleLike,
+  onDeleteIdea
 }) => {
   // ホーム画面下のコメント入力ステート
   const [commentInput, setCommentInput] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [activeCycleIndex, setActiveCycleIndex] = useState(0);
 
   // 吹き出しのゆっくり交代 通常8秒
@@ -248,6 +305,16 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
   const handleSendComment = () => {
     const trimmed = commentInput.trim();
     if (!trimmed) return;
+
+    // 文章になっていないもののチェック
+    const check = checkIdeaSentenceValidity(trimmed);
+    if (!check.valid) {
+      setErrorMessage(check.reason || '文章として伝わるアイデアをつぶやいてください');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    setErrorMessage('');
     onAddNewIdea(trimmed);
     setCommentInput('');
   };
@@ -292,7 +359,9 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
           idea={leftIdea}
           position="top-left"
           currentUserId={currentUserId}
+          currentUserName={currentUserName}
           onLike={onToggleLike}
+          onDelete={onDeleteIdea}
           onClick={handleBubbleClick}
         />
       )}
@@ -304,12 +373,14 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
           idea={rightIdea}
           position="top-right"
           currentUserId={currentUserId}
+          currentUserName={currentUserName}
           onLike={onToggleLike}
+          onDelete={onDeleteIdea}
           onClick={handleBubbleClick}
         />
       )}
 
-      {/* 下部のコメント入力欄 ここにアイデアを書く */}
+      {/* 下部のコメント入力欄 アイデアをつぶやく */}
       <div
         style={{
           position: 'absolute',
@@ -318,62 +389,91 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
           transform: 'translateX(-50%)',
           width: '88%',
           maxWidth: 360,
-          backgroundColor: '#FFFFFF',
-          border: '1.5px solid #A876F5',
-          borderRadius: 24,
-          padding: '6px 8px 6px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 6px 20px rgba(168, 118, 245, 0.16)',
           pointerEvents: 'auto',
-          zIndex: 25
+          zIndex: 25,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 6
         }}
       >
-        <input
-          type="text"
-          value={commentInput}
-          onChange={(e) => setCommentInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              handleSendComment();
-            }
-          }}
-          placeholder="ここにアイデアを書く"
+        {/* エラー案内メッセージ */}
+        {errorMessage && (
+          <div
+            style={{
+              backgroundColor: '#B92F3D',
+              color: '#FFFFFF',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '4px 12px',
+              borderRadius: 14,
+              boxShadow: '0 2px 8px rgba(185, 47, 61, 0.3)'
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
+        <div
           style={{
-            border: 'none',
-            outline: 'none',
-            backgroundColor: 'transparent',
-            fontSize: 14,
-            fontWeight: 600,
-            color: '#171A21',
             width: '100%',
-            padding: '4px 0'
-          }}
-        />
-        <button
-          type="button"
-          onClick={handleSendComment}
-          disabled={!commentInput.trim()}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            backgroundColor: commentInput.trim() ? '#A876F5' : '#F7F8FA',
-            color: commentInput.trim() ? '#FFFFFF' : '#A876F5',
+            backgroundColor: '#FFFFFF',
+            border: '1.5px solid #A876F5',
+            borderRadius: 24,
+            padding: '6px 8px 6px 18px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            border: 'none',
-            cursor: commentInput.trim() ? 'pointer' : 'default',
-            transition: 'all 0.2s ease',
-            flexShrink: 0
+            justifyContent: 'space-between',
+            boxShadow: '0 6px 20px rgba(168, 118, 245, 0.16)'
           }}
-          title="送信"
         >
-          <Send size={15} />
-        </button>
+          <input
+            type="text"
+            value={commentInput}
+            onChange={(e) => setCommentInput(e.target.value)}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !isComposing) {
+                e.preventDefault();
+                handleSendComment();
+              }
+            }}
+            placeholder="アイデアをつぶやく"
+            style={{
+              border: 'none',
+              outline: 'none',
+              backgroundColor: 'transparent',
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#171A21',
+              width: '100%',
+              padding: '4px 0'
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleSendComment}
+            disabled={!commentInput.trim()}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              backgroundColor: commentInput.trim() ? '#A876F5' : '#F7F8FA',
+              color: commentInput.trim() ? '#FFFFFF' : '#A876F5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: 'none',
+              cursor: commentInput.trim() ? 'pointer' : 'default',
+              transition: 'all 0.2s ease',
+              flexShrink: 0
+            }}
+            title="送信"
+          >
+            <Send size={15} />
+          </button>
+        </div>
       </div>
     </div>
   );

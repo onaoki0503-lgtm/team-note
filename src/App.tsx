@@ -151,11 +151,35 @@ export default function App() {
     }
   ];
 
+  // 7日以上アクティブでないもの、および文章になっていないものの判定
+  const isIdeaActiveAndSentence = (idea: IdeaItem): boolean => {
+    const text = (idea.text || '').trim();
+    // 4文字未満は文章になっていない
+    if (text.length < 4) return false;
+    // 同一文字の繰り返し
+    if (/^(.)\1+$/.test(text)) return false;
+    // 意味のある文字が少なすぎる場合
+    const meaningfulChars = text.replace(/[\s.,!?;:・…~〜！？。、]/g, '');
+    if (meaningfulChars.length < 3) return false;
+
+    // 7日以上経過したつぶやきは自動削除 7日 = 604800000ミリ秒
+    if (idea.createdAt) {
+      const createdTime = new Date(idea.createdAt).getTime();
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      if (!isNaN(createdTime) && Date.now() - createdTime > sevenDaysMs) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const [bubbleIdeas, setBubbleIdeas] = useState<IdeaItem[]>(() => {
     try {
       const saved = localStorage.getItem('tn_db_bubble_ideas');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed: IdeaItem[] = JSON.parse(saved);
+        const valid = parsed.filter(isIdeaActiveAndSentence);
+        return valid.length > 0 ? valid : INITIAL_BUBBLE_IDEAS;
       }
     } catch {
       // ignore
@@ -163,10 +187,11 @@ export default function App() {
     return INITIAL_BUBBLE_IDEAS;
   });
 
-  // アイデア更新時のローカルストレージ保存
+  // アイデア更新時のローカルストレージ保存 自動クリーンアップも同時に実行
   useEffect(() => {
     try {
-      localStorage.setItem('tn_db_bubble_ideas', JSON.stringify(bubbleIdeas));
+      const activeOnly = bubbleIdeas.filter(isIdeaActiveAndSentence);
+      localStorage.setItem('tn_db_bubble_ideas', JSON.stringify(activeOnly));
     } catch {
       // ignore
     }
@@ -251,6 +276,11 @@ export default function App() {
         return item;
       })
     );
+  };
+
+  // 企画を打ち込んだ人のみ削除可能
+  const handleDeleteIdea = (ideaId: string) => {
+    setBubbleIdeas((prev) => prev.filter((item) => item.id !== ideaId));
   };
 
   // S04 プロジェクト作成確定ハンドラー
@@ -594,6 +624,7 @@ export default function App() {
                 }}
                 onAddNewIdea={handleAddNewIdea}
                 onToggleLike={handleToggleLike}
+                onDeleteIdea={handleDeleteIdea}
               />
             </div>
           ) : (
