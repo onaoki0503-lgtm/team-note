@@ -44,7 +44,7 @@ export default function App() {
     {
       id: 'rep-1',
       title: 'キッチンの清掃',
-      category: '清掃',
+      activityType: 'inherent',
       content: 'キッチンの床と作業台を清掃しました。特に問題はありません。',
       author: '寮生A',
       date: '2026/06/15 14:30'
@@ -52,7 +52,7 @@ export default function App() {
     {
       id: 'rep-2',
       title: '設備の点検',
-      category: '設備点検',
+      activityType: 'inherent',
       content: '共用部の照明と空調を点検しました。異常はありません。',
       author: '寮生A',
       date: '2026/06/12 09:20'
@@ -103,7 +103,7 @@ export default function App() {
             loadedReports.map((r) => ({
               id: r.id,
               title: r.title,
-              category: r.type === 'cleaning' ? '清掃' : r.type === 'facility' ? '設備点検' : '見回り',
+              activityType: (r as any).activityType || (r.type === 'cleaning' ? 'inherent' : r.type === 'facility' ? 'common' : 'inherent'),
               content: r.content,
               author: r.reporter,
               date: r.submittedAt
@@ -213,13 +213,14 @@ export default function App() {
   // 業務報告提出
   const handleSubmitReport = async (
     title: string,
-    category: string,
     content: string,
-    customDate?: string,
-    activityType?: 'inherent' | 'cooperation' | 'common',
+    customDate: string,
+    activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry',
     actionResult?: string,
     nextPlan?: string,
-    timeRange?: string
+    timeRange?: string,
+    entryUnit?: string,
+    entryPurpose?: string
   ) => {
     let dateStr = '';
     if (customDate) {
@@ -231,21 +232,22 @@ export default function App() {
     const newRep: WorkReportItem = {
       id: `rep-${Date.now()}`,
       title,
-      category,
       activityType: activityType || 'inherent',
       actionResult: actionResult || content,
       nextPlan: nextPlan || '',
       timeRange: timeRange || '',
+      entryUnit: entryUnit || '',
+      entryPurpose: entryPurpose || '',
       content,
       author: currentUser.name,
       date: dateStr
     };
     setReports([newRep, ...reports]);
     await dbService.addWorkReport({
-      type: category === '清掃' ? 'cleaning' : category === '設備点検' ? 'facility' : 'patrol',
+      type: activityType === 'trouble' ? 'noise' : activityType === 'unit_entry' ? 'facility' : 'patrol',
       title,
-      location: `${currentUser.building}棟`,
-      content,
+      location: entryUnit ? `${entryUnit}` : `${currentUser.building}棟`,
+      content: `${actionResult ? actionResult + ' ' : ''}${entryPurpose ? '目的: ' + entryPurpose + ' ' : ''}${content}`.trim(),
       status: '報告完了',
       reporter: currentUser.name
     });

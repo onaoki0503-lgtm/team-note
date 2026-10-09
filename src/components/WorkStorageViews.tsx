@@ -23,14 +23,16 @@ import type { CurrentUser } from '../lib/db';
 export interface WorkReportItem {
   id: string;
   title: string;
-  category: string;
-  activityType?: 'inherent' | 'cooperation' | 'common'; // 役職固有業務 | 役職連携業務 | 役職共通業務
-  actionResult?: string; // 起こしたアクションと結果
+  category?: string;
+  activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry'; // 役職固有業務 | 役職連携業務 | 役職共通業務 | トラブル対応 | ユニット立ち入り
+  actionResult?: string; // 起こしたアクションと結果 / 報告内容
   nextPlan?: string; // 次月の予定
   content: string;
   author: string;
   date: string;
   timeRange?: string; // 活動日時
+  entryUnit?: string; // 棟・ユニット番号 (ユニット立ち入り時)
+  entryPurpose?: string; // 立ち入り目的 (ユニット立ち入り時)
 }
 
 interface WorkStorageViewsProps {
@@ -39,21 +41,20 @@ interface WorkStorageViewsProps {
   reports: WorkReportItem[];
   onSubmitReport: (
     title: string,
-    category: string,
     content: string,
     date: string,
-    activityType?: 'inherent' | 'cooperation' | 'common',
+    activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry',
     actionResult?: string,
     nextPlan?: string,
-    timeRange?: string
+    timeRange?: string,
+    entryUnit?: string,
+    entryPurpose?: string
   ) => void;
   onOpenRoster: () => void;
   onOpenInventory: () => void;
   onOpenArchives: () => void;
 }
 
-const DEFAULT_CATEGORIES = ['見回り', '清掃', '設備点検', 'イベント', '会議・協議', '巡回指導', '緊急対応'];
-const STORAGE_KEY_CUSTOM_CATEGORIES = 'tn_custom_work_categories';
 
 export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   mode,
@@ -75,12 +76,15 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
   const [reportDate, setReportDate] = useState<string>(todayStr());
   const [reportTitle, setReportTitle] = useState('');
-  const [reportCategory, setReportCategory] = useState<string>('見回り');
-  const [activityType, setActivityType] = useState<'inherent' | 'cooperation' | 'common'>('inherent');
+  const [activityType, setActivityType] = useState<'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry'>('inherent');
   const [timeRange, setTimeRange] = useState('');
   const [actionResult, setActionResult] = useState('');
   const [nextPlan, setNextPlan] = useState('');
   const [reportContent, setReportContent] = useState('');
+
+  // ユニット立ち入り用フォームステート
+  const [reportEntryUnit, setReportEntryUnit] = useState('');
+  const [reportEntryPurpose, setReportEntryPurpose] = useState('');
 
   // 西松地所公式フォーマット用ステート
   const [showNishimatsuModal, setShowNishimatsuModal] = useState(false);
@@ -90,11 +94,11 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   const [absencePeriod, setAbsencePeriod] = useState('');
   const [absenceReason, setAbsenceReason] = useState('');
   
-  // 2. トラブル対応など報告
+  // 2. トラブル対応など報告 (公式書面での直接追記用)
   const [troubleDateTime, setTroubleDateTime] = useState('');
   const [troubleContent, setTroubleContent] = useState('');
 
-  // 3. ユニット立ち入り記録（予備キー使用）
+  // 3. ユニット立ち入り記録 (公式書面での直接追記用)
   const [entryDateTime, setEntryDateTime] = useState('');
   const [entryUnit, setEntryUnit] = useState('');
   const [entryPurpose, setEntryPurpose] = useState('');
@@ -102,41 +106,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   // 4. 学生寮について気づいたこと・要望・意見など
   const [noticeFeedback, setNoticeFeedback] = useState('');
 
-  // 分類リスト 個別追加可能
-  const [categories, setCategories] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CUSTOM_CATEGORIES);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return DEFAULT_CATEGORIES;
-  });
-
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
   const [filterPeriod, setFilterPeriod] = useState<'current_month' | 'all'>('current_month');
-
-  // 新規分類の追加ハンドラー
-  const handleAddCategory = () => {
-    const trimmed = newCategoryName.trim();
-    if (!trimmed) return;
-    if (!categories.includes(trimmed)) {
-      const updated = [...categories, trimmed];
-      setCategories(updated);
-      try {
-        localStorage.setItem(STORAGE_KEY_CUSTOM_CATEGORIES, JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-    }
-    setReportCategory(trimmed);
-    setNewCategoryName('');
-    setIsAddingCategory(false);
-  };
 
   // 送信ハンドラー
   const handleSubmit = (e: React.FormEvent) => {
@@ -146,19 +116,22 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
     const finalContent = reportContent.trim() || actionResult.trim() || reportTitle.trim();
     onSubmitReport(
       reportTitle.trim(),
-      reportCategory,
       finalContent,
       dateToSubmit,
       activityType,
       actionResult.trim(),
       nextPlan.trim(),
-      timeRange.trim()
+      timeRange.trim(),
+      reportEntryUnit.trim(),
+      reportEntryPurpose.trim()
     );
     setReportTitle('');
     setReportContent('');
     setActionResult('');
     setNextPlan('');
     setTimeRange('');
+    setReportEntryUnit('');
+    setReportEntryPurpose('');
     setReportDate(todayStr());
   };
 
@@ -302,17 +275,17 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               />
             </div>
 
-            {/* 3. 活動区分 西松地所公式区分 */}
+            {/* 3. 区分 西松地所公式区分 */}
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
-                活動区分 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
+                区分 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 6 }}>
                 <button
                   type="button"
                   onClick={() => setActivityType('inherent')}
                   style={{
-                    padding: '8px 6px',
+                    padding: '8px 4px',
                     borderRadius: 8,
                     fontSize: 12,
                     fontWeight: 700,
@@ -329,7 +302,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   type="button"
                   onClick={() => setActivityType('cooperation')}
                   style={{
-                    padding: '8px 6px',
+                    padding: '8px 4px',
                     borderRadius: 8,
                     fontSize: 12,
                     fontWeight: 700,
@@ -346,7 +319,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   type="button"
                   onClick={() => setActivityType('common')}
                   style={{
-                    padding: '8px 6px',
+                    padding: '8px 4px',
                     borderRadius: 8,
                     fontSize: 12,
                     fontWeight: 700,
@@ -360,135 +333,157 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   役職共通業務
                 </button>
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setActivityType('trouble')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: activityType === 'trouble' ? '#DC2626' : '#FEF2F2',
+                    color: activityType === 'trouble' ? '#FFFFFF' : '#DC2626',
+                    border: activityType === 'trouble' ? '1px solid #DC2626' : '1px solid #FECACA'
+                  }}
+                >
+                  トラブル対応
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityType('unit_entry')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: activityType === 'unit_entry' ? '#0284C7' : '#F0F9FF',
+                    color: activityType === 'unit_entry' ? '#FFFFFF' : '#0284C7',
+                    border: activityType === 'unit_entry' ? '1px solid #0284C7' : '1px solid #BAE6FD'
+                  }}
+                >
+                  ユニット立ち入り
+                </button>
+              </div>
+
               <span style={{ fontSize: 11, color: '#64748B', display: 'block', marginTop: 4 }}>
                 {activityType === 'inherent'
                   ? '固有: 自身の役職のメイン業務'
                   : activityType === 'cooperation'
                   ? '連携: 他役職へのサポートや協力業務'
-                  : '共通: 緊急対応、全体会議などの共通業務'}
+                  : activityType === 'common'
+                  ? '共通: 全体会議などの共通業務'
+                  : activityType === 'trouble'
+                  ? 'トラブル: 発生トラブルの経緯や一次対応'
+                  : '立ち入り: 予備キー使用によるユニット立ち入り記録'}
               </span>
             </div>
 
-            {/* 4. 分類 個別で追加可能 */}
+            {/* 活動日時 任意 */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#171A21' }}>
-                  分類 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
-                </label>
-                {!isAddingCategory && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingCategory(true)}
-                    style={{
-                      background: 'transparent',
-                      color: '#ea580c',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '2px 4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>分類を追加</span>
-                  </button>
-                )}
-              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
+                <Clock size={14} color="#64748B" />
+                <span>活動時間帯</span>
+                <span style={{ color: '#64748B', fontSize: 11 }}>任意</span>
+              </label>
+              <input
+                type="text"
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                placeholder="例: 14:00〜15:30"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #D9DEE7',
+                  fontSize: 13,
+                  outline: 'none'
+                }}
+              />
+            </div>
 
-              {/* 分類ボタン一覧 */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {categories.map((cat) => {
-                  const active = reportCategory === cat;
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setReportCategory(cat)}
-                      style={{
-                        backgroundColor: active ? '#171A21' : '#F7F8FA',
-                        color: active ? '#FFFFFF' : '#171A21',
-                        border: active ? '1px solid #171A21' : '1px solid #D9DEE7',
-                        borderRadius: 8,
-                        padding: '8px 12px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 個別の分類追加入力欄 */}
-              {isAddingCategory && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            {/* ユニット立ち入り時の追加項目 */}
+            {activityType === 'unit_entry' && (
+              <div
+                style={{
+                  backgroundColor: '#F0F9FF',
+                  border: '1px solid #BAE6FD',
+                  borderRadius: 8,
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10
+                }}
+              >
+                <div>
+                  <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#0369A1', marginBottom: 4 }}>
+                    棟・ユニット番号 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
+                  </label>
                   <input
                     type="text"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="新しい分類名を入力"
+                    value={reportEntryUnit}
+                    onChange={(e) => setReportEntryUnit(e.target.value)}
+                    placeholder="例: ローズマリー棟 302"
+                    required
                     style={{
-                      flex: 1,
+                      width: '100%',
                       padding: '8px 10px',
                       borderRadius: 6,
-                      border: '1px solid #ea580c',
-                      fontSize: 12,
+                      border: '1px solid #7DD3FC',
+                      fontSize: 13,
+                      backgroundColor: '#FFFFFF',
                       outline: 'none'
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddCategory}
-                    disabled={!newCategoryName.trim()}
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#0369A1', marginBottom: 4 }}>
+                    立ち入り目的 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={reportEntryPurpose}
+                    onChange={(e) => setReportEntryPurpose(e.target.value)}
+                    placeholder="例: 水漏れ確認・緊急立ち入り"
+                    required
                     style={{
-                      backgroundColor: newCategoryName.trim() ? '#ea580c' : '#D9DEE7',
-                      color: '#FFFFFF',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: newCategoryName.trim() ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    追加
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingCategory(false);
-                      setNewCategoryName('');
-                    }}
-                    style={{
-                      backgroundColor: '#F7F8FA',
-                      border: '1px solid #D9DEE7',
-                      color: '#596273',
+                      width: '100%',
                       padding: '8px 10px',
                       borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer'
+                      border: '1px solid #7DD3FC',
+                      fontSize: 13,
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none'
                     }}
-                  >
-                    キャンセル
-                  </button>
+                  />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* 5. 起こしたアクションと結果 */}
+            {/* 4. アクション内容 または 報告内容 */}
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
-                起こしたアクションと結果 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
+                {activityType === 'trouble'
+                  ? '報告内容'
+                  : activityType === 'unit_entry'
+                  ? '立ち入り詳細・結果'
+                  : '起こしたアクションと結果'} <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
               </label>
               <textarea
                 value={actionResult}
                 onChange={(e) => setActionResult(e.target.value)}
-                placeholder="実施したアクション、気づき、対応結果を具体的に入力"
+                placeholder={
+                  activityType === 'trouble'
+                    ? '発生したトラブルの経緯、一次対応、結果を具体的に入力'
+                    : activityType === 'unit_entry'
+                    ? '立ち入り時の状況、寮生立ち会いの有無、対応結果を入力'
+                    : '実施したアクション、気づき、対応結果を具体的に入力'
+                }
                 rows={3}
                 required
                 style={{
@@ -639,20 +634,40 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   boxShadow: '0 1px 4px rgba(23, 26, 33, 0.03)'
                 }}
               >
-                {/* 日付と分類バッジと提出済みステータス */}
+                {/* 日付と区分バッジと提出済みステータス */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span
                       style={{
-                        backgroundColor: '#F1F3F7',
-                        color: '#171A21',
+                        backgroundColor:
+                          rep.activityType === 'trouble'
+                            ? '#FEE2E2'
+                            : rep.activityType === 'unit_entry'
+                            ? '#E0F2FE'
+                            : '#F1F3F7',
+                        color:
+                          rep.activityType === 'trouble'
+                            ? '#DC2626'
+                            : rep.activityType === 'unit_entry'
+                            ? '#0284C7'
+                            : '#171A21',
                         fontSize: 11,
                         fontWeight: 800,
                         padding: '2px 8px',
                         borderRadius: 4
                       }}
                     >
-                      {rep.category}
+                      {rep.activityType === 'inherent'
+                        ? '役職固有業務'
+                        : rep.activityType === 'cooperation'
+                        ? '役職連携業務'
+                        : rep.activityType === 'common'
+                        ? '役職共通業務'
+                        : rep.activityType === 'trouble'
+                        ? 'トラブル対応'
+                        : rep.activityType === 'unit_entry'
+                        ? 'ユニット立ち入り'
+                        : rep.category || '業務'}
                     </span>
                     <strong style={{ fontSize: 14, color: '#171A21' }}>{rep.title}</strong>
                   </div>
@@ -660,6 +675,14 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     記録済み
                   </span>
                 </div>
+
+                {/* ユニット立ち入り時の棟・ユニット情報 */}
+                {rep.activityType === 'unit_entry' && (rep.entryUnit || rep.entryPurpose) && (
+                  <div style={{ fontSize: 11.5, color: '#0369A1', backgroundColor: '#F0F9FF', padding: '4px 8px', borderRadius: 4 }}>
+                    {rep.entryUnit && <span>対象: {rep.entryUnit} </span>}
+                    {rep.entryPurpose && <span>目的: {rep.entryPurpose}</span>}
+                  </div>
+                )}
 
                 {/* 業務内容 */}
                 <p style={{ fontSize: 12.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
@@ -1042,6 +1065,22 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         </tr>
                       </thead>
                       <tbody>
+                        {/* 業務報告ログから自動抽出されたトラブル対応一覧 */}
+                        {currentMonthReports
+                          .filter((r) => r.activityType === 'trouble')
+                          .map((item) => (
+                            <tr key={item.id} style={{ backgroundColor: '#FFFDFD' }}>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                                <strong>{item.date}</strong> {item.timeRange || ''}
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                                <strong style={{ color: '#DC2626', display: 'block', marginBottom: 2 }}>{item.title}</strong>
+                                <span>{item.actionResult || item.content}</span>
+                              </td>
+                            </tr>
+                          ))}
+
+                        {/* 手動追加・直接追記行 */}
                         <tr>
                           <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
                             <input
@@ -1056,7 +1095,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                             <textarea
                               value={troubleContent}
                               onChange={(e) => setTroubleContent(e.target.value)}
-                              placeholder="発生したトラブルの経緯、一次対応、結果を記入"
+                              placeholder="追加で報告するトラブルの経緯、一次対応、結果を記入"
                               rows={2}
                               style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
                             />
@@ -1083,6 +1122,25 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         </tr>
                       </thead>
                       <tbody>
+                        {/* 業務報告ログから自動抽出されたユニット立ち入り記録一覧 */}
+                        {currentMonthReports
+                          .filter((r) => r.activityType === 'unit_entry')
+                          .map((item) => (
+                            <tr key={item.id} style={{ backgroundColor: '#F0F9FF' }}>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                                <strong>{item.date}</strong> {item.timeRange || ''}
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
+                                <strong>{item.entryUnit || item.title}</strong>
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                                <strong style={{ color: '#0369A1', display: 'block', marginBottom: 2 }}>{item.entryPurpose || item.title}</strong>
+                                <span>{item.actionResult || item.content}</span>
+                              </td>
+                            </tr>
+                          ))}
+
+                        {/* 手動追加・直接追記行 */}
                         <tr>
                           <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
                             <input
@@ -1106,7 +1164,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                             <textarea
                               value={entryPurpose}
                               onChange={(e) => setEntryPurpose(e.target.value)}
-                              placeholder="立ち入り理由・立ち会いの有無など"
+                              placeholder="追加で記録する立ち入り理由・立ち会いの有無など"
                               rows={2}
                               style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
                             />
@@ -1171,38 +1229,51 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      const troubleReports = currentMonthReports.filter((r) => r.activityType === 'trouble');
+                      const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
+
+                      const troubleLines = [
+                        ...troubleReports.map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 内容: ${r.title} - ${r.actionResult || r.content}`),
+                        troubleDateTime || troubleContent ? `追加記入. 日時: ${troubleDateTime} | 内容: ${troubleContent}` : ''
+                      ].filter(Boolean);
+
+                      const entryLines = [
+                        ...unitEntryReports.map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 棟・ユニット: ${r.entryUnit || r.title} | 目的: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
+                        entryDateTime || entryUnit || entryPurpose ? `追加記入. 日時: ${entryDateTime} | 棟・ユニット: ${entryUnit} | 目的: ${entryPurpose}` : ''
+                      ].filter(Boolean);
+
                       const textLines = [
                         `西松地所株式会社 御中`,
-                        `H ヴィレッジ 役職者活動報告書 (${now.getFullYear()}年${now.getMonth() + 1}月分)`,
+                        `H ヴィレッジ 役職者活動報告書 ${now.getFullYear()}年${now.getMonth() + 1}月分`,
                         ``,
                         `【基本情報】`,
                         `役職: ${currentUser.role}`,
                         `担当フロア: ${currentUser.floor}F`,
                         `ハウス・部屋番号: ${currentUser.building}棟 ${currentUser.unit}号室`,
                         `学年: ${studentYear} | 学籍番号: ${studentId} | 氏名: ${currentUser.name}`,
-                        `不在日・期間: ${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})`,
+                        `不在日・期間: ${absencePeriod || 'なし'} 理由: ${absenceReason || 'なし'}`,
                         ``,
                         `1. 活動報告:`,
                         `■ 役職固有業務:`,
                         ...currentMonthReports
-                          .filter((r) => r.activityType === 'inherent' || (!r.activityType && r.category !== '緊急対応' && r.category !== '会議・協議'))
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                          .filter((r) => r.activityType === 'inherent')
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
                         ``,
                         `■ 役職連携業務:`,
                         ...currentMonthReports
-                          .filter((r) => r.activityType === 'cooperation' || (!r.activityType && r.category === '会議・協議'))
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                          .filter((r) => r.activityType === 'cooperation')
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
                         ``,
                         `■ 役職共通業務:`,
                         ...currentMonthReports
-                          .filter((r) => r.activityType === 'common' || (!r.activityType && r.category === '緊急対応'))
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                          .filter((r) => r.activityType === 'common')
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
                         ``,
                         `2. トラブル対応など報告:`,
-                        troubleDateTime || troubleContent ? `日時: ${troubleDateTime}\n内容: ${troubleContent}` : '該当なし',
+                        troubleLines.length > 0 ? troubleLines.join('\n') : '該当なし',
                         ``,
                         `3. ユニット立ち入り記録:`,
-                        entryDateTime || entryUnit || entryPurpose ? `日時: ${entryDateTime}\n棟・ユニット: ${entryUnit}\n目的: ${entryPurpose}` : '該当なし',
+                        entryLines.length > 0 ? entryLines.join('\n') : '該当なし',
                         ``,
                         `4. 学生寮について気づいたこと・要望・意見など:`,
                         noticeFeedback || '特になし'
@@ -1257,9 +1328,25 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     href={`mailto:nishimatsu-info@example.com?subject=${encodeURIComponent(
                       `【Hヴィレッジ役職者活動報告書】${now.getFullYear()}年${now.getMonth() + 1}月分_${currentUser.name}`
                     )}&body=${encodeURIComponent(
-                      `西松地所株式会社 ご担当者様\n\nHヴィレッジ ${currentUser.building}棟の${currentUser.name}です。\n${now.getFullYear()}年${now.getMonth() + 1}月分の役職者活動報告書を送付いたします。\n\n【役職】${currentUser.role} (担当フロア: ${currentUser.floor}F)\n【学年・学籍番号・氏名】${studentYear} / ${studentId} / ${currentUser.name}\n【不在期間】${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})\n\n【1. 活動報告】\n${currentMonthReports
-                        .map((r) => `・[${r.activityType === 'inherent' ? '固有' : r.activityType === 'cooperation' ? '連携' : '共通'}] ${r.date} ${r.title}\n  アクションと結果: ${r.actionResult || r.content}\n  次月の予定: ${r.nextPlan || '特になし'}`)
-                        .join('\n\n')}\n\n【2. トラブル対応】\n${troubleDateTime || troubleContent ? `${troubleDateTime} ${troubleContent}` : '該当なし'}\n\n【3. ユニット立ち入り記録】\n${entryDateTime || entryUnit || entryPurpose ? `${entryDateTime} ${entryUnit}: ${entryPurpose}` : '該当なし'}\n\n【4. 気づいたこと・要望・意見】\n${noticeFeedback || '特になし'}\n\nご確認のほどよろしくお願い申し上げます。`
+                      (() => {
+                        const troubleReports = currentMonthReports.filter((r) => r.activityType === 'trouble');
+                        const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
+
+                        const troubleLines = [
+                          ...troubleReports.map((r) => `・${r.date} ${r.timeRange || ''} ${r.title}: ${r.actionResult || r.content}`),
+                          troubleDateTime || troubleContent ? `・${troubleDateTime} ${troubleContent}` : ''
+                        ].filter(Boolean);
+
+                        const entryLines = [
+                          ...unitEntryReports.map((r) => `・${r.date} ${r.timeRange || ''} ${r.entryUnit || r.title}: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
+                          entryDateTime || entryUnit || entryPurpose ? `・${entryDateTime} ${entryUnit}: ${entryPurpose}` : ''
+                        ].filter(Boolean);
+
+                        return `西松地所株式会社 ご担当者様\n\nHヴィレッジ ${currentUser.building}棟の${currentUser.name}です。\n${now.getFullYear()}年${now.getMonth() + 1}月分の役職者活動報告書を送付いたします。\n\n【役職】${currentUser.role} (担当フロア: ${currentUser.floor}F)\n【学年・学籍番号・氏名】${studentYear} / ${studentId} / ${currentUser.name}\n【不在期間】${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})\n\n【1. 活動報告】\n${currentMonthReports
+                          .filter((r) => r.activityType === 'inherent' || r.activityType === 'cooperation' || r.activityType === 'common')
+                          .map((r) => `・[${r.activityType === 'inherent' ? '固有' : r.activityType === 'cooperation' ? '連携' : '共通'}] ${r.date} ${r.title}\n  アクションと結果: ${r.actionResult || r.content}\n  次月の予定: ${r.nextPlan || '特になし'}`)
+                          .join('\n\n')}\n\n【2. トラブル対応】\n${troubleLines.length > 0 ? troubleLines.join('\n') : '該当なし'}\n\n【3. ユニット立ち入り記録】\n${entryLines.length > 0 ? entryLines.join('\n') : '該当なし'}\n\n【4. 気づいたこと・要望・意見】\n${noticeFeedback || '特になし'}\n\nご確認のほどよろしくお願い申し上げます。`;
+                      })()
                     )}`}
                     style={{
                       backgroundColor: '#B92F3D',
