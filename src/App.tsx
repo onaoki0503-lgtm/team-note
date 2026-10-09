@@ -217,8 +217,6 @@ export default function App() {
     customDate: string,
     activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry',
     actionResult?: string,
-    nextPlan?: string,
-    timeRange?: string,
     entryUnit?: string,
     entryPurpose?: string
   ) => {
@@ -234,8 +232,6 @@ export default function App() {
       title,
       activityType: activityType || 'inherent',
       actionResult: actionResult || content,
-      nextPlan: nextPlan || '',
-      timeRange: timeRange || '',
       entryUnit: entryUnit || '',
       entryPurpose: entryPurpose || '',
       content,

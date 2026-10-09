@@ -26,11 +26,9 @@ export interface WorkReportItem {
   category?: string;
   activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry'; // 役職固有業務 | 役職連携業務 | 役職共通業務 | トラブル対応 | ユニット立ち入り
   actionResult?: string; // 起こしたアクションと結果 / 報告内容
-  nextPlan?: string; // 次月の予定
   content: string;
   author: string;
   date: string;
-  timeRange?: string; // 活動日時
   entryUnit?: string; // 棟・ユニット番号 (ユニット立ち入り時)
   entryPurpose?: string; // 立ち入り目的 (ユニット立ち入り時)
 }
@@ -45,8 +43,6 @@ interface WorkStorageViewsProps {
     date: string,
     activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry',
     actionResult?: string,
-    nextPlan?: string,
-    timeRange?: string,
     entryUnit?: string,
     entryPurpose?: string
   ) => void;
@@ -77,9 +73,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   const [reportDate, setReportDate] = useState<string>(todayStr());
   const [reportTitle, setReportTitle] = useState('');
   const [activityType, setActivityType] = useState<'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry'>('inherent');
-  const [timeRange, setTimeRange] = useState('');
   const [actionResult, setActionResult] = useState('');
-  const [nextPlan, setNextPlan] = useState('');
   const [reportContent, setReportContent] = useState('');
 
   // ユニット立ち入り用フォームステート
@@ -120,16 +114,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
       dateToSubmit,
       activityType,
       actionResult.trim(),
-      nextPlan.trim(),
-      timeRange.trim(),
       reportEntryUnit.trim(),
       reportEntryPurpose.trim()
     );
     setReportTitle('');
     setReportContent('');
     setActionResult('');
-    setNextPlan('');
-    setTimeRange('');
     setReportEntryUnit('');
     setReportEntryPurpose('');
     setReportDate(todayStr());
@@ -280,98 +270,40 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
                 区分 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setActivityType('inherent')}
-                  style={{
-                    padding: '8px 4px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: activityType === 'inherent' ? '#171A21' : '#F7F8FA',
-                    color: activityType === 'inherent' ? '#FFFFFF' : '#171A21',
-                    border: activityType === 'inherent' ? '1px solid #171A21' : '1px solid #D9DEE7'
-                  }}
-                >
-                  役職固有業務
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivityType('cooperation')}
-                  style={{
-                    padding: '8px 4px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: activityType === 'cooperation' ? '#171A21' : '#F7F8FA',
-                    color: activityType === 'cooperation' ? '#FFFFFF' : '#171A21',
-                    border: activityType === 'cooperation' ? '1px solid #171A21' : '1px solid #D9DEE7'
-                  }}
-                >
-                  役職連携業務
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivityType('common')}
-                  style={{
-                    padding: '8px 4px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: activityType === 'common' ? '#171A21' : '#F7F8FA',
-                    color: activityType === 'common' ? '#FFFFFF' : '#171A21',
-                    border: activityType === 'common' ? '1px solid #171A21' : '1px solid #D9DEE7'
-                  }}
-                >
-                  役職共通業務
-                </button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                {[
+                  { key: 'inherent', label: '役職固有業務' },
+                  { key: 'cooperation', label: '役職連携業務' },
+                  { key: 'common', label: '役職共通業務' },
+                  { key: 'trouble', label: 'トラブル対応' },
+                  { key: 'unit_entry', label: 'ユニット立ち入り' }
+                ].map((item) => {
+                  const isSelected = activityType === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setActivityType(item.key as any)}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? '#171A21' : '#F7F8FA',
+                        color: isSelected ? '#FFFFFF' : '#171A21',
+                        border: isSelected ? '1px solid #171A21' : '1px solid #D9DEE7',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setActivityType('trouble')}
-                  style={{
-                    padding: '8px 6px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: activityType === 'trouble' ? '#DC2626' : '#FEF2F2',
-                    color: activityType === 'trouble' ? '#FFFFFF' : '#DC2626',
-                    border: activityType === 'trouble' ? '1px solid #DC2626' : '1px solid #FECACA'
-                  }}
-                >
-                  トラブル対応
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActivityType('unit_entry')}
-                  style={{
-                    padding: '8px 6px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: activityType === 'unit_entry' ? '#0284C7' : '#F0F9FF',
-                    color: activityType === 'unit_entry' ? '#FFFFFF' : '#0284C7',
-                    border: activityType === 'unit_entry' ? '1px solid #0284C7' : '1px solid #BAE6FD'
-                  }}
-                >
-                  ユニット立ち入り
-                </button>
-              </div>
-
-              <span style={{ fontSize: 11, color: '#64748B', display: 'block', marginTop: 4 }}>
+              <span style={{ fontSize: 11, color: '#64748B', display: 'block', marginTop: 6 }}>
                 {activityType === 'inherent'
                   ? '固有: 自身の役職のメイン業務'
                   : activityType === 'cooperation'
@@ -382,29 +314,6 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   ? 'トラブル: 発生トラブルの経緯や一次対応'
                   : '立ち入り: 予備キー使用によるユニット立ち入り記録'}
               </span>
-            </div>
-
-            {/* 活動日時 任意 */}
-            <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
-                <Clock size={14} color="#64748B" />
-                <span>活動時間帯</span>
-                <span style={{ color: '#64748B', fontSize: 11 }}>任意</span>
-              </label>
-              <input
-                type="text"
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                placeholder="例: 14:00〜15:30"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #D9DEE7',
-                  fontSize: 13,
-                  outline: 'none'
-                }}
-              />
             </div>
 
             {/* ユニット立ち入り時の追加項目 */}
@@ -495,27 +404,6 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   lineHeight: 1.6,
                   outline: 'none',
                   resize: 'vertical'
-                }}
-              />
-            </div>
-
-            {/* 6. 次月の予定 任意 */}
-            <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
-                次月の予定 <span style={{ color: '#64748B', fontSize: 11 }}>任意</span>
-              </label>
-              <input
-                type="text"
-                value={nextPlan}
-                onChange={(e) => setNextPlan(e.target.value)}
-                placeholder="次月に継続して行う予定や改善アクション"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #D9DEE7',
-                  fontSize: 13,
-                  outline: 'none'
                 }}
               />
             </div>
@@ -925,10 +813,9 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
                       <thead>
                         <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #334155' }}>
-                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '100px', textAlign: 'center' }}>項目</th>
-                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '90px', textAlign: 'center' }}>活動日時</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '110px', textAlign: 'center' }}>項目</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '90px', textAlign: 'center' }}>日付</th>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>起こしたアクションと結果</th>
-                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '140px', textAlign: 'left' }}>次月の予定</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -941,7 +828,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
                                   役職固有業務
                                 </th>
-                                <td colSpan={3} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
+                                <td colSpan={2} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
                                   該当なし
                                 </td>
                               </tr>
@@ -958,14 +845,11 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 </th>
                               )}
                               <td style={{ padding: '6px 8px', border: '1px solid #334155', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                                {item.date} {item.timeRange || ''}
+                                {item.date}
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
                                 <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
                                 <span>{item.actionResult || item.content}</span>
-                              </td>
-                              <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#475569' }}>
-                                {item.nextPlan || '特になし'}
                               </td>
                             </tr>
                           ));
@@ -980,7 +864,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
                                   役職連携業務
                                 </th>
-                                <td colSpan={3} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
+                                <td colSpan={2} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
                                   該当なし
                                 </td>
                               </tr>
@@ -997,14 +881,11 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 </th>
                               )}
                               <td style={{ padding: '6px 8px', border: '1px solid #334155', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                                {item.date} {item.timeRange || ''}
+                                {item.date}
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
                                 <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
                                 <span>{item.actionResult || item.content}</span>
-                              </td>
-                              <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#475569' }}>
-                                {item.nextPlan || '特になし'}
                               </td>
                             </tr>
                           ));
@@ -1019,7 +900,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
                                   役職共通業務
                                 </th>
-                                <td colSpan={3} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
+                                <td colSpan={2} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
                                   該当なし
                                 </td>
                               </tr>
@@ -1036,14 +917,11 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 </th>
                               )}
                               <td style={{ padding: '6px 8px', border: '1px solid #334155', whiteSpace: 'nowrap', textAlign: 'center' }}>
-                                {item.date} {item.timeRange || ''}
+                                {item.date}
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
                                 <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
                                 <span>{item.actionResult || item.content}</span>
-                              </td>
-                              <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#475569' }}>
-                                {item.nextPlan || '特になし'}
                               </td>
                             </tr>
                           ));
@@ -1060,7 +938,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
                       <thead>
                         <tr style={{ backgroundColor: '#F1F5F9' }}>
-                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '150px', textAlign: 'left' }}>日時</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '120px', textAlign: 'left' }}>日時</th>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>報告内容</th>
                         </tr>
                       </thead>
@@ -1071,7 +949,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                           .map((item) => (
                             <tr key={item.id} style={{ backgroundColor: '#FFFDFD' }}>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
-                                <strong>{item.date}</strong> {item.timeRange || ''}
+                                <strong>{item.date}</strong>
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
                                 <strong style={{ color: '#DC2626', display: 'block', marginBottom: 2 }}>{item.title}</strong>
@@ -1087,7 +965,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               type="text"
                               value={troubleDateTime}
                               onChange={(e) => setTroubleDateTime(e.target.value)}
-                              placeholder="例: 10月3日 21:00"
+                              placeholder="例: 10月3日"
                               style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
                             />
                           </td>
@@ -1128,7 +1006,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                           .map((item) => (
                             <tr key={item.id} style={{ backgroundColor: '#F0F9FF' }}>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
-                                <strong>{item.date}</strong> {item.timeRange || ''}
+                                <strong>{item.date}</strong>
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
                                 <strong>{item.entryUnit || item.title}</strong>
@@ -1147,7 +1025,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               type="text"
                               value={entryDateTime}
                               onChange={(e) => setEntryDateTime(e.target.value)}
-                              placeholder="例: 10月8日 14:00"
+                              placeholder="例: 10月8日"
                               style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
                             />
                           </td>
@@ -1233,12 +1111,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
 
                       const troubleLines = [
-                        ...troubleReports.map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 内容: ${r.title} - ${r.actionResult || r.content}`),
+                        ...troubleReports.map((r, i) => `${i + 1}. 日時: ${r.date} | 内容: ${r.title} - ${r.actionResult || r.content}`),
                         troubleDateTime || troubleContent ? `追加記入. 日時: ${troubleDateTime} | 内容: ${troubleContent}` : ''
                       ].filter(Boolean);
 
                       const entryLines = [
-                        ...unitEntryReports.map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 棟・ユニット: ${r.entryUnit || r.title} | 目的: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
+                        ...unitEntryReports.map((r, i) => `${i + 1}. 日時: ${r.date} | 棟・ユニット: ${r.entryUnit || r.title} | 目的: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
                         entryDateTime || entryUnit || entryPurpose ? `追加記入. 日時: ${entryDateTime} | 棟・ユニット: ${entryUnit} | 目的: ${entryPurpose}` : ''
                       ].filter(Boolean);
 
@@ -1257,17 +1135,17 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         `■ 役職固有業務:`,
                         ...currentMonthReports
                           .filter((r) => r.activityType === 'inherent')
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
                         ``,
                         `■ 役職連携業務:`,
                         ...currentMonthReports
                           .filter((r) => r.activityType === 'cooperation')
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
                         ``,
                         `■ 役職共通業務:`,
                         ...currentMonthReports
                           .filter((r) => r.activityType === 'common')
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} ${r.timeRange || ''} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
                         ``,
                         `2. トラブル対応など報告:`,
                         troubleLines.length > 0 ? troubleLines.join('\n') : '該当なし',
@@ -1333,18 +1211,18 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
 
                         const troubleLines = [
-                          ...troubleReports.map((r) => `・${r.date} ${r.timeRange || ''} ${r.title}: ${r.actionResult || r.content}`),
+                          ...troubleReports.map((r) => `・${r.date} ${r.title}: ${r.actionResult || r.content}`),
                           troubleDateTime || troubleContent ? `・${troubleDateTime} ${troubleContent}` : ''
                         ].filter(Boolean);
 
                         const entryLines = [
-                          ...unitEntryReports.map((r) => `・${r.date} ${r.timeRange || ''} ${r.entryUnit || r.title}: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
+                          ...unitEntryReports.map((r) => `・${r.date} ${r.entryUnit || r.title}: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
                           entryDateTime || entryUnit || entryPurpose ? `・${entryDateTime} ${entryUnit}: ${entryPurpose}` : ''
                         ].filter(Boolean);
 
                         return `西松地所株式会社 ご担当者様\n\nHヴィレッジ ${currentUser.building}棟の${currentUser.name}です。\n${now.getFullYear()}年${now.getMonth() + 1}月分の役職者活動報告書を送付いたします。\n\n【役職】${currentUser.role} (担当フロア: ${currentUser.floor}F)\n【学年・学籍番号・氏名】${studentYear} / ${studentId} / ${currentUser.name}\n【不在期間】${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})\n\n【1. 活動報告】\n${currentMonthReports
                           .filter((r) => r.activityType === 'inherent' || r.activityType === 'cooperation' || r.activityType === 'common')
-                          .map((r) => `・[${r.activityType === 'inherent' ? '固有' : r.activityType === 'cooperation' ? '連携' : '共通'}] ${r.date} ${r.title}\n  アクションと結果: ${r.actionResult || r.content}\n  次月の予定: ${r.nextPlan || '特になし'}`)
+                          .map((r) => `・[${r.activityType === 'inherent' ? '固有' : r.activityType === 'cooperation' ? '連携' : '共通'}] ${r.date} ${r.title}\n  アクションと結果: ${r.actionResult || r.content}`)
                           .join('\n\n')}\n\n【2. トラブル対応】\n${troubleLines.length > 0 ? troubleLines.join('\n') : '該当なし'}\n\n【3. ユニット立ち入り記録】\n${entryLines.length > 0 ? entryLines.join('\n') : '該当なし'}\n\n【4. 気づいたこと・要望・意見】\n${noticeFeedback || '特になし'}\n\nご確認のほどよろしくお願い申し上げます。`;
                       })()
                     )}`}
