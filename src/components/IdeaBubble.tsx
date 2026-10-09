@@ -69,7 +69,7 @@ const TypingBubbleText: React.FC<TypingTextProps> = ({ text, isNew }) => {
         if (count >= text.length) {
           clearInterval(interval);
         }
-      }, 45);
+      }, 40);
 
       return () => clearInterval(interval);
     }, 320);
@@ -92,10 +92,84 @@ const TypingBubbleText: React.FC<TypingTextProps> = ({ text, isNew }) => {
   );
 };
 
+// 掲示板スロット配置の座標定義
+interface SlotPosition {
+  top: string;
+  left?: string;
+  right?: string;
+  transform?: string;
+  borderRadius: string;
+  rotateDeg: number;
+}
+
+const BOARD_SLOTS: SlotPosition[] = [
+  { top: '15%', left: '4%', borderRadius: '18px 18px 18px 4px', rotateDeg: -1.2 },
+  { top: '16%', right: '4%', borderRadius: '18px 18px 4px 18px', rotateDeg: 1.5 },
+  { top: '28%', left: '3%', borderRadius: '18px 18px 18px 4px', rotateDeg: 0.8 },
+  { top: '29%', right: '3%', borderRadius: '18px 18px 4px 18px', rotateDeg: -1.0 },
+  { top: '42%', left: '3%', borderRadius: '18px 18px 18px 4px', rotateDeg: -0.6 },
+  { top: '43%', right: '3%', borderRadius: '18px 18px 4px 18px', rotateDeg: 1.2 },
+  { top: '9%', left: '50%', transform: 'translateX(-50%)', borderRadius: '18px', rotateDeg: 0 },
+  { top: '60%', left: '5%', borderRadius: '18px 18px 18px 4px', rotateDeg: 1.0 },
+  { top: '61%', right: '5%', borderRadius: '18px 18px 4px 18px', rotateDeg: -0.8 }
+];
+
+// 件数に応じた動的スケール計算
+const getScaleConfig = (count: number) => {
+  if (count <= 2) {
+    return {
+      scale: 1,
+      fontSize: 13,
+      padding: '10px 14px',
+      maxWidth: 220,
+      heartSize: 13,
+      likesFontSize: 12,
+      authorFontSize: 11,
+      gap: 5
+    };
+  }
+  if (count <= 4) {
+    return {
+      scale: 0.92,
+      fontSize: 12,
+      padding: '8px 12px',
+      maxWidth: 185,
+      heartSize: 12,
+      likesFontSize: 11,
+      authorFontSize: 10,
+      gap: 4
+    };
+  }
+  if (count <= 6) {
+    return {
+      scale: 0.84,
+      fontSize: 11,
+      padding: '6px 10px',
+      maxWidth: 155,
+      heartSize: 11,
+      likesFontSize: 10,
+      authorFontSize: 9.5,
+      gap: 3
+    };
+  }
+  // 7件以上
+  return {
+    scale: 0.76,
+    fontSize: 10,
+    padding: '5px 8px',
+    maxWidth: 138,
+    heartSize: 10,
+    likesFontSize: 9,
+    authorFontSize: 9,
+    gap: 3
+  };
+};
+
 // 単一吹き出しカード
 interface SingleBubbleProps {
   idea: IdeaItem;
-  position: 'top-left' | 'top-right' | 'top-center';
+  slot: SlotPosition;
+  scaleConfig: ReturnType<typeof getScaleConfig>;
   currentUserId: string;
   currentUserName?: string;
   onLike: (id: string) => void;
@@ -105,7 +179,8 @@ interface SingleBubbleProps {
 
 const SingleBubble: React.FC<SingleBubbleProps> = ({
   idea,
-  position,
+  slot,
+  scaleConfig,
   currentUserId,
   currentUserName,
   onLike,
@@ -132,29 +207,6 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
       ? '#F5BE32'
       : '#A876F5';
 
-  // 位置ごとのスタイル
-  let posStyle: React.CSSProperties = {};
-  if (position === 'top-left') {
-    posStyle = {
-      top: '17%',
-      left: '6%',
-      borderRadius: '20px 20px 20px 4px'
-    };
-  } else if (position === 'top-right') {
-    posStyle = {
-      top: '24%',
-      right: '6%',
-      borderRadius: '20px 20px 4px 20px'
-    };
-  } else {
-    posStyle = {
-      top: '10%',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      borderRadius: '20px'
-    };
-  }
-
   const handleLikeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setJustLiked(true);
@@ -167,33 +219,43 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
     onDelete(idea.id);
   };
 
+  // transform合成
+  const baseTransform = slot.transform ? `${slot.transform} ` : '';
+  const rotateTransform = `rotate(${slot.rotateDeg}deg)`;
+  const finalTransform = `${baseTransform}${rotateTransform}`;
+
   return (
     <div
       onClick={() => onClick(idea)}
       className={idea.isNew ? 'bubble-bounce-pop' : 'bubble-appear'}
       style={{
         position: 'absolute',
-        ...posStyle,
+        top: slot.top,
+        left: slot.left,
+        right: slot.right,
+        transform: finalTransform,
+        borderRadius: slot.borderRadius,
         backgroundColor: '#FFFFFF',
         border: `1.5px solid ${borderColor}`,
-        padding: '10px 14px 10px 16px',
+        padding: scaleConfig.padding,
         color: '#171A21',
-        boxShadow: '0 4px 16px rgba(23, 26, 33, 0.09)',
+        boxShadow: '0 4px 14px rgba(23, 26, 33, 0.08)',
         pointerEvents: 'auto',
         cursor: 'pointer',
-        maxWidth: 240,
-        zIndex: idea.isNew ? 18 : 10,
+        maxWidth: scaleConfig.maxWidth,
+        zIndex: idea.isNew ? 20 : 10,
         display: 'flex',
         flexDirection: 'column',
-        gap: 6
+        gap: scaleConfig.gap,
+        transition: 'all 0.25s ease'
       }}
     >
       {/* 吹き出しテキスト */}
       <div
         style={{
-          fontSize: 13,
+          fontSize: scaleConfig.fontSize,
           fontWeight: 700,
-          lineHeight: 1.45,
+          lineHeight: 1.4,
           color: '#171A21',
           wordBreak: 'break-word'
         }}
@@ -207,13 +269,22 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 8,
-          marginTop: 2
+          gap: 6,
+          marginTop: 1
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden' }}>
           {idea.authorName && (
-            <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>
+            <span
+              style={{
+                fontSize: scaleConfig.authorFontSize,
+                color: '#9CA3AF',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
               {idea.authorName}
             </span>
           )}
@@ -230,13 +301,13 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
                 border: 'none',
                 color: '#9CA3AF',
                 cursor: 'pointer',
-                padding: '2px',
+                padding: '1px',
                 minHeight: 'auto',
-                transition: 'color 0.15s ease'
+                flexShrink: 0
               }}
               title="つぶやきを削除"
             >
-              <Trash2 size={12} />
+              <Trash2 size={scaleConfig.heartSize} />
             </button>
           )}
         </div>
@@ -249,22 +320,23 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 4,
-            padding: '3px 8px',
-            borderRadius: 14,
+            gap: 3,
+            padding: '2px 6px',
+            borderRadius: 12,
             backgroundColor: isLikedByMe ? '#FFF1F2' : '#F7F8FA',
             border: isLikedByMe ? '1px solid #FECDD3' : '1px solid #E5E7EB',
             color: isLikedByMe ? '#E11D48' : '#6B7280',
-            fontSize: 12,
+            fontSize: scaleConfig.likesFontSize,
             fontWeight: 700,
             cursor: 'pointer',
             minHeight: 'auto',
-            transition: 'all 0.15s ease'
+            transition: 'all 0.15s ease',
+            flexShrink: 0
           }}
           title="いいね"
         >
           <Heart
-            size={13}
+            size={scaleConfig.heartSize}
             fill={isLikedByMe ? '#E11D48' : 'none'}
             color={isLikedByMe ? '#E11D48' : '#6B7280'}
           />
@@ -290,14 +362,14 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
   const [commentInput, setCommentInput] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [activeCycleIndex, setActiveCycleIndex] = useState(0);
+  const [activeCycleOffset, setActiveCycleOffset] = useState(0);
 
-  // 吹き出しのゆっくり交代 通常8秒
+  // 吹き出しのゆっくり交代 通常9秒
   useEffect(() => {
-    if (isPaused || ideas.length <= 2) return;
+    if (isPaused || ideas.length <= BOARD_SLOTS.length) return;
     const interval = setInterval(() => {
-      setActiveCycleIndex((prev) => (prev + 1) % Math.max(ideas.length, 1));
-    }, 8000);
+      setActiveCycleOffset((prev) => (prev + 1) % Math.max(ideas.length, 1));
+    }, 9000);
     return () => clearInterval(interval);
   }, [isPaused, ideas.length]);
 
@@ -319,20 +391,29 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
     setCommentInput('');
   };
 
-  // 表示する吹き出しの選定
-  // 新規投稿されたアイデアがある場合はそれを最優先で表示
+  // 表示する吹き出しの選定 掲示板レイアウト
+  // 最大スロット数まで同時に並べて表示
+  const maxSlots = BOARD_SLOTS.length;
   const latestNewIdea = ideas.find((i) => i.isNew);
 
-  let leftIdea: IdeaItem | undefined;
-  let rightIdea: IdeaItem | undefined;
+  let displayedIdeas: IdeaItem[] = [];
 
-  if (latestNewIdea) {
-    leftIdea = latestNewIdea;
-    rightIdea = ideas.find((i) => i.id !== latestNewIdea.id) || ideas[0];
+  if (ideas.length <= maxSlots) {
+    displayedIdeas = ideas;
   } else {
-    leftIdea = ideas[activeCycleIndex % Math.max(ideas.length, 1)];
-    rightIdea = ideas[(activeCycleIndex + 1) % Math.max(ideas.length, 1)];
+    // スロット数を超える場合は新着優先＋サイクルで巡回
+    if (latestNewIdea) {
+      const restIdeas = ideas.filter((i) => i.id !== latestNewIdea.id);
+      const sliced = restIdeas.slice(0, maxSlots - 1);
+      displayedIdeas = [latestNewIdea, ...sliced];
+    } else {
+      const rotated = [...ideas.slice(activeCycleOffset), ...ideas.slice(0, activeCycleOffset)];
+      displayedIdeas = rotated.slice(0, maxSlots);
+    }
   }
+
+  // 件数に応じたスケール構成を取得
+  const scaleConfig = getScaleConfig(displayedIdeas.length);
 
   // 吹き出しタップ時のアクション
   const handleBubbleClick = (idea: IdeaItem) => {
@@ -352,33 +433,23 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
         zIndex: 10
       }}
     >
-      {/* 左上の吹き出し */}
-      {leftIdea && (
-        <SingleBubble
-          key={leftIdea.id}
-          idea={leftIdea}
-          position="top-left"
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-          onLike={onToggleLike}
-          onDelete={onDeleteIdea}
-          onClick={handleBubbleClick}
-        />
-      )}
-
-      {/* 右上の吹き出し */}
-      {rightIdea && rightIdea.id !== leftIdea?.id && (
-        <SingleBubble
-          key={rightIdea.id}
-          idea={rightIdea}
-          position="top-right"
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
-          onLike={onToggleLike}
-          onDelete={onDeleteIdea}
-          onClick={handleBubbleClick}
-        />
-      )}
+      {/* 掲示板スロットに並ぶ複数の吹き出し */}
+      {displayedIdeas.map((idea, index) => {
+        const slot = BOARD_SLOTS[index % BOARD_SLOTS.length];
+        return (
+          <SingleBubble
+            key={idea.id}
+            idea={idea}
+            slot={slot}
+            scaleConfig={scaleConfig}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            onLike={onToggleLike}
+            onDelete={onDeleteIdea}
+            onClick={handleBubbleClick}
+          />
+        );
+      })}
 
       {/* 下部のコメント入力欄 アイデアをつぶやく */}
       <div
