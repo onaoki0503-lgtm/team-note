@@ -24,22 +24,35 @@ export interface WorkReportItem {
   id: string;
   title: string;
   category: string;
+  activityType?: 'inherent' | 'cooperation' | 'common'; // 役職固有業務 | 役職連携業務 | 役職共通業務
+  actionResult?: string; // 起こしたアクションと結果
+  nextPlan?: string; // 次月の予定
   content: string;
   author: string;
   date: string;
+  timeRange?: string; // 活動日時
 }
 
 interface WorkStorageViewsProps {
   mode: 'work' | 'warehouse';
   currentUser: CurrentUser;
   reports: WorkReportItem[];
-  onSubmitReport: (title: string, category: string, content: string, date: string) => void;
+  onSubmitReport: (
+    title: string,
+    category: string,
+    content: string,
+    date: string,
+    activityType?: 'inherent' | 'cooperation' | 'common',
+    actionResult?: string,
+    nextPlan?: string,
+    timeRange?: string
+  ) => void;
   onOpenRoster: () => void;
   onOpenInventory: () => void;
   onOpenArchives: () => void;
 }
 
-const DEFAULT_CATEGORIES = ['見回り', '清掃', '設備点検', 'イベント'];
+const DEFAULT_CATEGORIES = ['見回り', '清掃', '設備点検', 'イベント', '会議・協議', '巡回指導', '緊急対応'];
 const STORAGE_KEY_CUSTOM_CATEGORIES = 'tn_custom_work_categories';
 
 export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
@@ -63,12 +76,31 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   const [reportDate, setReportDate] = useState<string>(todayStr());
   const [reportTitle, setReportTitle] = useState('');
   const [reportCategory, setReportCategory] = useState<string>('見回り');
+  const [activityType, setActivityType] = useState<'inherent' | 'cooperation' | 'common'>('inherent');
+  const [timeRange, setTimeRange] = useState('');
+  const [actionResult, setActionResult] = useState('');
+  const [nextPlan, setNextPlan] = useState('');
   const [reportContent, setReportContent] = useState('');
 
-  // 西松地所向けレポート作成モーダル
+  // 西松地所公式フォーマット用ステート
   const [showNishimatsuModal, setShowNishimatsuModal] = useState(false);
-  const [reportMemo, setReportMemo] = useState('');
   const [copiedNotice, setCopiedNotice] = useState(false);
+  const [studentYear, setStudentYear] = useState('3年');
+  const [studentId, setStudentId] = useState('H24-0892');
+  const [absencePeriod, setAbsencePeriod] = useState('');
+  const [absenceReason, setAbsenceReason] = useState('');
+  
+  // 2. トラブル対応など報告
+  const [troubleDateTime, setTroubleDateTime] = useState('');
+  const [troubleContent, setTroubleContent] = useState('');
+
+  // 3. ユニット立ち入り記録（予備キー使用）
+  const [entryDateTime, setEntryDateTime] = useState('');
+  const [entryUnit, setEntryUnit] = useState('');
+  const [entryPurpose, setEntryPurpose] = useState('');
+
+  // 4. 学生寮について気づいたこと・要望・意見など
+  const [noticeFeedback, setNoticeFeedback] = useState('');
 
   // 分類リスト 個別追加可能
   const [categories, setCategories] = useState<string[]>(() => {
@@ -109,11 +141,24 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   // 送信ハンドラー
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reportTitle.trim() || !reportContent.trim()) return;
+    if (!reportTitle.trim()) return;
     const dateToSubmit = reportDate || todayStr();
-    onSubmitReport(reportTitle.trim(), reportCategory, reportContent.trim(), dateToSubmit);
+    const finalContent = reportContent.trim() || actionResult.trim() || reportTitle.trim();
+    onSubmitReport(
+      reportTitle.trim(),
+      reportCategory,
+      finalContent,
+      dateToSubmit,
+      activityType,
+      actionResult.trim(),
+      nextPlan.trim(),
+      timeRange.trim()
+    );
     setReportTitle('');
     setReportContent('');
+    setActionResult('');
+    setNextPlan('');
+    setTimeRange('');
     setReportDate(todayStr());
   };
 
@@ -257,7 +302,74 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               />
             </div>
 
-            {/* 3. 分類 個別で追加可能 */}
+            {/* 3. 活動区分 西松地所公式区分 */}
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
+                活動区分 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setActivityType('inherent')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: activityType === 'inherent' ? '#171A21' : '#F7F8FA',
+                    color: activityType === 'inherent' ? '#FFFFFF' : '#171A21',
+                    border: activityType === 'inherent' ? '1px solid #171A21' : '1px solid #D9DEE7'
+                  }}
+                >
+                  役職固有業務
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityType('cooperation')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: activityType === 'cooperation' ? '#171A21' : '#F7F8FA',
+                    color: activityType === 'cooperation' ? '#FFFFFF' : '#171A21',
+                    border: activityType === 'cooperation' ? '1px solid #171A21' : '1px solid #D9DEE7'
+                  }}
+                >
+                  役職連携業務
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityType('common')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: activityType === 'common' ? '#171A21' : '#F7F8FA',
+                    color: activityType === 'common' ? '#FFFFFF' : '#171A21',
+                    border: activityType === 'common' ? '1px solid #171A21' : '1px solid #D9DEE7'
+                  }}
+                >
+                  役職共通業務
+                </button>
+              </div>
+              <span style={{ fontSize: 11, color: '#64748B', display: 'block', marginTop: 4 }}>
+                {activityType === 'inherent'
+                  ? '固有: 自身の役職のメイン業務'
+                  : activityType === 'cooperation'
+                  ? '連携: 他役職へのサポートや協力業務'
+                  : '共通: 緊急対応、全体会議などの共通業務'}
+              </span>
+            </div>
+
+            {/* 4. 分類 個別で追加可能 */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <label style={{ fontSize: 13, fontWeight: 700, color: '#171A21' }}>
@@ -368,15 +480,15 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               )}
             </div>
 
-            {/* 4. 業務内容 */}
+            {/* 5. 起こしたアクションと結果 */}
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
-                業務内容 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
+                起こしたアクションと結果 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
               </label>
               <textarea
-                value={reportContent}
-                onChange={(e) => setReportContent(e.target.value)}
-                placeholder="業務の内容を入力"
+                value={actionResult}
+                onChange={(e) => setActionResult(e.target.value)}
+                placeholder="実施したアクション、気づき、対応結果を具体的に入力"
                 rows={3}
                 required
                 style={{
@@ -392,24 +504,45 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               />
             </div>
 
+            {/* 6. 次月の予定 任意 */}
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
+                次月の予定 <span style={{ color: '#64748B', fontSize: 11 }}>任意</span>
+              </label>
+              <input
+                type="text"
+                value={nextPlan}
+                onChange={(e) => setNextPlan(e.target.value)}
+                placeholder="次月に継続して行う予定や改善アクション"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #D9DEE7',
+                  fontSize: 13,
+                  outline: 'none'
+                }}
+              />
+            </div>
+
             {/* 提出ボタン */}
             <button
               type="submit"
-              disabled={!reportTitle.trim() || !reportContent.trim()}
+              disabled={!reportTitle.trim() || !actionResult.trim()}
               style={{
                 width: '100%',
-                backgroundColor: reportTitle.trim() && reportContent.trim() ? '#B92F3D' : '#D9DEE7',
+                backgroundColor: reportTitle.trim() && actionResult.trim() ? '#B92F3D' : '#D9DEE7',
                 color: '#FFFFFF',
                 padding: '13px',
                 borderRadius: 8,
                 fontSize: 15,
                 fontWeight: 800,
-                cursor: reportTitle.trim() && reportContent.trim() ? 'pointer' : 'not-allowed',
+                cursor: reportTitle.trim() && actionResult.trim() ? 'pointer' : 'not-allowed',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
-                boxShadow: reportTitle.trim() && reportContent.trim() ? '0 4px 12px rgba(185, 47, 61, 0.25)' : 'none'
+                boxShadow: reportTitle.trim() && actionResult.trim() ? '0 4px 12px rgba(185, 47, 61, 0.25)' : 'none'
               }}
             >
               <Send size={16} />
@@ -614,166 +747,393 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <div
                 id="nishimatsu-report-print-area"
                 style={{
-                  padding: '20px',
+                  padding: '16px',
                   overflowY: 'auto',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 16,
-                  backgroundColor: '#F8FAFC'
+                  backgroundColor: '#F1F5F9'
                 }}
               >
-                {/* 公式レポート用紙風デザイン */}
+                {/* 公式報告書ペーパーデザイン */}
                 <div
                   style={{
                     backgroundColor: '#FFFFFF',
-                    border: '1px solid #CBD5E1',
-                    borderRadius: 12,
-                    padding: '20px',
+                    border: '1px solid #94A3B8',
+                    borderRadius: 8,
+                    padding: '24px 20px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 16,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+                    color: '#0F172A',
+                    fontFamily: 'sans-serif'
                   }}
                 >
-                  {/* 書面タイトル */}
-                  <div style={{ textAlign: 'center', borderBottom: '2px solid #0F172A', paddingBottom: 12 }}>
-                    <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0F172A', margin: '0 0 6px 0' }}>
-                      学生寮 H-Village 業務実績月次報告書
-                    </h2>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#475569', marginTop: 8 }}>
-                      <span>提出先 西松地所株式会社 御中</span>
-                      <span>提出日 {todayStr().replace(/-/g, '/')}</span>
+                  {/* 書面トップ: 提出期限アラートバッジ & タイトル */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0F172A', paddingBottom: 12 }}>
+                    <div>
+                      <span style={{ fontSize: 13, letterSpacing: 2, color: '#475569', display: 'block', marginBottom: 2 }}>
+                        H ヴィレッジ
+                      </span>
+                      <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0F172A', margin: 0 }}>
+                        役職者活動報告書 {now.getFullYear()}年{now.getMonth() + 1}月分
+                      </h2>
+                    </div>
+
+                    {/* 赤色 提出期限ボックス */}
+                    <div
+                      style={{
+                        backgroundColor: '#DC2626',
+                        color: '#FFFFFF',
+                        padding: '6px 10px',
+                        borderRadius: 4,
+                        fontSize: 10.5,
+                        lineHeight: 1.3,
+                        textAlign: 'center',
+                        maxWidth: 180
+                      }}
+                    >
+                      <strong style={{ display: 'block', fontSize: 11, marginBottom: 2 }}>
+                        提出期限 翌月5日
+                      </strong>
+                      <span>締切までにご提出がない場合、当月の手当は支給されません</span>
                     </div>
                   </div>
 
-                  {/* 報告者情報 */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                      gap: 8,
-                      backgroundColor: '#F1F5F9',
-                      padding: '10px 14px',
-                      borderRadius: 8,
-                      fontSize: 12
-                    }}
-                  >
-                    <div>
-                      <span style={{ color: '#64748B', display: 'block', fontSize: 11 }}>報告者</span>
-                      <strong style={{ color: '#0F172A', fontSize: 13 }}>{currentUser.name}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748B', display: 'block', fontSize: 11 }}>所属棟 / 部屋</span>
-                      <strong style={{ color: '#0F172A', fontSize: 13 }}>{currentUser.building}棟 {currentUser.unit}号室</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748B', display: 'block', fontSize: 11 }}>役職</span>
-                      <strong style={{ color: '#0F172A', fontSize: 13 }}>{currentUser.role}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748B', display: 'block', fontSize: 11 }}>当月実績件数</span>
-                      <strong style={{ color: '#0284C7', fontSize: 13 }}>{currentMonthReports.length} 件</strong>
-                    </div>
-                  </div>
-
-                  {/* 分類別集計サマリー */}
-                  <div>
-                    <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', margin: '0 0 8px 0' }}>
-                      分類別業務集計
-                    </h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {categories.map((cat) => {
-                        const count = currentMonthReports.filter((r) => r.category === cat).length;
-                        return (
-                          <div
-                            key={cat}
-                            style={{
-                              backgroundColor: count > 0 ? '#EFF6FF' : '#F8FAFC',
-                              border: count > 0 ? '1px solid #BFDBFE' : '1px solid #E2E8F0',
-                              borderRadius: 6,
-                              padding: '6px 12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              fontSize: 12
-                            }}
-                          >
-                            <span style={{ color: '#334155', fontWeight: 600 }}>{cat}</span>
-                            <span style={{ fontWeight: 800, color: count > 0 ? '#1D4ED8' : '#94A3B8' }}>
-                              {count}件
-                            </span>
+                  {/* ヘッダー基本情報テーブル */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, border: '1px solid #334155' }}>
+                    <tbody>
+                      <tr>
+                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', width: '25%', textAlign: 'left', fontWeight: 700 }}>
+                          役職 HL・OA/EA/IA・FL
+                        </th>
+                        <td style={{ padding: '6px 8px', border: '1px solid #334155', width: '25%', fontWeight: 700 }}>
+                          {currentUser.role}
+                        </td>
+                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', width: '25%', textAlign: 'left', fontWeight: 700 }}>
+                          FLのみ 担当フロア
+                        </th>
+                        <td style={{ padding: '6px 8px', border: '1px solid #334155', width: '25%' }}>
+                          {currentUser.floor}F
+                        </td>
+                      </tr>
+                      <tr>
+                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
+                          ハウス・部屋番号
+                        </th>
+                        <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                          {currentUser.building}棟 {currentUser.unit}号室
+                        </td>
+                      </tr>
+                      <tr>
+                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
+                          学年・学籍番号・氏名
+                        </th>
+                        <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ color: '#64748B' }}>学年:</span>
+                              <input
+                                type="text"
+                                value={studentYear}
+                                onChange={(e) => setStudentYear(e.target.value)}
+                                style={{ width: 50, padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ color: '#64748B' }}>学籍番号:</span>
+                              <input
+                                type="text"
+                                value={studentId}
+                                onChange={(e) => setStudentId(e.target.value)}
+                                style={{ width: 90, padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ color: '#64748B' }}>氏名:</span>
+                              <strong style={{ fontSize: 13 }}>{currentUser.name}</strong>
+                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
+                          当該月内での不在日・期間
+                        </th>
+                        <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <input
+                              type="text"
+                              value={absencePeriod}
+                              onChange={(e) => setAbsencePeriod(e.target.value)}
+                              placeholder="例: 10月10日〜10月12日"
+                              style={{ width: 170, padding: '2px 6px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ color: '#64748B' }}>理由:</span>
+                              <input
+                                type="text"
+                                value={absenceReason}
+                                onChange={(e) => setAbsenceReason(e.target.value)}
+                                placeholder="帰省、合宿など"
+                                style={{ width: 150, padding: '2px 6px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                  {/* 業務明細テーブル */}
+                  {/* 1. 活動報告 */}
                   <div>
-                    <h4 style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', margin: '0 0 8px 0' }}>
-                      日別業務実績一覧
-                    </h4>
-                    {currentMonthReports.length === 0 ? (
-                      <p style={{ fontSize: 12, color: '#94A3B8', textAlign: 'center', padding: '20px 0' }}>
-                        当月の業務実績データはありません
-                      </p>
-                    ) : (
-                      <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
-                          <thead>
-                            <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                              <th style={{ padding: '8px 10px', color: '#475569', width: '95px' }}>日付</th>
-                              <th style={{ padding: '8px 10px', color: '#475569', width: '85px' }}>分類</th>
-                              <th style={{ padding: '8px 10px', color: '#475569', width: '130px' }}>業務名</th>
-                              <th style={{ padding: '8px 10px', color: '#475569' }}>業務内容</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {currentMonthReports.map((item, idx) => (
-                              <tr
-                                key={item.id}
-                                style={{
-                                  borderBottom: idx === currentMonthReports.length - 1 ? 'none' : '1px solid #F1F5F9',
-                                  backgroundColor: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA'
-                                }}
-                              >
-                                <td style={{ padding: '8px 10px', color: '#64748B', whiteSpace: 'nowrap' }}>
-                                  {item.date}
-                                </td>
-                                <td style={{ padding: '8px 10px' }}>
-                                  <span style={{ backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
-                                    {item.category}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '8px 10px', fontWeight: 700, color: '#0F172A' }}>
-                                  {item.title}
-                                </td>
-                                <td style={{ padding: '8px 10px', color: '#334155', lineHeight: 1.4 }}>
-                                  {item.content}
+                    <div style={{ marginBottom: 6 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 2px 0' }}>
+                        1. 活動報告　<span style={{ color: '#DC2626', fontSize: 11 }}>必須</span>
+                      </h3>
+                      <div style={{ fontSize: 10.5, color: '#475569', lineHeight: 1.4, backgroundColor: '#F8FAFC', padding: '6px 8px', borderRadius: 4, border: '1px solid #E2E8F0' }}>
+                        <span>注1 項目詳細: 【固有】メイン業務 / 【連携】他役職へのサポートや協力 / 【共通】緊急対応、会議などの共通業務</span>
+                        <br />
+                        <span>注2 特に問題がなかった場合でも現状維持のために実施したことや気づきを記入してください</span>
+                      </div>
+                    </div>
+
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #334155' }}>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '100px', textAlign: 'center' }}>項目</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '90px', textAlign: 'center' }}>活動日時</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>起こしたアクションと結果</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '140px', textAlign: 'left' }}>次月の予定</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* 役職固有業務 */}
+                        {(() => {
+                          const inherentList = currentMonthReports.filter((r) => r.activityType === 'inherent' || (!r.activityType && r.category !== '緊急対応' && r.category !== '会議・協議'));
+                          if (inherentList.length === 0) {
+                            return (
+                              <tr>
+                                <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
+                                  役職固有業務
+                                </th>
+                                <td colSpan={3} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
+                                  該当なし
                                 </td>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                            );
+                          }
+                          return inherentList.map((item, idx) => (
+                            <tr key={item.id}>
+                              {idx === 0 && (
+                                <th
+                                  rowSpan={inherentList.length}
+                                  style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
+                                >
+                                  役職固有業務
+                                </th>
+                              )}
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                                {item.date} {item.timeRange || ''}
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                                <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
+                                <span>{item.actionResult || item.content}</span>
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#475569' }}>
+                                {item.nextPlan || '特になし'}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+
+                        {/* 役職連携業務 */}
+                        {(() => {
+                          const coopList = currentMonthReports.filter((r) => r.activityType === 'cooperation' || (!r.activityType && r.category === '会議・協議'));
+                          if (coopList.length === 0) {
+                            return (
+                              <tr>
+                                <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
+                                  役職連携業務
+                                </th>
+                                <td colSpan={3} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
+                                  該当なし
+                                </td>
+                              </tr>
+                            );
+                          }
+                          return coopList.map((item, idx) => (
+                            <tr key={item.id}>
+                              {idx === 0 && (
+                                <th
+                                  rowSpan={coopList.length}
+                                  style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
+                                >
+                                  役職連携業務
+                                </th>
+                              )}
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                                {item.date} {item.timeRange || ''}
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                                <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
+                                <span>{item.actionResult || item.content}</span>
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#475569' }}>
+                                {item.nextPlan || '特になし'}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+
+                        {/* 役職共通業務 */}
+                        {(() => {
+                          const commonList = currentMonthReports.filter((r) => r.activityType === 'common' || (!r.activityType && r.category === '緊急対応'));
+                          if (commonList.length === 0) {
+                            return (
+                              <tr>
+                                <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
+                                  役職共通業務
+                                </th>
+                                <td colSpan={3} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
+                                  該当なし
+                                </td>
+                              </tr>
+                            );
+                          }
+                          return commonList.map((item, idx) => (
+                            <tr key={item.id}>
+                              {idx === 0 && (
+                                <th
+                                  rowSpan={commonList.length}
+                                  style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
+                                >
+                                  役職共通業務
+                                </th>
+                              )}
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                                {item.date} {item.timeRange || ''}
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                                <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
+                                <span>{item.actionResult || item.content}</span>
+                              </td>
+                              <td style={{ padding: '6px 8px', border: '1px solid #334155', color: '#475569' }}>
+                                {item.nextPlan || '特になし'}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
 
-                  {/* 管理会社 西松地所への特記事項 連絡事項 */}
+                  {/* 2. トラブル対応など報告 */}
                   <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 6 }}>
-                      特記事項 連絡事項
-                    </label>
+                    <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 6px 0' }}>
+                      2. トラブル対応など報告
+                    </h3>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#F1F5F9' }}>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '150px', textAlign: 'left' }}>日時</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>報告内容</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
+                            <input
+                              type="text"
+                              value={troubleDateTime}
+                              onChange={(e) => setTroubleDateTime(e.target.value)}
+                              placeholder="例: 10月3日 21:00"
+                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
+                            />
+                          </td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                            <textarea
+                              value={troubleContent}
+                              onChange={(e) => setTroubleContent(e.target.value)}
+                              placeholder="発生したトラブルの経緯、一次対応、結果を記入"
+                              rows={2}
+                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
+                            />
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* 3. ユニット立ち入り記録 */}
+                  <div>
+                    <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 2px 0' }}>
+                      3. ユニット立ち入り記録
+                    </h3>
+                    <p style={{ fontSize: 10.5, color: '#DC2626', margin: '0 0 6px 0' }}>
+                      予備キーを使用しユニットに業務上または緊急対応等で立ち入った場合はここに記入してください
+                    </p>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#F1F5F9' }}>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '110px', textAlign: 'left' }}>日時</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '130px', textAlign: 'left' }}>棟・ユニット</th>
+                          <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>目的</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
+                            <input
+                              type="text"
+                              value={entryDateTime}
+                              onChange={(e) => setEntryDateTime(e.target.value)}
+                              placeholder="例: 10月8日 14:00"
+                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
+                            />
+                          </td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
+                            <input
+                              type="text"
+                              value={entryUnit}
+                              onChange={(e) => setEntryUnit(e.target.value)}
+                              placeholder="例: ローズマリー棟 302"
+                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
+                            />
+                          </td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
+                            <textarea
+                              value={entryPurpose}
+                              onChange={(e) => setEntryPurpose(e.target.value)}
+                              placeholder="立ち入り理由・立ち会いの有無など"
+                              rows={2}
+                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
+                            />
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* 4. 学生寮について気づいたこと・要望・意見など */}
+                  <div>
+                    <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 2px 0' }}>
+                      4. 学生寮について気づいたこと・要望・意見など　<span style={{ color: '#DC2626', fontSize: 11 }}>必須</span>
+                    </h3>
+                    <p style={{ fontSize: 10.5, color: '#DC2626', margin: '0 0 6px 0' }}>
+                      購入希望商品などは記入せず、役職者内の会議で議題に挙げてください
+                    </p>
                     <textarea
-                      value={reportMemo}
-                      onChange={(e) => setReportMemo(e.target.value)}
-                      placeholder="管理会社への相談、修繕要望、共有事項などがあればご記入ください"
+                      value={noticeFeedback}
+                      onChange={(e) => setNoticeFeedback(e.target.value)}
+                      placeholder="共用部の利用状況、寮生の動向、施設面の改善要望などを入力してください"
                       rows={3}
                       style={{
                         width: '100%',
                         padding: '10px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #CBD5E1',
+                        borderRadius: 6,
+                        border: '1px solid #334155',
                         fontSize: 12,
                         lineHeight: 1.5,
                         outline: 'none',
@@ -801,7 +1161,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   {copiedNotice && (
                     <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Check size={14} />
-                      <span>テキストをコピーしました</span>
+                      <span>提出テキストをコピーしました</span>
                     </span>
                   )}
                 </div>
@@ -813,20 +1173,40 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     onClick={() => {
                       const textLines = [
                         `西松地所株式会社 御中`,
-                        `学生寮 H-Village 業務実績月次報告書`,
-                        `提出月: ${now.getFullYear()}年${now.getMonth() + 1}月度`,
-                        `報告者: ${currentUser.name} (${currentUser.building}棟 ${currentUser.unit}号室 / ${currentUser.role})`,
-                        `実績件数: ${currentMonthReports.length}件`,
+                        `H ヴィレッジ 役職者活動報告書 (${now.getFullYear()}年${now.getMonth() + 1}月分)`,
                         ``,
-                        `■ 業務明細一覧:`,
-                        ...currentMonthReports.map(
-                          (r, i) => `${i + 1}. 日付: ${r.date} | 分類: ${r.category} | 業務名: ${r.title}\n   内容: ${r.content}`
-                        ),
+                        `【基本情報】`,
+                        `役職: ${currentUser.role}`,
+                        `担当フロア: ${currentUser.floor}F`,
+                        `ハウス・部屋番号: ${currentUser.building}棟 ${currentUser.unit}号室`,
+                        `学年: ${studentYear} | 学籍番号: ${studentId} | 氏名: ${currentUser.name}`,
+                        `不在日・期間: ${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})`,
                         ``,
-                        reportMemo ? `■ 特記事項・連絡事項:\n${reportMemo}` : ''
-                      ]
-                        .filter(Boolean)
-                        .join('\n');
+                        `1. 活動報告:`,
+                        `■ 役職固有業務:`,
+                        ...currentMonthReports
+                          .filter((r) => r.activityType === 'inherent' || (!r.activityType && r.category !== '緊急対応' && r.category !== '会議・協議'))
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                        ``,
+                        `■ 役職連携業務:`,
+                        ...currentMonthReports
+                          .filter((r) => r.activityType === 'cooperation' || (!r.activityType && r.category === '会議・協議'))
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                        ``,
+                        `■ 役職共通業務:`,
+                        ...currentMonthReports
+                          .filter((r) => r.activityType === 'common' || (!r.activityType && r.category === '緊急対応'))
+                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}\n   次月の予定: ${r.nextPlan || '特になし'}`),
+                        ``,
+                        `2. トラブル対応など報告:`,
+                        troubleDateTime || troubleContent ? `日時: ${troubleDateTime}\n内容: ${troubleContent}` : '該当なし',
+                        ``,
+                        `3. ユニット立ち入り記録:`,
+                        entryDateTime || entryUnit || entryPurpose ? `日時: ${entryDateTime}\n棟・ユニット: ${entryUnit}\n目的: ${entryPurpose}` : '該当なし',
+                        ``,
+                        `4. 学生寮について気づいたこと・要望・意見など:`,
+                        noticeFeedback || '特になし'
+                      ].join('\n');
                       navigator.clipboard.writeText(textLines);
                       setCopiedNotice(true);
                       setTimeout(() => setCopiedNotice(false), 3000);
@@ -875,11 +1255,11 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   {/* メールで西松地所に送信 */}
                   <a
                     href={`mailto:nishimatsu-info@example.com?subject=${encodeURIComponent(
-                      `【H-Village月次業務報告】${now.getFullYear()}年${now.getMonth() + 1}月度_${currentUser.name}`
+                      `【Hヴィレッジ役職者活動報告書】${now.getFullYear()}年${now.getMonth() + 1}月分_${currentUser.name}`
                     )}&body=${encodeURIComponent(
-                      `西松地所株式会社 ご担当者様\n\nお疲れ様です。H-Village ${currentUser.building}棟の${currentUser.name}です。\n${now.getFullYear()}年${now.getMonth() + 1}月度の業務報告書を送付いたします。\n\n【報告者】${currentUser.name} (${currentUser.building}棟 ${currentUser.unit}号室 / ${currentUser.role})\n【実績件数】${currentMonthReports.length}件\n\n【実績一覧】\n${currentMonthReports
-                        .map((r) => `・${r.date} [${r.category}] ${r.title}\n  ${r.content}`)
-                        .join('\n\n')}\n\n【特記事項】\n${reportMemo || '特になし'}\n\nご確認のほどよろしくお願い申し上げます。`
+                      `西松地所株式会社 ご担当者様\n\nHヴィレッジ ${currentUser.building}棟の${currentUser.name}です。\n${now.getFullYear()}年${now.getMonth() + 1}月分の役職者活動報告書を送付いたします。\n\n【役職】${currentUser.role} (担当フロア: ${currentUser.floor}F)\n【学年・学籍番号・氏名】${studentYear} / ${studentId} / ${currentUser.name}\n【不在期間】${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})\n\n【1. 活動報告】\n${currentMonthReports
+                        .map((r) => `・[${r.activityType === 'inherent' ? '固有' : r.activityType === 'cooperation' ? '連携' : '共通'}] ${r.date} ${r.title}\n  アクションと結果: ${r.actionResult || r.content}\n  次月の予定: ${r.nextPlan || '特になし'}`)
+                        .join('\n\n')}\n\n【2. トラブル対応】\n${troubleDateTime || troubleContent ? `${troubleDateTime} ${troubleContent}` : '該当なし'}\n\n【3. ユニット立ち入り記録】\n${entryDateTime || entryUnit || entryPurpose ? `${entryDateTime} ${entryUnit}: ${entryPurpose}` : '該当なし'}\n\n【4. 気づいたこと・要望・意見】\n${noticeFeedback || '特になし'}\n\nご確認のほどよろしくお願い申し上げます。`
                     )}`}
                     style={{
                       backgroundColor: '#B92F3D',

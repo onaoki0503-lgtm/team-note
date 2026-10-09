@@ -211,7 +211,16 @@ export default function App() {
   };
 
   // 業務報告提出
-  const handleSubmitReport = async (title: string, category: string, content: string, customDate?: string) => {
+  const handleSubmitReport = async (
+    title: string,
+    category: string,
+    content: string,
+    customDate?: string,
+    activityType?: 'inherent' | 'cooperation' | 'common',
+    actionResult?: string,
+    nextPlan?: string,
+    timeRange?: string
+  ) => {
     let dateStr = '';
     if (customDate) {
       dateStr = customDate.replace(/-/g, '/');
@@ -223,6 +232,10 @@ export default function App() {
       id: `rep-${Date.now()}`,
       title,
       category,
+      activityType: activityType || 'inherent',
+      actionResult: actionResult || content,
+      nextPlan: nextPlan || '',
+      timeRange: timeRange || '',
       content,
       author: currentUser.name,
       date: dateStr
