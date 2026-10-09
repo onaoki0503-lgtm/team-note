@@ -96,6 +96,7 @@ export interface ResidentRecord {
   roleType?: 'fl' | 'hl' | 'member' | 'hsl'
   email: string
   memo: string
+  bio?: string // 自己紹介
   projectHistory?: ProjectHistoryItem[] // これまで行ったプロジェクトの履歴
   careers?: EventRoleCareer[] // 歴代イベント役職経歴
   evaluations?: LeaderEvaluationRecord[] // 人事評価・リーダーカルテ
@@ -327,6 +328,7 @@ export interface CurrentUser {
   role: string
   roleType: 'fl' | 'hl' | 'member' | 'hsl'
   email: string
+  bio?: string
 }
 
 const STORAGE_KEYS = {
@@ -1339,6 +1341,35 @@ export const dbService = {
     }
     const currentHistory = resident.projectHistory || []
     const updatedHistory = [newItem, ...currentHistory]
+    return this.updateResident(residentId, { projectHistory: updatedHistory })
+  },
+
+  async updateProjectHistoryOfResident(
+    residentId: string,
+    historyId: string,
+    updates: Partial<ProjectHistoryItem>
+  ): Promise<ResidentRecord | null> {
+    const current = await this.getResidents()
+    const resident = current.find((r) => r.id === residentId)
+    if (!resident) return null
+
+    const currentHistory = resident.projectHistory || []
+    const updatedHistory = currentHistory.map((item) =>
+      item.id === historyId ? { ...item, ...updates } : item
+    )
+    return this.updateResident(residentId, { projectHistory: updatedHistory })
+  },
+
+  async deleteProjectHistoryFromResident(
+    residentId: string,
+    historyId: string
+  ): Promise<ResidentRecord | null> {
+    const current = await this.getResidents()
+    const resident = current.find((r) => r.id === residentId)
+    if (!resident) return null
+
+    const currentHistory = resident.projectHistory || []
+    const updatedHistory = currentHistory.filter((item) => item.id !== historyId)
     return this.updateResident(residentId, { projectHistory: updatedHistory })
   },
 

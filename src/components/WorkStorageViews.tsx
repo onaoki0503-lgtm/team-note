@@ -148,35 +148,31 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 10
+            gap: 12,
+            padding: '4px 2px'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 900, color: '#171A21', margin: 0 }}>
-                  業務報告
-                </h2>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 3,
-                    backgroundColor: '#F1F5F9',
-                    color: '#475569',
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    padding: '2px 7px',
-                    borderRadius: 4
-                  }}
-                >
-                  <Lock size={10} />
-                  <span>個人専用</span>
-                </span>
-              </div>
-              <p style={{ fontSize: 12, color: '#596273', margin: 0 }}>
-                日々の業務を即時記録。西松地所への提出レポートもワンタップで作成できます
-              </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 900, color: '#171A21', margin: 0 }}>
+                業務報告
+              </h2>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  backgroundColor: '#F1F5F9',
+                  color: '#475569',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '3px 8px',
+                  borderRadius: 6
+                }}
+              >
+                <Lock size={11} />
+                <span>個人専用</span>
+              </span>
             </div>
 
             <button
@@ -186,21 +182,25 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 backgroundColor: '#1E293B',
                 color: '#FFFFFF',
                 borderRadius: 8,
-                padding: '8px 12px',
-                fontSize: 12,
+                padding: '9px 14px',
+                fontSize: 12.5,
                 fontWeight: 800,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                boxShadow: '0 2px 6px rgba(30, 41, 59, 0.2)',
+                gap: 6,
+                boxShadow: '0 2px 6px rgba(30, 41, 59, 0.15)',
                 cursor: 'pointer',
-                whiteSpace: 'nowrap'
+                flexShrink: 0
               }}
             >
-              <FileText size={14} />
+              <FileText size={15} />
               <span>西松地所レポート作成</span>
             </button>
           </div>
+
+          <p style={{ fontSize: 13, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
+            日々の業務を即時記録。西松地所への提出レポートもワンタップで作成できます
+          </p>
         </div>
 
         {/* 業務報告入力フォーム */}

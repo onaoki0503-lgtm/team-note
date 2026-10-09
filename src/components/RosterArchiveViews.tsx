@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Users, UserPlus, ArrowLeft, ChevronRight, Download, Eye, Award, Camera } from 'lucide-react';
+import { Search, Plus, Users, UserPlus, ArrowLeft, ChevronRight, Download, Eye, Award, Camera, Edit3, Trash2 } from 'lucide-react';
 import {
   BUILDING_FLOORS_CONFIG,
   parseUnitNumber,
@@ -8,6 +8,7 @@ import {
   type ResidentRecord,
   type CurrentUser,
   type ResidentRoleKey,
+  type ProjectHistoryItem,
   DORM_ROLES_CONFIG,
   getRoleBadgeInfo
 } from '../lib/db';
@@ -66,13 +67,78 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   const [regBuilding, setRegBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
   const [regUnit, setRegUnit] = useState('105');
 
+  // プロフィール編集ステート
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editBuilding, setEditBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
+  const [editUnit, setEditUnit] = useState('');
+  const [editRole, setEditRole] = useState<ResidentRoleKey>('一般寮生');
+  const [editBio, setEditBio] = useState('');
+
   // S29 活動履歴編集ステート
   const [showAddHistoryModal, setShowAddHistoryModal] = useState(false);
+  const [editingHistoryId, setEditingHistoryId] = useState<string | null>(null);
   const [histProjectName, setHistProjectName] = useState('');
   const [histRole, setHistRole] = useState('企画・運営');
   const [histPeriod, setHistPeriod] = useState('2026.10');
   const [histStatus, setHistStatus] = useState<'進行中' | '完了'>('進行中');
   const [histSummary, setHistSummary] = useState('');
+
+  // プロフィール編集モーダルを開く
+  const openEditProfileModal = () => {
+    if (!selectedResident) return;
+    setEditName(selectedResident.name || '');
+    setEditBuilding(selectedResident.building || 'rosemary');
+    setEditUnit(selectedResident.unit || '');
+    setEditRole((selectedResident.role as ResidentRoleKey) || '一般寮生');
+    setEditBio(selectedResident.bio || '');
+    setShowEditProfileModal(true);
+  };
+
+  // プロフィール保存ハンドラー
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedResident || !onUpdateResident) return;
+    if (!editName.trim()) return;
+    await onUpdateResident(selectedResident.id, {
+      name: editName.trim(),
+      building: editBuilding,
+      unit: editUnit.trim() || selectedResident.unit,
+      role: editRole,
+      bio: editBio.trim()
+    });
+    setShowEditProfileModal(false);
+  };
+
+  // 活動履歴の新規追加モーダルを開く
+  const openAddHistoryModal = () => {
+    setEditingHistoryId(null);
+    setHistProjectName('');
+    setHistRole('企画・運営');
+    setHistPeriod('2026.10');
+    setHistStatus('進行中');
+    setHistSummary('');
+    setShowAddHistoryModal(true);
+  };
+
+  // 活動履歴の編集モーダルを開く
+  const openEditHistoryModal = (item: ProjectHistoryItem) => {
+    setEditingHistoryId(item.id);
+    setHistProjectName(item.projectTitle || '');
+    setHistRole(item.role || '');
+    setHistPeriod(item.period || '');
+    setHistStatus((item.status as any) || '進行中');
+    setHistSummary(item.summary || '');
+    setShowAddHistoryModal(true);
+  };
+
+  // 活動履歴の削除ハンドラー
+  const handleDeleteHistory = async (historyId: string) => {
+    if (!selectedResident || !onUpdateResident) return;
+    const currentHist = selectedResident.projectHistory || [];
+    const updatedHist = currentHist.filter((h) => h.id !== historyId);
+    await onUpdateResident(selectedResident.id, { projectHistory: updatedHist });
+  };
 
   // 📸 アバター変更演出ステート 画面背景維持・文字なし演出 
   const [animatingAvatar, setAnimatingAvatar] = useState<{
@@ -500,33 +566,73 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               />
             </div>
 
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#171A21', margin: 0 }}>
-                  {selectedResident.name}
-                </h3>
-                {/* 役職表示: 背景なく文字のみ */}
-                {(() => {
-                  const badgeInfo = getRoleBadgeInfo(selectedResident.role);
-                  const roleDisplay = badgeInfo.badge || selectedResident.role || '一般寮生';
-                  return (
-                    <span
-                      style={{
-                        color: badgeInfo.isLeadership ? '#ea580c' : '#596273',
-                        fontSize: 13,
-                        fontWeight: 800,
-                        letterSpacing: '0.02em'
-                      }}
-                    >
-                      {roleDisplay}
-                    </span>
-                  );
-                })()}
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: '#171A21', margin: 0 }}>
+                    {selectedResident.name}
+                  </h3>
+                  {/* 役職表示: 背景なく文字のみ */}
+                  {(() => {
+                    const badgeInfo = getRoleBadgeInfo(selectedResident.role);
+                    const roleDisplay = badgeInfo.badge || selectedResident.role || '一般寮生';
+                    return (
+                      <span
+                        style={{
+                          color: badgeInfo.isLeadership ? '#ea580c' : '#596273',
+                          fontSize: 13,
+                          fontWeight: 800,
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        {roleDisplay}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <span style={{ fontSize: 12, color: '#596273', display: 'block', marginTop: 4 }}>
+                  {selectedResident.building}棟 {selectedResident.unit}
+                </span>
               </div>
-              <span style={{ fontSize: 12, color: '#596273', display: 'block', marginTop: 4 }}>
-                {selectedResident.building}棟 {selectedResident.unit}
-              </span>
+
+              {/* プロフィール編集ボタン */}
+              <button
+                type="button"
+                onClick={openEditProfileModal}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  backgroundColor: '#F7F8FA',
+                  border: '1px solid #D9DEE7',
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#171A21',
+                  cursor: 'pointer'
+                }}
+              >
+                <Edit3 size={13} />
+                <span>プロフィールを編集</span>
+              </button>
             </div>
+          </div>
+
+          {/* 自己紹介 */}
+          <div style={{ paddingTop: 12, borderTop: '1px solid #F0F2F6' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#596273', display: 'block', marginBottom: 4 }}>
+              自己紹介
+            </span>
+            {selectedResident.bio ? (
+              <p style={{ margin: 0, fontSize: 13, color: '#171A21', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {selectedResident.bio}
+              </p>
+            ) : (
+              <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>
+                自己紹介が未設定です。プロフィールを編集から設定できます。
+              </p>
+            )}
           </div>
 
           {/* 役職の変更セレクター */}
@@ -596,47 +702,128 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             </h4>
             <button
               type="button"
-              onClick={() => setShowAddHistoryModal(true)}
+              onClick={openAddHistoryModal}
               style={{
                 backgroundColor: '#F7F8FA',
                 border: '1px solid #D9DEE7',
                 borderRadius: 6,
-                padding: '4px 10px',
+                padding: '5px 12px',
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#171A21'
+                color: '#171A21',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4
               }}
             >
-              ＋ 履歴を追加
+              <Plus size={14} />
+              <span>履歴を追加</span>
             </button>
           </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {(selectedResident.projectHistory && selectedResident.projectHistory.length > 0
-              ? selectedResident.projectHistory
-              : [
-                  { id: 'h1', projectTitle: '中庭シネマ', role: '企画・運営', period: '2026.10' },
-                  { id: 'h2', projectTitle: 'ウェルカムパーティー', role: '運営', period: '2026.04' }
-                ]
-            ).map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '8px 0',
-                  borderBottom: '1px solid #F7F8FA'
-                }}
-              >
-                <div>
-                  <strong style={{ fontSize: 14, color: '#171A21', display: 'block' }}>
-                    {item.projectTitle}
-                  </strong>
-                  <span style={{ fontSize: 12, color: '#596273' }}>{item.role}</span>
+            {selectedResident.projectHistory && selectedResident.projectHistory.length > 0 ? (
+              selectedResident.projectHistory.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    backgroundColor: '#F7F8FA',
+                    border: '1px solid #E2E6EC',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div>
+                      <strong style={{ fontSize: 14, color: '#171A21', display: 'block' }}>
+                        {item.projectTitle}
+                      </strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: '#596273', fontWeight: 600 }}>
+                          役割: {item.role || 'メンバー'}
+                        </span>
+                        {item.period && (
+                          <span style={{ fontSize: 12, color: '#596273' }}>
+                            期間: {item.period}
+                          </span>
+                        )}
+                        {item.status && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: item.status === '進行中' ? '#ea580c' : '#16a34a'
+                            }}
+                          >
+                            {item.status}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 編集・削除ボタン */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => openEditHistoryModal(item)}
+                        title="編集"
+                        style={{
+                          background: '#FFFFFF',
+                          border: '1px solid #D9DEE7',
+                          borderRadius: 6,
+                          padding: '4px 8px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: '#171A21',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3
+                        }}
+                      >
+                        <Edit3 size={12} />
+                        <span>編集</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteHistory(item.id)}
+                        title="削除"
+                        style={{
+                          background: '#FFFFFF',
+                          border: '1px solid #FCA5A5',
+                          borderRadius: 6,
+                          padding: '4px 8px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: '#B92F3D',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3
+                        }}
+                      >
+                        <Trash2 size={12} />
+                        <span>削除</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {item.summary && (
+                    <p style={{ margin: 0, fontSize: 12, color: '#4B5563', lineHeight: 1.5 }}>
+                      {item.summary}
+                    </p>
+                  )}
                 </div>
-                <span style={{ fontSize: 12, color: '#596273' }}>{item.period}</span>
+              ))
+            ) : (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+                活動履歴はまだありません。上のボタンから追加できます。
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -654,7 +841,181 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
           関係者のみ閲覧できます
         </div>
 
-        {/* S29: 活動履歴の編集モーダル */}
+        {/* プロフィール編集モーダル */}
+        {showEditProfileModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(23, 26, 33, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              zIndex: 60
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                border: '1px solid #D9DEE7',
+                maxWidth: 480,
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                padding: '24px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                  プロフィールを編集
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: '#596273',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* アイコン画像 */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                    アイコン画像
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <img
+                      src={selectedResident.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedResident.name)}`}
+                      alt="アバター"
+                      style={{ width: 50, height: 50, borderRadius: '50%', objectFit: 'cover', border: '1px solid #D9DEE7' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => avatarFileInputRef.current?.click()}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #D9DEE7',
+                        backgroundColor: '#F7F8FA',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: '#171A21',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <Camera size={14} />
+                      <span>写真を変更</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 名前 */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                    名前 <span style={{ color: '#B92F3D' }}>必須</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="例: 岡本 直樹"
+                    required
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  />
+                </div>
+
+                {/* 棟と部屋番号 */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>棟</label>
+                    <select
+                      value={editBuilding}
+                      onChange={(e) => setEditBuilding(e.target.value as any)}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                    >
+                      <option value="rosemary">rosemary棟</option>
+                      <option value="basil">basil棟</option>
+                      <option value="turmeric">turmeric棟</option>
+                      <option value="paprika">paprika棟</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>部屋番号</label>
+                    <input
+                      type="text"
+                      value={editUnit}
+                      onChange={(e) => setEditUnit(e.target.value)}
+                      placeholder="例: Unit 301 - A室"
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    />
+                  </div>
+                </div>
+
+                {/* 役職 */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>役職</label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as ResidentRoleKey)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                  >
+                    {DORM_ROLES_CONFIG.map((role) => (
+                      <option key={role.key} value={role.key}>
+                        {role.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 自己紹介 */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>自己紹介</label>
+                  <textarea
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    rows={4}
+                    placeholder="自身の専門分野、興味関心、寮生活で取り組みたいことなど"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditProfileModal(false)}
+                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8, cursor: 'pointer' }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="submit"
+                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    保存する
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 活動履歴の追加・編集モーダル */}
         {showAddHistoryModal && (
           <div
             style={{
@@ -681,31 +1042,62 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                 gap: 16
               }}
             >
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
-                活動履歴
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                  {editingHistoryId ? '活動履歴の編集' : '活動履歴を追加'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddHistoryModal(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: '#596273',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (!histProjectName.trim()) return;
-                  const newHist = {
-                    id: `ph-${Date.now()}`,
-                    projectTitle: histProjectName.trim(),
-                    role: histRole.trim() || 'メンバー',
-                    period: histPeriod.trim() || '2026.10',
-                    status: histStatus,
-                    summary: histSummary.trim()
-                  };
                   const currentHist = selectedResident.projectHistory || [];
-                  const updatedHist = [...currentHist, newHist];
+                  let updatedHist: ProjectHistoryItem[] = [];
+
+                  if (editingHistoryId) {
+                    updatedHist = currentHist.map((item) =>
+                      item.id === editingHistoryId
+                        ? {
+                            ...item,
+                            projectTitle: histProjectName.trim(),
+                            role: histRole.trim() || 'メンバー',
+                            period: histPeriod.trim() || '2026.10',
+                            status: histStatus,
+                            summary: histSummary.trim()
+                          }
+                        : item
+                    );
+                  } else {
+                    const newHist: ProjectHistoryItem = {
+                      id: `ph-${Date.now()}`,
+                      projectTitle: histProjectName.trim(),
+                      role: histRole.trim() || 'メンバー',
+                      period: histPeriod.trim() || '2026.10',
+                      status: histStatus,
+                      summary: histSummary.trim()
+                    };
+                    updatedHist = [newHist, ...currentHist];
+                  }
+
                   if (onUpdateResident) {
                     await onUpdateResident(selectedResident.id, { projectHistory: updatedHist });
                   }
                   setShowAddHistoryModal(false);
-                  setHistProjectName('');
-                  setHistRole('企画・運営');
-                  setHistPeriod('2026.10');
-                  setHistSummary('');
                 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
               >
@@ -717,7 +1109,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     type="text"
                     value={histProjectName}
                     onChange={(e) => setHistProjectName(e.target.value)}
-                    placeholder="中庭シネマ"
+                    placeholder="例: 中庭シネマ"
                     required
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
                   />
@@ -729,7 +1121,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                       type="text"
                       value={histRole}
                       onChange={(e) => setHistRole(e.target.value)}
-                      placeholder="企画・運営"
+                      placeholder="例: 企画・運営"
                       style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
                     />
                   </div>
@@ -739,7 +1131,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                       type="text"
                       value={histPeriod}
                       onChange={(e) => setHistPeriod(e.target.value)}
-                      placeholder="2026.10"
+                      placeholder="例: 2026.10"
                       style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
                     />
                   </div>
@@ -769,13 +1161,13 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowAddHistoryModal(false)}
-                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8, cursor: 'pointer' }}
                   >
                     キャンセル
                   </button>
                   <button
                     type="submit"
-                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
                   >
                     保存する
                   </button>

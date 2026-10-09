@@ -279,7 +279,12 @@ export default function App() {
           ...currentUser,
           ...updates,
           avatar: updates.avatar || currentUser.avatar,
-          role: updates.role || currentUser.role
+          name: updates.name || currentUser.name,
+          building: updates.building || currentUser.building,
+          floor: updates.floor !== undefined ? updates.floor : currentUser.floor,
+          unit: updates.unit || currentUser.unit,
+          role: updates.role || currentUser.role,
+          bio: updates.bio !== undefined ? updates.bio : currentUser.bio
         };
         setCurrentUser(updatedUser);
         dbService.setCurrentUser(updatedUser);
@@ -298,7 +303,8 @@ export default function App() {
       unit: res.unit,
       role: res.role,
       roleType: res.roleType || 'member',
-      email: res.email
+      email: res.email,
+      bio: res.bio
     };
     setCurrentUser(user);
     dbService.setCurrentUser(user);
@@ -318,7 +324,8 @@ export default function App() {
         role: currentUser.role,
         roleType: currentUser.roleType,
         email: currentUser.email,
-        memo: 'ログインユーザー'
+        memo: 'ログインユーザー',
+        bio: currentUser.bio
       }
     );
   };
