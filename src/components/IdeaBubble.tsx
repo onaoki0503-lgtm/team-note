@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Heart, Trash2 } from 'lucide-react';
+import { Send, Heart } from 'lucide-react';
 
 export interface IdeaItem {
   id: string;
@@ -278,6 +278,12 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
   onClick
 }) => {
   const [justLiked, setJustLiked] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // 長押し検知用の参照値
+  const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLongPressTriggeredRef = React.useRef(false);
+  const startPointerPosRef = React.useRef<{ x: number; y: number } | null>(null);
 
   const isLikedByMe = idea.likedUserIds?.includes(currentUserId);
   const likesCount = idea.likes || 0;
@@ -287,15 +293,19 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
     Boolean(currentUserId && idea.authorId === currentUserId) ||
     Boolean(currentUserName && idea.authorName === currentUserName);
 
-  // 枠線の色設定
-  const borderColor =
-    idea.color === 'coral'
-      ? '#FF6B68'
-      : idea.color === 'cyan'
-      ? '#12BDE8'
-      : idea.color === 'yellow'
-      ? '#F5BE32'
-      : '#A876F5';
+  // 枠線の色設定 自分のつぶやきは薄青と調和するスカイブルー
+  const borderColor = isAuthor
+    ? '#93C5FD'
+    : idea.color === 'coral'
+    ? '#FF6B68'
+    : idea.color === 'cyan'
+    ? '#12BDE8'
+    : idea.color === 'yellow'
+    ? '#F5BE32'
+    : '#A876F5';
+
+  // 背景色設定 自分のつぶやきは薄い青色 他者は清潔な白色
+  const bubbleBgColor = isAuthor ? '#EDF6FF' : '#FFFFFF';
 
   const handleLikeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -304,9 +314,56 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
     setTimeout(() => setJustLiked(false), 400);
   };
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
+  // 長押し開始ハンドラー
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isAuthor) return;
+    isLongPressTriggeredRef.current = false;
+    startPointerPosRef.current = { x: e.clientX, y: e.clientY };
+
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      setShowDeleteConfirm(true);
+    }, 500);
+  };
+
+  // 長押し解除ハンドラー
+  const handlePointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // 指が大きく動いた場合は長押しキャンセル
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!startPointerPosRef.current || !longPressTimerRef.current) return;
+    const dx = Math.abs(e.clientX - startPointerPosRef.current.x);
+    const dy = Math.abs(e.clientY - startPointerPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // 右クリック時の削除確認表示
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!isAuthor) return;
+    e.preventDefault();
     e.stopPropagation();
-    onDelete(idea.id);
+    setShowDeleteConfirm(true);
+  };
+
+  // カード全体のクリックハンドラー
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isLongPressTriggeredRef.current) {
+      e.stopPropagation();
+      isLongPressTriggeredRef.current = false;
+      return;
+    }
+    if (showDeleteConfirm) {
+      return;
+    }
+    onClick(idea);
   };
 
   // 不規則ジッターの計算 重なり合わない安全範囲内でブレを付与
@@ -322,7 +379,12 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
 
   return (
     <div
-      onClick={() => onClick(idea)}
+      onClick={handleCardClick}
+      onContextMenu={handleContextMenu}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onPointerMove={handlePointerMove}
       className={idea.isNew ? 'bubble-bounce-pop' : 'bubble-appear'}
       style={{
         position: 'absolute',
@@ -331,21 +393,25 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
         right: zone.right,
         transform: computedTransform,
         borderRadius: jitter.radius,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: bubbleBgColor,
         border: `1.5px solid ${borderColor}`,
         padding: scaleConfig.padding,
         color: '#171A21',
-        boxShadow: '0 4px 14px rgba(23, 26, 33, 0.08)',
+        boxShadow: isAuthor
+          ? '0 4px 16px rgba(59, 130, 246, 0.16)'
+          : '0 4px 14px rgba(23, 26, 33, 0.08)',
         pointerEvents: 'auto',
         cursor: 'pointer',
         width: 'max-content',
         maxWidth: scaleConfig.maxWidth,
         boxSizing: 'border-box',
-        zIndex: idea.isNew ? 20 : 10,
+        zIndex: showDeleteConfirm ? 40 : idea.isNew ? 20 : 10,
         display: 'flex',
         flexDirection: 'column',
         gap: scaleConfig.gap,
-        transition: 'all 0.25s ease'
+        transition: 'all 0.25s ease',
+        userSelect: 'none',
+        WebkitUserSelect: 'none'
       }}
     >
       {/* 吹き出しテキスト */}
@@ -361,56 +427,15 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
         <TypingBubbleText text={idea.text} isNew={idea.isNew} />
       </div>
 
-      {/* いいねボタンと投稿者情報・削除ボタン行 */}
+      {/* いいねボタンのみを表示 名前と削除ボタンは表示しない */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 6,
+          justifyContent: 'flex-end',
           marginTop: 1
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden' }}>
-          {idea.authorName && (
-            <span
-              style={{
-                fontSize: scaleConfig.authorFontSize,
-                color: '#9CA3AF',
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-            >
-              {idea.authorName}
-            </span>
-          )}
-          {/* 投稿者本人のみ削除ボタンを表示 */}
-          {isAuthor && (
-            <button
-              type="button"
-              onClick={handleDeleteClick}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: '#9CA3AF',
-                cursor: 'pointer',
-                padding: '1px',
-                minHeight: 'auto',
-                flexShrink: 0
-              }}
-              title="つぶやきを削除"
-            >
-              <Trash2 size={scaleConfig.heartSize} />
-            </button>
-          )}
-        </div>
-
-        {/* いいねボタン */}
         <button
           type="button"
           onClick={handleLikeClick}
@@ -421,8 +446,8 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
             gap: 3,
             padding: '2px 6px',
             borderRadius: 12,
-            backgroundColor: isLikedByMe ? '#FFF1F2' : '#F7F8FA',
-            border: isLikedByMe ? '1px solid #FECDD3' : '1px solid #E5E7EB',
+            backgroundColor: isLikedByMe ? '#FFF1F2' : isAuthor ? '#FFFFFF' : '#F7F8FA',
+            border: isLikedByMe ? '1px solid #FECDD3' : isAuthor ? '1px solid #BFDBFE' : '1px solid #E5E7EB',
             color: isLikedByMe ? '#E11D48' : '#6B7280',
             fontSize: scaleConfig.likesFontSize,
             fontWeight: 700,
@@ -441,6 +466,92 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
           <span>{likesCount}</span>
         </button>
       </div>
+
+      {/* 長押しか右クリックで出現する削除確認カード */}
+      {showDeleteConfirm && (
+        <>
+          {/* 枠外タップで閉じる透明オーバーレイ */}
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteConfirm(false);
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 45,
+              cursor: 'default'
+            }}
+          />
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 50,
+              backgroundColor: '#FFFFFF',
+              border: '1.5px solid #EF4444',
+              borderRadius: 12,
+              padding: '8px 12px',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.22)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+              minWidth: 124,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#171A21' }}>
+              つぶやきを削除しますか？
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteConfirm(false);
+                  onDelete(idea.id);
+                }}
+                style={{
+                  backgroundColor: '#EF4444',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                削除
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteConfirm(false);
+                }}
+                style={{
+                  backgroundColor: '#F3F4F6',
+                  color: '#4B5563',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
