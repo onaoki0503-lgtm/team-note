@@ -117,20 +117,141 @@ export default function App() {
     init();
   }, []);
 
-  // 吹き出しアイデアデータ プロジェクトから生成または初期値 
-  const bubbleIdeas: IdeaItem[] = projects.slice(0, 4).map((p, idx) => ({
-    id: p.id,
-    text: p.title,
-    color: idx % 4 === 0 ? 'coral' : idx % 4 === 1 ? 'cyan' : idx % 4 === 2 ? 'yellow' : 'violet',
-    projectId: p.id
-  }));
+  // 吹き出しアイデアの初期データ
+  const INITIAL_BUBBLE_IDEAS: IdeaItem[] = [
+    {
+      id: 'idea-init-1',
+      text: '共有キッチン 布巾の衛生改善 使い捨てロール化',
+      color: 'coral',
+      authorName: '岡本 直樹',
+      authorId: 'r1',
+      likes: 4,
+      likedUserIds: ['r2', 'r3'],
+      createdAt: '2026-10-09'
+    },
+    {
+      id: 'idea-init-2',
+      text: '4棟エントランスのオートロック改善',
+      color: 'violet',
+      authorName: '伊藤 雄吉',
+      authorId: 'r2',
+      likes: 6,
+      likedUserIds: ['r1', 'r3', 'r-oa-rosemary'],
+      createdAt: '2026-10-09'
+    },
+    {
+      id: 'idea-init-3',
+      text: '中庭で映画上映会を開きたい',
+      color: 'yellow',
+      authorName: '佐藤 健太',
+      authorId: 'r3',
+      likes: 3,
+      likedUserIds: ['r1'],
+      createdAt: '2026-10-08'
+    }
+  ];
 
-  if (bubbleIdeas.length === 0) {
-    bubbleIdeas.push(
-      { id: 'sample-1', text: '中庭で映画を観たい', color: 'coral' },
-      { id: 'sample-2', text: 'みんなで料理したい', color: 'yellow' }
+  const [bubbleIdeas, setBubbleIdeas] = useState<IdeaItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('tn_db_bubble_ideas');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_BUBBLE_IDEAS;
+  });
+
+  // アイデア更新時のローカルストレージ保存
+  useEffect(() => {
+    try {
+      localStorage.setItem('tn_db_bubble_ideas', JSON.stringify(bubbleIdeas));
+    } catch {
+      // ignore
+    }
+  }, [bubbleIdeas]);
+
+  // 新規アイデア投稿ハンドラー
+  const handleAddNewIdea = (text: string) => {
+    const colors: ('coral' | 'cyan' | 'yellow' | 'violet')[] = ['coral', 'cyan', 'yellow', 'violet'];
+    const newId = `idea-${Date.now()}`;
+    const newIdea: IdeaItem = {
+      id: newId,
+      text,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      authorName: currentUser.name,
+      authorAvatar: currentUser.avatar,
+      authorId: currentUser.id,
+      likes: 0,
+      likedUserIds: [],
+      createdAt: new Date().toISOString(),
+      isNew: true
+    };
+
+    setBubbleIdeas((prev) => [newIdea, ...prev.map((i) => ({ ...i, isNew: false }))]);
+
+    // 演出: 2.8秒後に他の寮生からのいいねが届く
+    setTimeout(() => {
+      setBubbleIdeas((prev) =>
+        prev.map((item) => {
+          if (item.id === newId) {
+            const currentLiked = item.likedUserIds || [];
+            if (!currentLiked.includes('r2')) {
+              return {
+                ...item,
+                likes: (item.likes || 0) + 1,
+                likedUserIds: [...currentLiked, 'r2']
+              };
+            }
+          }
+          return item;
+        })
+      );
+    }, 2800);
+
+    // 演出: 5.5秒後にもう1人からいいねが届く
+    setTimeout(() => {
+      setBubbleIdeas((prev) =>
+        prev.map((item) => {
+          if (item.id === newId) {
+            const currentLiked = item.likedUserIds || [];
+            if (!currentLiked.includes('r3')) {
+              return {
+                ...item,
+                likes: (item.likes || 0) + 1,
+                likedUserIds: [...currentLiked, 'r3']
+              };
+            }
+          }
+          return item;
+        })
+      );
+    }, 5500);
+  };
+
+  // いいね切り替えハンドラー
+  const handleToggleLike = (ideaId: string) => {
+    setBubbleIdeas((prev) =>
+      prev.map((item) => {
+        if (item.id === ideaId) {
+          const liked = item.likedUserIds?.includes(currentUser.id);
+          const updatedLikedUsers = liked
+            ? (item.likedUserIds || []).filter((uid) => uid !== currentUser.id)
+            : [...(item.likedUserIds || []), currentUser.id];
+          const updatedLikes = liked
+            ? Math.max((item.likes || 1) - 1, 0)
+            : (item.likes || 0) + 1;
+          return {
+            ...item,
+            likes: updatedLikes,
+            likedUserIds: updatedLikedUsers
+          };
+        }
+        return item;
+      })
     );
-  }
+  };
 
   // S04 プロジェクト作成確定ハンドラー
   const handleCreateProject = async (
@@ -456,10 +577,11 @@ export default function App() {
                 />
               </div>
 
-              {/* 吹き出しレイヤー S01通常交代 ＆ S02直接入力展開  */}
+              {/* 吹き出しレイヤー S01通常交代 ＆ S02直接入力展開 */}
               <IdeaBubbleLayer
                 ideas={bubbleIdeas}
                 currentUserId={currentUser.id}
+                currentUserName={currentUser.name}
                 isPaused={isScenePaused}
                 onPauseChange={(p) => setIsScenePaused(p)}
                 onOpenIdeaInputWithText={(text) => {
@@ -470,6 +592,8 @@ export default function App() {
                   setSelectedProjectId(pId);
                   setActiveTab('progress');
                 }}
+                onAddNewIdea={handleAddNewIdea}
+                onToggleLike={handleToggleLike}
               />
             </div>
           ) : (
