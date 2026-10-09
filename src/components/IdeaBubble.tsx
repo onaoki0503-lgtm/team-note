@@ -93,7 +93,7 @@ const TypingBubbleText: React.FC<TypingTextProps> = ({ text, isNew }) => {
 };
 
 // アイデアIDから決定論的な不規則ジッターを生成する関数
-// ランダム感を持たせつつリロードで同じ位置を保ち重なりを防ぐ
+// ランダム感を持たせつつ微小なブレにとどめて重なりを完全に防止
 const getDeterministicJitter = (id: string) => {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
@@ -102,17 +102,18 @@ const getDeterministicJitter = (id: string) => {
   }
   const abs = Math.abs(hash);
 
-  const dX = (abs % 19) - 9;
-  const dY = ((abs >> 3) % 17) - 8;
-  const rot = (((abs >> 6) % 70) / 10) - 3.5;
+  // 重なりを防ぐため微細なブレにとどめる
+  const dX = (abs % 7) - 3;
+  const dY = ((abs >> 2) % 7) - 3;
+  const rot = (((abs >> 4) % 40) / 10) - 2.0;
 
   const radiusStyles = [
-    '20px 20px 20px 4px',
-    '20px 20px 4px 20px',
-    '4px 20px 20px 20px',
-    '20px 4px 20px 20px',
-    '22px 16px 20px 18px',
-    '16px 22px 18px 20px'
+    '18px 18px 18px 4px',
+    '18px 18px 4px 18px',
+    '4px 18px 18px 18px',
+    '18px 4px 18px 18px',
+    '20px 14px 18px 16px',
+    '14px 20px 16px 18px'
   ];
   const radius = radiusStyles[abs % radiusStyles.length];
 
@@ -128,144 +129,125 @@ interface BoardSlotZone {
   baseRotate: number;
 }
 
-// 中央ボタンを避けた36箇所の安全座標スロット群
-const BOARD_SLOTS: BoardSlotZone[] = [
-  // 1〜10 上部と中段上と左右
-  { top: '10%', left: '4%', baseRotate: -1.5 },
-  { top: '11%', right: '5%', baseRotate: 1.8 },
-  { top: '7%', left: '50%', transform: 'translateX(-50%)', baseRotate: -0.4 },
-  { top: '18%', left: '2%', baseRotate: 1.2 },
-  { top: '19%', right: '3%', baseRotate: -1.4 },
-  { top: '17%', left: '52%', transform: 'translateX(-50%)', baseRotate: 0.8 },
-  { top: '26%', left: '3%', baseRotate: -1.0 },
-  { top: '27%', right: '4%', baseRotate: 1.5 },
-  { top: '35%', left: '2%', baseRotate: 1.6 },
-  { top: '36%', right: '3%', baseRotate: -1.8 },
+// 幾何学的に重なり合わない安全離隔スロット群
+// 左右レーンはY座標を十分離し、横方向は両端に固定して文字被りを完全排除
+const SAFE_BOARD_SLOTS: BoardSlotZone[] = [
+  // 1〜4 四隅 左上 右上 左下 右下
+  { top: '7%', left: '3%', baseRotate: -1.2 },
+  { top: '7%', right: '3%', baseRotate: 1.4 },
+  { top: '57%', left: '3%', baseRotate: 1.1 },
+  { top: '57%', right: '3%', baseRotate: -1.3 },
 
-  // 11〜20 中段下と左右と下部
-  { top: '44%', left: '3%', baseRotate: -0.7 },
-  { top: '45%', right: '2%', baseRotate: 1.1 },
-  { top: '53%', left: '2%', baseRotate: 1.3 },
-  { top: '54%', right: '4%', baseRotate: -1.5 },
-  { top: '62%', left: '4%', baseRotate: -1.2 },
-  { top: '63%', right: '3%', baseRotate: 1.4 },
-  { top: '70%', left: '6%', baseRotate: 0.9 },
-  { top: '71%', right: '5%', baseRotate: -1.1 },
-  { top: '67%', left: '50%', transform: 'translateX(-50%)', baseRotate: -0.6 },
-  { top: '74%', left: '48%', transform: 'translateX(-50%)', baseRotate: 0.7 },
+  // 5〜8 中段左右
+  { top: '27%', left: '3%', baseRotate: -0.9 },
+  { top: '27%', right: '3%', baseRotate: 1.2 },
+  { top: '47%', left: '3%', baseRotate: 1.3 },
+  { top: '47%', right: '3%', baseRotate: -1.0 },
 
-  // 21〜30 斜めコーナーと隙間ポケット
-  { top: '13%', left: '26%', baseRotate: -1.1 },
-  { top: '14%', right: '25%', baseRotate: 1.3 },
-  { top: '22%', left: '22%', baseRotate: 0.6 },
-  { top: '23%', right: '22%', baseRotate: -0.9 },
-  { top: '58%', left: '20%', baseRotate: -1.4 },
-  { top: '59%', right: '21%', baseRotate: 1.2 },
-  { top: '66%', left: '24%', baseRotate: 0.8 },
-  { top: '67%', right: '25%', baseRotate: -0.7 },
-  { top: '30%', left: '16%', baseRotate: -1.3 },
-  { top: '31%', right: '15%', baseRotate: 1.0 },
+  // 9〜12 上段と下段の左右追加スロット
+  { top: '17%', left: '3%', baseRotate: 0.8 },
+  { top: '17%', right: '3%', baseRotate: -1.1 },
+  { top: '67%', left: '3%', baseRotate: -1.4 },
+  { top: '67%', right: '3%', baseRotate: 0.9 },
 
-  // 31〜36 さらなる分散ポケット
-  { top: '49%', left: '17%', baseRotate: 0.9 },
-  { top: '50%', right: '16%', baseRotate: -1.2 },
-  { top: '9%', left: '15%', baseRotate: 1.4 },
-  { top: '9%', right: '16%', baseRotate: -1.3 },
-  { top: '75%', left: '18%', baseRotate: -0.8 },
-  { top: '75%', right: '16%', baseRotate: 1.1 }
+  // 13〜16 中間スロット 左中 右中 最下段左右
+  { top: '37%', left: '3%', baseRotate: 1.0 },
+  { top: '37%', right: '3%', baseRotate: -1.2 },
+  { top: '75%', left: '3%', baseRotate: 0.7 },
+  { top: '75%', right: '3%', baseRotate: -0.8 },
+
+  // 17〜18 中央ボタンの上下ポケット
+  { top: '12%', left: '50%', transform: 'translateX(-50%)', baseRotate: -0.5 },
+  { top: '64%', left: '50%', transform: 'translateX(-50%)', baseRotate: 0.6 },
+
+  // 19〜22 斜め内側ポケット 左右と干渉しないオフセット
+  { top: '13%', left: '26%', baseRotate: -1.0 },
+  { top: '13%', right: '26%', baseRotate: 1.1 },
+  { top: '72%', left: '26%', baseRotate: 0.8 },
+  { top: '72%', right: '26%', baseRotate: -0.7 }
 ];
 
-// 何個でも重ならずに配置するための動的スロット計算関数
-const getBoardSlot = (index: number): BoardSlotZone => {
-  const baseSlot = BOARD_SLOTS[index % BOARD_SLOTS.length];
-  const round = Math.floor(index / BOARD_SLOTS.length);
-  if (round === 0) {
-    return baseSlot;
+// 重なりを防止しながら何個でも配置するための動的スロット計算関数
+const getBoardSlot = (index: number, totalCount: number): BoardSlotZone => {
+  if (totalCount <= SAFE_BOARD_SLOTS.length) {
+    return SAFE_BOARD_SLOTS[index % SAFE_BOARD_SLOTS.length];
   }
-  // スロット数を上回る件数の場合 周回ごとにオフセットを微細付与
-  const jitterX = ((round * 7) % 15) - 7;
-  const jitterY = ((round * 5) % 13) - 6;
+  const slotCount = SAFE_BOARD_SLOTS.length;
+  const baseSlot = SAFE_BOARD_SLOTS[index % slotCount];
+  const round = Math.floor(index / slotCount);
+  
+  // 周回ごとに微小な安全オフセット
+  const shiftY = ((round * 3) % 7) - 3;
   return {
     ...baseSlot,
     transform: baseSlot.transform
-      ? `${baseSlot.transform} translate(${jitterX}px, ${jitterY}px)`
-      : `translate(${jitterX}px, ${jitterY}px)`
+      ? `${baseSlot.transform} translateY(${shiftY}px)`
+      : `translateY(${shiftY}px)`
   };
 };
 
-// 件数に応じた動的スケール計算 件数が増えるほど自動でコンパクトに縮小
+// 件数に応じた動的スケール計算 重なりを防ぐため最大幅を安全範囲内に設計
 const getScaleConfig = (count: number) => {
   if (count <= 2) {
     return {
-      fontSize: 13,
-      padding: '10px 14px',
-      maxWidth: 220,
-      heartSize: 13,
-      likesFontSize: 12,
-      authorFontSize: 11,
-      gap: 5
-    };
-  }
-  if (count <= 4) {
-    return {
-      fontSize: 12,
+      fontSize: 12.5,
       padding: '8px 12px',
-      maxWidth: 185,
+      maxWidth: 150,
       heartSize: 12,
       likesFontSize: 11,
       authorFontSize: 10,
       gap: 4
     };
   }
-  if (count <= 6) {
+  if (count <= 4) {
     return {
-      fontSize: 11,
-      padding: '6px 10px',
-      maxWidth: 155,
-      heartSize: 11,
-      likesFontSize: 10,
+      fontSize: 11.5,
+      padding: '7px 10px',
+      maxWidth: 135,
+      heartSize: 11.5,
+      likesFontSize: 10.5,
       authorFontSize: 9.5,
-      gap: 3
+      gap: 3.5
     };
   }
-  if (count <= 9) {
+  if (count <= 8) {
     return {
-      fontSize: 10,
-      padding: '5px 8px',
-      maxWidth: 135,
-      heartSize: 10,
-      likesFontSize: 9,
+      fontSize: 10.5,
+      padding: '6px 8px',
+      maxWidth: 120,
+      heartSize: 11,
+      likesFontSize: 10,
       authorFontSize: 9,
       gap: 3
     };
   }
-  if (count <= 14) {
+  if (count <= 12) {
     return {
       fontSize: 9.5,
-      padding: '4px 7px',
-      maxWidth: 118,
-      heartSize: 9.5,
-      likesFontSize: 8.5,
+      padding: '5px 7px',
+      maxWidth: 108,
+      heartSize: 10,
+      likesFontSize: 9,
       authorFontSize: 8.5,
-      gap: 2
+      gap: 2.5
     };
   }
-  if (count <= 19) {
+  if (count <= 18) {
     return {
       fontSize: 8.5,
-      padding: '3px 6px',
-      maxWidth: 102,
+      padding: '4px 6px',
+      maxWidth: 96,
       heartSize: 9,
       likesFontSize: 8,
       authorFontSize: 8,
       gap: 2
     };
   }
-  // 20件以上
+  // 19件以上
   return {
     fontSize: 8,
     padding: '3px 5px',
-    maxWidth: 90,
+    maxWidth: 86,
     heartSize: 8,
     likesFontSize: 7.5,
     authorFontSize: 7.5,
@@ -356,7 +338,9 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
         boxShadow: '0 4px 14px rgba(23, 26, 33, 0.08)',
         pointerEvents: 'auto',
         cursor: 'pointer',
+        width: 'max-content',
         maxWidth: scaleConfig.maxWidth,
+        boxSizing: 'border-box',
         zIndex: idea.isNew ? 20 : 10,
         display: 'flex',
         flexDirection: 'column',
@@ -519,9 +503,9 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
         zIndex: 10
       }}
     >
-      {/* 掲示板ゾーンに不規則に散らばる吹き出し群 何個でも同時に表示 */}
+      {/* 掲示板ゾーンに不規則に散らばる吹き出し群 何個でも重ならずに同時表示 */}
       {displayedIdeas.map((idea, index) => {
-        const zone = getBoardSlot(index);
+        const zone = getBoardSlot(index, displayedIdeas.length);
         return (
           <SingleBubble
             key={idea.id}
