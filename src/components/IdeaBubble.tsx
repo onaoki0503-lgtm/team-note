@@ -92,29 +92,56 @@ const TypingBubbleText: React.FC<TypingTextProps> = ({ text, isNew }) => {
   );
 };
 
-// 掲示板スロット配置の座標定義
-interface SlotPosition {
+// アイデアIDから決定論的な不規則ジッターを生成する関数
+// ランダム感を持たせつつリロードで同じ位置を保ち重なりを防ぐ
+const getDeterministicJitter = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+    hash |= 0;
+  }
+  const abs = Math.abs(hash);
+
+  const dX = (abs % 19) - 9;
+  const dY = ((abs >> 3) % 17) - 8;
+  const rot = (((abs >> 6) % 70) / 10) - 3.5;
+
+  const radiusStyles = [
+    '20px 20px 20px 4px',
+    '20px 20px 4px 20px',
+    '4px 20px 20px 20px',
+    '20px 4px 20px 20px',
+    '22px 16px 20px 18px',
+    '16px 22px 18px 20px'
+  ];
+  const radius = radiusStyles[abs % radiusStyles.length];
+
+  return { dX, dY, rot, radius };
+};
+
+// 掲示板ゾーンスロットの安全座標定義 重なり合わないようゾーンごとに離隔
+interface BoardSlotZone {
   top: string;
   left?: string;
   right?: string;
   transform?: string;
-  borderRadius: string;
-  rotateDeg: number;
+  baseRotate: number;
 }
 
-const BOARD_SLOTS: SlotPosition[] = [
-  { top: '15%', left: '4%', borderRadius: '18px 18px 18px 4px', rotateDeg: -1.2 },
-  { top: '16%', right: '4%', borderRadius: '18px 18px 4px 18px', rotateDeg: 1.5 },
-  { top: '28%', left: '3%', borderRadius: '18px 18px 18px 4px', rotateDeg: 0.8 },
-  { top: '29%', right: '3%', borderRadius: '18px 18px 4px 18px', rotateDeg: -1.0 },
-  { top: '42%', left: '3%', borderRadius: '18px 18px 18px 4px', rotateDeg: -0.6 },
-  { top: '43%', right: '3%', borderRadius: '18px 18px 4px 18px', rotateDeg: 1.2 },
-  { top: '9%', left: '50%', transform: 'translateX(-50%)', borderRadius: '18px', rotateDeg: 0 },
-  { top: '60%', left: '5%', borderRadius: '18px 18px 18px 4px', rotateDeg: 1.0 },
-  { top: '61%', right: '5%', borderRadius: '18px 18px 4px 18px', rotateDeg: -0.8 }
+const BOARD_ZONES: BoardSlotZone[] = [
+  { top: '12%', left: '4%', baseRotate: -1.5 },
+  { top: '14%', right: '5%', baseRotate: 1.8 },
+  { top: '26%', left: '2%', baseRotate: 0.9 },
+  { top: '27%', right: '3%', baseRotate: -1.2 },
+  { top: '41%', left: '3%', baseRotate: -0.8 },
+  { top: '43%', right: '4%', baseRotate: 1.4 },
+  { top: '8%', left: '48%', transform: 'translateX(-50%)', baseRotate: -0.3 },
+  { top: '59%', left: '5%', baseRotate: 1.1 },
+  { top: '61%', right: '5%', baseRotate: -0.9 },
+  { top: '68%', left: '52%', transform: 'translateX(-50%)', baseRotate: 0.6 }
 ];
 
-// 件数に応じた動的スケール計算
+// 件数に応じた動的スケール計算 スペースに応じて小さく自動調整
 const getScaleConfig = (count: number) => {
   if (count <= 2) {
     return {
@@ -165,10 +192,10 @@ const getScaleConfig = (count: number) => {
   };
 };
 
-// 単一吹き出しカード
+// 単一吹き出しカード 不規則な傾きと位置ブレで掲示板らしさを表現
 interface SingleBubbleProps {
   idea: IdeaItem;
-  slot: SlotPosition;
+  zone: BoardSlotZone;
   scaleConfig: ReturnType<typeof getScaleConfig>;
   currentUserId: string;
   currentUserName?: string;
@@ -179,7 +206,7 @@ interface SingleBubbleProps {
 
 const SingleBubble: React.FC<SingleBubbleProps> = ({
   idea,
-  slot,
+  zone,
   scaleConfig,
   currentUserId,
   currentUserName,
@@ -219,10 +246,16 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
     onDelete(idea.id);
   };
 
-  // transform合成
-  const baseTransform = slot.transform ? `${slot.transform} ` : '';
-  const rotateTransform = `rotate(${slot.rotateDeg}deg)`;
-  const finalTransform = `${baseTransform}${rotateTransform}`;
+  // 不規則ジッターの計算 重なり合わない安全範囲内でブレを付与
+  const jitter = getDeterministicJitter(idea.id);
+  const totalRotate = zone.baseRotate + jitter.rot;
+
+  let computedTransform = '';
+  if (zone.transform) {
+    computedTransform = `${zone.transform} translate(${jitter.dX}px, ${jitter.dY}px) rotate(${totalRotate}deg)`;
+  } else {
+    computedTransform = `translate(${jitter.dX}px, ${jitter.dY}px) rotate(${totalRotate}deg)`;
+  }
 
   return (
     <div
@@ -230,11 +263,11 @@ const SingleBubble: React.FC<SingleBubbleProps> = ({
       className={idea.isNew ? 'bubble-bounce-pop' : 'bubble-appear'}
       style={{
         position: 'absolute',
-        top: slot.top,
-        left: slot.left,
-        right: slot.right,
-        transform: finalTransform,
-        borderRadius: slot.borderRadius,
+        top: zone.top,
+        left: zone.left,
+        right: zone.right,
+        transform: computedTransform,
+        borderRadius: jitter.radius,
         backgroundColor: '#FFFFFF',
         border: `1.5px solid ${borderColor}`,
         padding: scaleConfig.padding,
@@ -366,7 +399,7 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
 
   // 吹き出しのゆっくり交代 通常9秒
   useEffect(() => {
-    if (isPaused || ideas.length <= BOARD_SLOTS.length) return;
+    if (isPaused || ideas.length <= BOARD_ZONES.length) return;
     const interval = setInterval(() => {
       setActiveCycleOffset((prev) => (prev + 1) % Math.max(ideas.length, 1));
     }, 9000);
@@ -391,24 +424,24 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
     setCommentInput('');
   };
 
-  // 表示する吹き出しの選定 掲示板レイアウト
-  // 最大スロット数まで同時に並べて表示
-  const maxSlots = BOARD_SLOTS.length;
+  // 表示する吹き出しの選定 不規則掲示板レイアウト
+  // 最大ゾーン数まで同時に並べて表示
+  const maxZones = BOARD_ZONES.length;
   const latestNewIdea = ideas.find((i) => i.isNew);
 
   let displayedIdeas: IdeaItem[] = [];
 
-  if (ideas.length <= maxSlots) {
+  if (ideas.length <= maxZones) {
     displayedIdeas = ideas;
   } else {
-    // スロット数を超える場合は新着優先＋サイクルで巡回
+    // ゾーン数を超える場合は新着優先＋サイクルで巡回
     if (latestNewIdea) {
       const restIdeas = ideas.filter((i) => i.id !== latestNewIdea.id);
-      const sliced = restIdeas.slice(0, maxSlots - 1);
+      const sliced = restIdeas.slice(0, maxZones - 1);
       displayedIdeas = [latestNewIdea, ...sliced];
     } else {
       const rotated = [...ideas.slice(activeCycleOffset), ...ideas.slice(0, activeCycleOffset)];
-      displayedIdeas = rotated.slice(0, maxSlots);
+      displayedIdeas = rotated.slice(0, maxZones);
     }
   }
 
@@ -433,14 +466,14 @@ export const IdeaBubbleLayer: React.FC<IdeaBubbleProps> = ({
         zIndex: 10
       }}
     >
-      {/* 掲示板スロットに並ぶ複数の吹き出し */}
+      {/* 掲示板ゾーンに不規則に散らばる吹き出し群 */}
       {displayedIdeas.map((idea, index) => {
-        const slot = BOARD_SLOTS[index % BOARD_SLOTS.length];
+        const zone = BOARD_ZONES[index % BOARD_ZONES.length];
         return (
           <SingleBubble
             key={idea.id}
             idea={idea}
-            slot={slot}
+            zone={zone}
             scaleConfig={scaleConfig}
             currentUserId={currentUserId}
             currentUserName={currentUserName}
