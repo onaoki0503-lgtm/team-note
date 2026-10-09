@@ -211,9 +211,14 @@ export default function App() {
   };
 
   // 業務報告提出
-  const handleSubmitReport = async (title: string, category: any, content: string) => {
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const handleSubmitReport = async (title: string, category: string, content: string, customDate?: string) => {
+    let dateStr = '';
+    if (customDate) {
+      dateStr = customDate.replace(/-/g, '/');
+    } else {
+      const now = new Date();
+      dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+    }
     const newRep: WorkReportItem = {
       id: `rep-${Date.now()}`,
       title,
