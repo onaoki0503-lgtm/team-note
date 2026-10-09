@@ -567,13 +567,19 @@ export default function App() {
       )}
 
       {/* ============================================================ */}
-      {/* 3. はたらく (S21, S22) */}
+      {/* 3. はたらく (S21, S22 業務報告・個人専用ツール) */}
       {/* ============================================================ */}
       {activeTab === 'work' && (
         <WorkStorageViews
           mode="work"
           currentUser={currentUser}
-          reports={reports}
+          reports={reports.filter(
+            (r) =>
+              r.author === currentUser.name ||
+              (r as any).authorId === currentUser.id ||
+              !r.author ||
+              r.author === '寮生A' // 初期サンプルの互換
+          )}
           onSubmitReport={handleSubmitReport}
           onOpenRoster={() => {}}
           onOpenInventory={() => {}}
