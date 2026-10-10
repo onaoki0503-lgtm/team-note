@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, FileSpreadsheet, Trash2, Sparkles, Plus, ArrowLeft, ArrowRight, Check, RefreshCw } from 'lucide-react';
+import { Camera, FileSpreadsheet, Trash2, Sparkles, Plus, ArrowLeft, ArrowRight, Check, RefreshCw, Settings, Key } from 'lucide-react';
 import type { ExtractedTopic, ProposalDocument } from '../utils/geminiIdeaService';
 import {
   analyzeMeetingNoteWithGemini,
   generateProposalFromTopicWithGemini,
-  generateProposalDirectFromTextWithGemini
+  generateProposalDirectFromTextWithGemini,
+  getGeminiApiKey,
+  setGeminiApiKey
 } from '../utils/geminiIdeaService';
 
 export interface IdeaDraftData {
@@ -46,29 +48,22 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
   const [isDetectingTopics, setIsDetectingTopics] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<ExtractedTopic | null>(null);
 
+  // APIキー設定ステート
+  const [apiKey, setApiKey] = useState<string>(() => getGeminiApiKey());
+  const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
+  const [tempApiKeyInput, setTempApiKeyInput] = useState<string>('');
+
   // ステップ3: 企画書データ 人の手で自由に編集可能
   const [proposal, setProposal] = useState<ProposalDocument>({
-    title: '秋の中庭星空シネマ 寮生親睦上映会',
+    title: '',
     projectType: 'event',
-    location: 'Hヴィレッジ 中庭広場',
-    targetAudience: '全棟の寮生および役職者メンバー',
-    background: '新入寮生や異なる棟のメンバーが集まり、自然な形で会話が生まれる温かい交流の機会が求められています。',
-    objective: '中庭の広場を活用して星空の下で映画を鑑賞し、リラックスした雰囲気で新しい友人関係を築くきっかけを作ります。',
-    actionSteps: [
-      'ステップ1 上映作品の希望アンケートをLINEで実施',
-      'ステップ2 プロジェクターと音響機材の動作テスト',
-      'ステップ3 管理会社西松地所への共用部使用申請書を提出',
-      'ステップ4 当日の会場設営、受付案内、温かい飲み物の配布',
-      'ステップ5 上映終了後のゴミ拾いと機材撤収'
-    ],
-    requirements: [
-      '高輝度プロジェクター 1台',
-      '屋外用大型自立式スクリーン 1台',
-      'スピーカーおよび延長コード 2組',
-      '防寒用ブランケット・シート 10枚',
-      '紙コップ・温かいお茶ティーバッグ'
-    ],
-    expectedImpact: '約30名以上の参加による棟を越えた交友関係の深化とコミュニティ活性化を見込みます。'
+    location: '',
+    targetAudience: '',
+    background: '',
+    objective: '',
+    actionSteps: [],
+    requirements: [],
+    expectedImpact: ''
   });
 
   // 新規ステップ・機材の入力用
@@ -130,11 +125,22 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
       ];
       setNodes(generatedNodes);
 
-      // 生成完了後にステップ3（編集・仕上げ画面）へ
+      // 生成完了後にステップ3へ遷移
       setCurrentStep(3);
     } catch {
       setCurrentStep(1);
     }
+  };
+
+  const handleOpenApiKeyModal = () => {
+    setTempApiKeyInput(apiKey);
+    setShowApiKeyModal(true);
+  };
+
+  const handleSaveApiKey = () => {
+    setGeminiApiKey(tempApiKeyInput);
+    setApiKey(tempApiKeyInput.trim());
+    setShowApiKeyModal(false);
   };
 
   // サンプル議事録の投入
@@ -365,20 +371,42 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                 メモや議事録を貼り付けると、AIが内容を理解して本格的なイベント企画書を作成します。
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onCancel}
-              style={{
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: '#64748B',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              閉じる
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                onClick={handleOpenApiKeyModal}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: apiKey ? '#ECFDF5' : '#F1F5F9',
+                  border: apiKey ? '1px solid #A7F3D0' : '1px solid #CBD5E1',
+                  color: apiKey ? '#047857' : '#475569',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                <Key size={13} />
+                <span>{apiKey ? 'APIキー接続中' : 'API設定'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#64748B',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                閉じる
+              </button>
+            </div>
           </div>
 
           {/* 入力補助アクションバー */}
@@ -1072,6 +1100,148 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             >
               {isSubmitting ? 'プロジェクト登録中...' : 'この企画書でプロジェクトを開始する'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Gemini APIキー設定モーダル */}
+      {showApiKeyModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 16
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 14,
+              maxWidth: 480,
+              width: '100%',
+              padding: 24,
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Key size={20} color="#0284C7" />
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: '#0F172A' }}>
+                  Gemini API 設定
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#64748B',
+                  cursor: 'pointer'
+                }}
+              >
+                閉じる
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+              Google AI Studioで取得したAPIキーを入力すると、クラウドのGeminiモデルへ直接接続して議事録や文章を解析します。未設定の場合でも内蔵された自然言語エンジンにより入力文に即した企画書が自動生成されます。
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                APIキー
+              </label>
+              <input
+                type="password"
+                value={tempApiKeyInput}
+                onChange={(e) => setTempApiKeyInput(e.target.value)}
+                placeholder="AIzaSy..."
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1.5px solid #CBD5E1',
+                  fontSize: 13,
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
+              {apiKey ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempApiKeyInput('');
+                    setGeminiApiKey('');
+                    setApiKey('');
+                    setShowApiKeyModal(false);
+                  }}
+                  style={{
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #FECACA',
+                    color: '#DC2626',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  キーを解除
+                </button>
+              ) : <div />}
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(false)}
+                  style={{
+                    backgroundColor: '#F1F5F9',
+                    border: '1px solid #E2E8F0',
+                    color: '#475569',
+                    borderRadius: 8,
+                    padding: '8px 14px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveApiKey}
+                  style={{
+                    backgroundColor: '#0284C7',
+                    border: 'none',
+                    color: '#FFFFFF',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  保存する
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
