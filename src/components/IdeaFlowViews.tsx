@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, FileSpreadsheet, Trash2, Sparkles, Plus, ArrowLeft, ArrowRight, Check, RefreshCw, Settings, Key } from 'lucide-react';
-import type { ExtractedTopic, ProposalDocument } from '../utils/geminiIdeaService';
+import { Camera, FileSpreadsheet, Trash2, Sparkles, Plus, ArrowLeft, ArrowRight, Check, RefreshCw, Settings, Key, Printer, Edit3 } from 'lucide-react';
+import type { ExtractedTopic, ProposalDocument, ProposalBudgetItem, ProposalConceptBox, ProposalOperationFlowItem, ProposalStakeholderImpact } from '../utils/geminiIdeaService';
 import {
   analyzeMeetingNoteWithGemini,
   generateProposalFromTopicWithGemini,
@@ -24,14 +24,14 @@ interface IdeaFlowViewsProps {
   onCreateProject: (draft: IdeaDraftData, nodes: { id: string; label: string; category: string }[]) => Promise<void>;
 }
 
-// サンプル議事録テキスト
-const SAMPLE_EVENT_MEETING_NOTE = `2026年10月 寮生ミーティング議事録
-議題: 秋の中庭イベント企画について
-・新入寮生や多学年の交流を深めるため、中庭で星空映画上映会を実施したい。
-・大型プロジェクターと音響機材の動作テストが必要。
-・夜間は冷え込むため、温かいお茶の用意や防寒シートの配布を行う。
-・管理会社西松地所への共用部使用申請書を事前に提出する。
-・参加費無料、みんなでゴミ拾いをして終了する。`;
+// サンプル議事録テキスト PDFのキッチン改善と親和性の高い実用テキスト
+const SAMPLE_EVENT_MEETING_NOTE = `2026年10月 ローズマリーハウス全員会議 議事録
+議題: 共用キッチンの布巾および衛生管理について
+・一度使用された濡れた布巾がキッチンに置かれたまま再使用されており、汚いせいで洗った食器を拭けないという意見が出た。
+・食器用と台拭きの区別が曖昧で衛生面で不安。各自でタオルを持ち込んでいる状態。
+・回収用と補充用を分けた3ボックス方式を設置して、寮生が清潔な布巾を使えるようにしたい。
+・寮母さんの回収補充作業も効率化したい。
+・ストックボックスや分別ラベル、案内ポスターなどの費用見積もりと試験導入手順をまとめたい。`;
 
 export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
   currentUserId,
@@ -53,26 +53,38 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
   const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
   const [tempApiKeyInput, setTempApiKeyInput] = useState<string>('');
 
-  // ステップ3: 企画書データ 人の手で自由に編集可能
+  // ステップ3: 企画提案書データ PDF完全準拠
   const [proposal, setProposal] = useState<ProposalDocument>({
+    docType: '企画提案書',
     title: '',
-    projectType: 'event',
+    subTitle: '',
+    projectType: 'operation',
+    submittedTo: '西松地所株式会社 様 / 寮母・管理スタッフの皆様',
+    submittedDate: '2026年10月',
     location: '',
     targetAudience: '',
     background: '',
-    objective: '',
+    highlightQuote: '',
+    issues: [],
+    proposalOverview: '',
+    proposalConcept: '',
+    conceptBoxes: [],
+    operationFlow: [],
+    stakeholderImpacts: [],
+    budgetItems: [],
+    totalCostEstimate: '',
     actionSteps: [],
+    summaryText: '',
+    objective: '',
     requirements: [],
     expectedImpact: ''
   });
 
-  // 新規ステップ・機材の入力用
-  const [newStepInput, setNewStepInput] = useState('');
-  const [newReqInput, setNewReqInput] = useState('');
+  // 編集モードトグル
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // ノードデータ アイデアマップ用
   const [nodes, setNodes] = useState<{ id: string; label: string; category: string }[]>([]);
-  const [viewTab, setViewTab] = useState<'sheet' | 'map' | 'list'>('sheet');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 利用者別の一時保存キー
@@ -100,7 +112,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
   const handleGenerateProposal = async () => {
     if (!sourceText.trim()) return;
 
-    setCurrentStep(2); // 生成中画面へ
+    setCurrentStep(2);
 
     try {
       let doc: ProposalDocument;
@@ -114,7 +126,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
 
       // アイデアマップ用ノードの生成
       const generatedNodes = [
-        { id: 'core', label: doc.title, category: 'core' },
+        { id: 'core', label: doc.title || doc.subTitle, category: 'core' },
         { id: 'loc', label: `場所 ${doc.location}`, category: 'location' },
         { id: 'aud', label: `対象 ${doc.targetAudience}`, category: 'members' },
         ...doc.actionSteps.slice(0, 3).map((st, idx) => ({
@@ -125,7 +137,6 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
       ];
       setNodes(generatedNodes);
 
-      // 生成完了後にステップ3へ遷移
       setCurrentStep(3);
     } catch {
       setCurrentStep(1);
@@ -149,44 +160,70 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
     setSelectedTopic(null);
   };
 
-  // ステップ項目の編集・追加・削除
-  const handleAddStep = () => {
-    if (!newStepInput.trim()) return;
+  // 課題項目の追加・削除
+  const handleAddIssue = () => {
     setProposal({
       ...proposal,
-      actionSteps: [...proposal.actionSteps, newStepInput.trim()]
-    });
-    setNewStepInput('');
-  };
-
-  const handleDeleteStep = (index: number) => {
-    setProposal({
-      ...proposal,
-      actionSteps: proposal.actionSteps.filter((_, idx) => idx !== index)
+      issues: [...proposal.issues, '新規の課題事項を入力']
     });
   };
 
-  const handleUpdateStep = (index: number, value: string) => {
+  const handleUpdateIssue = (idx: number, val: string) => {
+    const updated = [...proposal.issues];
+    updated[idx] = val;
+    setProposal({ ...proposal, issues: updated });
+  };
+
+  const handleDeleteIssue = (idx: number) => {
+    setProposal({
+      ...proposal,
+      issues: proposal.issues.filter((_, i) => i !== idx)
+    });
+  };
+
+  // 運用フロー項目の更新
+  const handleUpdateFlow = (idx: number, field: 'target' | 'content', val: string) => {
+    const updated = [...proposal.operationFlow];
+    updated[idx] = { ...updated[idx], [field]: val };
+    setProposal({ ...proposal, operationFlow: updated });
+  };
+
+  // 改善点項目の更新
+  const handleUpdateImpact = (idx: number, field: 'stakeholder' | 'title' | 'description', val: string) => {
+    const updated = [...proposal.stakeholderImpacts];
+    updated[idx] = { ...updated[idx], [field]: val };
+    setProposal({ ...proposal, stakeholderImpacts: updated });
+  };
+
+  // 予算見積もり項目の更新
+  const handleUpdateBudget = (idx: number, field: keyof ProposalBudgetItem, val: string) => {
+    const updated = [...proposal.budgetItems];
+    updated[idx] = { ...updated[idx], [field]: val };
+    setProposal({ ...proposal, budgetItems: updated });
+  };
+
+  const handleAddBudgetItem = () => {
+    setProposal({
+      ...proposal,
+      budgetItems: [
+        ...proposal.budgetItems,
+        { name: '新規品目', spec: '仕様', quantity: '1個', cost: '約0円' }
+      ]
+    });
+  };
+
+  const handleDeleteBudgetItem = (idx: number) => {
+    setProposal({
+      ...proposal,
+      budgetItems: proposal.budgetItems.filter((_, i) => i !== idx)
+    });
+  };
+
+  // 導入手順の更新
+  const handleUpdateStep = (idx: number, val: string) => {
     const updated = [...proposal.actionSteps];
-    updated[index] = value;
+    updated[idx] = val;
     setProposal({ ...proposal, actionSteps: updated });
-  };
-
-  // 備品項目の編集・追加・削除
-  const handleAddReq = () => {
-    if (!newReqInput.trim()) return;
-    setProposal({
-      ...proposal,
-      requirements: [...proposal.requirements, newReqInput.trim()]
-    });
-    setNewReqInput('');
-  };
-
-  const handleDeleteReq = (index: number) => {
-    setProposal({
-      ...proposal,
-      requirements: proposal.requirements.filter((_, idx) => idx !== index)
-    });
   };
 
   // 最終的なプロジェクト作成確定
@@ -196,9 +233,9 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
     try {
       const draft: IdeaDraftData = {
         projectType: proposal.projectType,
-        title: proposal.title.trim() || '新規イベント企画',
-        content: proposal.objective.trim() || proposal.background.trim(),
-        meetingNote: sourceText.slice(0, 120)
+        title: `${proposal.title} ${proposal.subTitle}`.trim() || '新規運営企画提案',
+        content: proposal.background.slice(0, 300) || proposal.proposalOverview,
+        meetingNote: sourceText.slice(0, 160)
       };
       await onCreateProject(draft, nodes);
       localStorage.removeItem(draftKey);
@@ -207,11 +244,16 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
     }
   };
 
+  // 印刷実行
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div
       style={{
         width: '100%',
-        maxWidth: 680,
+        maxWidth: 780,
         margin: '0 auto',
         padding: '16px',
         display: 'flex',
@@ -219,9 +261,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
         gap: 16
       }}
     >
-      {/* ============================================================ */}
-      {/* 画面上部: 初めての人でも一目でわかる3ステップ進行バー */}
-      {/* ============================================================ */}
+      {/* 画面上部: 3ステップ進行バー */}
       <div
         style={{
           backgroundColor: '#FFFFFF',
@@ -291,7 +331,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               color: currentStep === 2 ? '#0284C7' : '#64748B'
             }}
           >
-            AIが読み取り企画書作成
+            AIが要約・分析して企画書作成
           </span>
         </div>
 
@@ -322,14 +362,12 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               color: currentStep === 3 ? '#0284C7' : '#64748B'
             }}
           >
-            人の手で編集・仕上げ
+            企画提案書の確認・編集
           </span>
         </div>
       </div>
 
-      {/* ============================================================ */}
       {/* ステップ1: 文章や議事録を読み取らせる画面 */}
-      {/* ============================================================ */}
       {currentStep === 1 && (
         <div
           style={{
@@ -365,10 +403,10 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                 </span>
               </div>
               <h2 style={{ fontSize: 19, fontWeight: 900, color: '#171A21', margin: 0 }}>
-                イベントの文章や議事録を読み取る
+                イベントや運営の議事録・概要を読み取る
               </h2>
               <p style={{ fontSize: 13, color: '#596273', marginTop: 4, marginBottom: 0, lineHeight: 1.5 }}>
-                メモや議事録を貼り付けると、AIが内容を理解して本格的なイベント企画書を作成します。
+                議事録やメモを貼り付けると、AIが要約・要点分析を行い、提出できる美しい企画提案書を瞬時に作成します。
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -426,7 +464,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Sparkles size={16} color="#D97706" />
                 <span style={{ fontSize: 12, color: '#92400E', fontWeight: 700, lineHeight: 1.4 }}>
-                  Gemini APIキーを設定すると、文章全体の文脈を深く理解した要約や要点分析、本格企画書が瞬時に生成されます
+                  Gemini APIキーを設定すると、文章全体の文脈を深く理解した要約や要点分析、本格企画提案書が瞬時に生成されます
                 </span>
               </div>
               <button
@@ -495,11 +533,11 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             </div>
           </div>
 
-          {/* 大きなテキストエリア */}
+          {/* テキストエリア */}
           <textarea
             value={sourceText}
             onChange={(e) => setSourceText(e.target.value)}
-            placeholder="中庭で映画上映会をやりたい。プロジェクターや防寒対策が必要。寮生同士の交流を深めたい... など、思いつきの文章や会議の議事録をそのまま貼り付けてください。"
+            placeholder="会議の議事録や企画のメモを貼り付けてください。布巾の衛生問題、中庭でのイベント、備品購入など、どんな内容でもAIが論理的な企画提案書に仕立て上げます。"
             rows={8}
             style={{
               width: '100%',
@@ -515,7 +553,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             }}
           />
 
-          {/* 議事録内に複数トピックが検出された場合 ユーザーが選べるトピックカード */}
+          {/* 検出されたトピック */}
           {detectedTopics.length > 0 && (
             <div
               style={{
@@ -529,7 +567,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               }}
             >
               <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                AIが文章から検出した話のトピック
+                AIが文章から検出したトピック
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {detectedTopics.map((top) => {
@@ -559,9 +597,6 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                   );
                 })}
               </div>
-              <span style={{ fontSize: 11, color: '#64748B' }}>
-                選ばない場合は文章全体から最も適した企画書を自動構成します
-              </span>
             </div>
           )}
 
@@ -589,15 +624,13 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               }}
             >
               <Sparkles size={18} />
-              <span>Gemini 3.8 Flash Medium でイベント企画書を作成する</span>
+              <span>Gemini 3.8 Flash Medium で企画提案書を作成する</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* ============================================================ */}
       {/* ステップ2: AI読み取り中アニメーション */}
-      {/* ============================================================ */}
       {currentStep === 2 && (
         <div
           style={{
@@ -634,7 +667,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               {apiKey ? 'Gemini 3.8 Flash Medium が文章を読み取り分析中' : 'テキストを読み取り企画書を構成中'}
             </h3>
             <p style={{ fontSize: 13, color: '#596273', margin: 0, lineHeight: 1.6 }}>
-              議事録やイベント概要から要約と要点分析を行い、人の手で編集できる企画書を作成しています
+              議事録やイベント概要から要約と要点分析を行い、PDF形式の美しい企画提案書を作成しています
             </p>
           </div>
 
@@ -658,60 +691,32 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 700, color: '#0284C7' }}>
               <Check size={14} color="#0284C7" />
-              <span>目的や背景および狙いの要点分析</span>
+              <span>目的や背景および生じている課題の抽出</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 700, color: '#0284C7' }}>
               <Check size={14} color="#0284C7" />
-              <span>進行ステップと必要備品の企画書化</span>
+              <span>運用フロー・改善効果・資材見積もりの構造化</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* ステップ3: 出力された企画書 人の手で自由に編集できるシート */}
-      {/* ============================================================ */}
+      {/* ステップ3: PDF完全準拠のプロ仕様 企画提案書ドキュメントビュー */}
       {currentStep === 3 && (
-        <div
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 14,
-            border: '1px solid #D9DEE7',
-            padding: '24px 20px',
-            boxShadow: '0 6px 16px rgba(23, 26, 33, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 18
-          }}
-        >
-          {/* 企画書ヘッダー */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span
-                  style={{
-                    backgroundColor: '#EFF6FF',
-                    color: '#0284C7',
-                    border: '1px solid #BAE6FD',
-                    fontSize: 11,
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: 4
-                  }}
-                >
-                  AI読み取り完了 Gemini 3.8 Flash Medium
-                </span>
-                <span style={{ fontSize: 11, color: '#166534', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '2px 8px', borderRadius: 4 }}>
-                  人の手で自由に編集可能
-                </span>
-              </div>
-              <h2 style={{ fontSize: 19, fontWeight: 900, color: '#171A21', margin: 0 }}>
-                イベント企画書
-              </h2>
-              <p style={{ fontSize: 12, color: '#596273', margin: '4px 0 0 0' }}>
-                AIが文章から組み立てた企画書です。各項目をタップして自由に書き換えたり追加したりできます。
-              </p>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* 上部操作アクションバー */}
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              border: '1px solid #D9DEE7',
+              padding: '12px 18px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.03)'
+            }}
+          >
             <button
               type="button"
               onClick={() => setCurrentStep(1)}
@@ -732,421 +737,591 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               <ArrowLeft size={13} />
               <span>文章を入れ直す</span>
             </button>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setIsEditMode(!isEditMode)}
+                style={{
+                  backgroundColor: isEditMode ? '#1E293B' : '#F1F5F9',
+                  color: isEditMode ? '#FFFFFF' : '#334155',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: 6,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <Edit3 size={13} />
+                <span>{isEditMode ? 'プレビュー表示に戻す' : '直接編集モードにする'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrint}
+                style={{
+                  backgroundColor: '#0284C7',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+                }}
+              >
+                <Printer size={13} />
+                <span>PDF印刷・保存</span>
+              </button>
+            </div>
           </div>
 
-          {/* 表示切替タブ */}
-          <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #E2E8F0', paddingBottom: 8 }}>
-            <button
-              type="button"
-              onClick={() => setViewTab('sheet')}
-              style={{
-                backgroundColor: viewTab === 'sheet' ? '#171A21' : '#F8FAFC',
-                color: viewTab === 'sheet' ? '#FFFFFF' : '#475569',
-                padding: '8px 16px',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 800,
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              企画書シート
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewTab('map')}
-              style={{
-                backgroundColor: viewTab === 'map' ? '#171A21' : '#F8FAFC',
-                color: viewTab === 'map' ? '#FFFFFF' : '#475569',
-                padding: '8px 16px',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 800,
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              アイデアマップ
-            </button>
-          </div>
-
-          {/* 企画書シートビュー 直接編集可能なフォーム */}
-          {viewTab === 'sheet' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* 1. 企画タイトル */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 4 }}>
-                  企画名・タイトル
-                </label>
-                <input
-                  type="text"
-                  value={proposal.title}
-                  onChange={(e) => setProposal({ ...proposal, title: e.target.value })}
+          {/* まさにPDFと同じ美しい用紙レイアウト */}
+          <div
+            id="printable-proposal-document"
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 4,
+              border: '1px solid #E2E8F0',
+              padding: '40px 36px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 28,
+              color: '#1E293B',
+              lineHeight: 1.6
+            }}
+          >
+            {/* 文書ヘッダー */}
+            <div>
+              <div style={{ marginBottom: 10 }}>
+                <span
                   style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    border: '1.5px solid #CBD5E1',
-                    fontSize: 15,
+                    backgroundColor: '#EFF6FF',
+                    color: '#0284C7',
+                    border: '1px solid #BAE6FD',
+                    fontSize: 11,
                     fontWeight: 800,
-                    color: '#171A21',
-                    boxSizing: 'border-box',
-                    outline: 'none'
+                    padding: '3px 10px',
+                    borderRadius: 4
                   }}
-                />
+                >
+                  {proposal.docType || '企画提案書'}
+                </span>
               </div>
 
-              {/* 2. 開催場所と対象者 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    開催場所
-                  </label>
+              {isEditMode ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <input
                     type="text"
-                    value={proposal.location}
-                    onChange={(e) => setProposal({ ...proposal, location: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: 13,
-                      boxSizing: 'border-box'
-                    }}
+                    value={proposal.title}
+                    onChange={(e) => setProposal({ ...proposal, title: e.target.value })}
+                    placeholder="企画メインタイトル"
+                    style={{ fontSize: 18, fontWeight: 900, padding: '6px 8px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                  />
+                  <input
+                    type="text"
+                    value={proposal.subTitle}
+                    onChange={(e) => setProposal({ ...proposal, subTitle: e.target.value })}
+                    placeholder="サブタイトル 導入のご提案"
+                    style={{ fontSize: 16, fontWeight: 800, padding: '6px 8px', border: '1px solid #CBD5E1', borderRadius: 4 }}
                   />
                 </div>
+              ) : (
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    対象者
-                  </label>
-                  <input
-                    type="text"
-                    value={proposal.targetAudience}
-                    onChange={(e) => setProposal({ ...proposal, targetAudience: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: 13,
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                  <h1 style={{ fontSize: 21, fontWeight: 900, color: '#0F172A', margin: '0 0 6px 0', lineHeight: 1.4 }}>
+                    {proposal.title}
+                  </h1>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1E293B', margin: '0 0 16px 0' }}>
+                    {proposal.subTitle}
+                  </h2>
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: 12,
+                  color: '#64748B',
+                  borderBottom: '1.5px solid #E2E8F0',
+                  paddingBottom: 10,
+                  marginTop: 8
+                }}
+              >
+                <div>
+                  提出先: {proposal.submittedTo}
+                </div>
+                <div>
+                  提出日: {proposal.submittedDate}
                 </div>
               </div>
+            </div>
 
-              {/* 3. 背景と課題 */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  背景と現状の課題
-                </label>
+            {/* 1. 企画の趣旨・背景 */}
+            <div>
+              <div
+                style={{
+                  borderLeft: '4px solid #0284C7',
+                  paddingLeft: 10,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  marginBottom: 10
+                }}
+              >
+                1. 企画の趣旨・背景
+              </div>
+              {isEditMode ? (
                 <textarea
                   value={proposal.background}
                   onChange={(e) => setProposal({ ...proposal, background: e.target.value })}
-                  rows={3}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #CBD5E1',
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    boxSizing: 'border-box'
-                  }}
+                  rows={4}
+                  style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid #CBD5E1', borderRadius: 6, boxSizing: 'border-box' }}
                 />
+              ) : (
+                <p style={{ fontSize: 13.5, color: '#334155', margin: 0, whiteSpace: 'pre-line' }}>
+                  {proposal.background}
+                </p>
+              )}
+            </div>
+
+            {/* 2. 生じている課題 */}
+            <div>
+              <div
+                style={{
+                  borderLeft: '4px solid #0284C7',
+                  paddingLeft: 10,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  marginBottom: 12
+                }}
+              >
+                2. 生じている課題 寮生側
               </div>
 
-              {/* 4. 目的とゴール */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  目的と目指すゴール
-                </label>
-                <textarea
-                  value={proposal.objective}
-                  onChange={(e) => setProposal({ ...proposal, objective: e.target.value })}
-                  rows={3}
+              {/* 生の声 赤枠ハイライトボックス */}
+              {proposal.highlightQuote && (
+                <div
                   style={{
-                    width: '100%',
-                    padding: '10px 12px',
+                    backgroundColor: '#FEF2F2',
+                    border: '1.5px solid #FCA5A5',
                     borderRadius: 6,
-                    border: '1px solid #CBD5E1',
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    boxSizing: 'border-box'
+                    padding: '12px 16px',
+                    marginBottom: 12
                   }}
-                />
+                >
+                  <div style={{ fontSize: 12, fontWeight: 900, color: '#991B1B', marginBottom: 4 }}>
+                    前回の会議で最も多く出された意見
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#7F1D1D' }}>
+                    ・{proposal.highlightQuote}
+                  </div>
+                </div>
+              )}
+
+              {/* 課題の箇条書きリスト */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {proposal.issues.map((iss, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, color: '#334155' }}>
+                    <span style={{ color: '#0284C7', fontWeight: 900 }}>・</span>
+                    {isEditMode ? (
+                      <div style={{ display: 'flex', flex: 1, gap: 6 }}>
+                        <input
+                          type="text"
+                          value={iss}
+                          onChange={(e) => handleUpdateIssue(idx, e.target.value)}
+                          style={{ flex: 1, fontSize: 13, padding: '4px 6px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteIssue(idx)}
+                          style={{ border: 'none', background: 'none', color: '#EF4444', cursor: 'pointer' }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <span>{iss}</span>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              {/* 5. 具体的な実施ステップ */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  具体的な実施ステップと当日の流れ
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-                  {proposal.actionSteps.map((stepText, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleAddIssue}
+                  style={{
+                    marginTop: 8,
+                    backgroundColor: '#F1F5F9',
+                    border: '1px dashed #94A3B8',
+                    padding: '4px 10px',
+                    fontSize: 11,
+                    borderRadius: 4,
+                    cursor: 'pointer'
+                  }}
+                >
+                  + 課題項目を追加
+                </button>
+              )}
+            </div>
+
+            {/* 3. 提案内容の概要 */}
+            <div>
+              <div
+                style={{
+                  borderLeft: '4px solid #0284C7',
+                  paddingLeft: 10,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  marginBottom: 10
+                }}
+              >
+                3. 提案内容の概要
+              </div>
+              <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px 0' }}>
+                各フロアの共用スペースに、以下の専用設備および運用ルールを配備します。
+              </p>
+
+              {/* 3つのボックス・要素カード */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                {proposal.conceptBoxes.map((box, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      border: '1.5px solid #CBD5E1',
+                      borderRadius: 8,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span
                         style={{
-                          width: 24,
-                          height: 24,
+                          width: 20,
+                          height: 20,
                           borderRadius: '50%',
-                          backgroundColor: '#E2E8F0',
-                          color: '#475569',
+                          backgroundColor: box.tagColor || '#0284C7',
+                          color: '#FFFFFF',
                           fontSize: 11,
                           fontWeight: 800,
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
+                          justifyContent: 'center'
                         }}
                       >
-                        {idx + 1}
+                        {box.number}
                       </span>
-                      <input
-                        type="text"
-                        value={stepText}
-                        onChange={(e) => handleUpdateStep(idx, e.target.value)}
-                        style={{
-                          flex: 1,
-                          padding: '8px 10px',
-                          borderRadius: 6,
-                          border: '1px solid #CBD5E1',
-                          fontSize: 13,
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteStep(idx)}
-                        style={{
-                          backgroundColor: 'transparent',
-                          border: 'none',
-                          color: '#94A3B8',
-                          cursor: 'pointer',
-                          padding: '4px'
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A' }}>
+                        {box.title}
+                      </span>
                     </div>
-                  ))}
-                </div>
-                {/* ステップ追加 */}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    type="text"
-                    value={newStepInput}
-                    onChange={(e) => setNewStepInput(e.target.value)}
-                    placeholder="新しいステップを追加..."
-                    style={{
-                      flex: 1,
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: 12,
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddStep}
-                    disabled={!newStepInput.trim()}
-                    style={{
-                      backgroundColor: '#F1F5F9',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: 6,
-                      padding: '0 12px',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#334155',
-                      cursor: newStepInput.trim() ? 'pointer' : 'default',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>追加</span>
-                  </button>
-                </div>
+                    <p style={{ fontSize: 11.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
+                      {box.description}
+                    </p>
+                  </div>
+                ))}
               </div>
 
-              {/* 6. 必要な機材・備品・準備 */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  必要な機材・備品・申請
-                </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                  {proposal.requirements.map((req, idx) => (
-                    <span
-                      key={idx}
-                      style={{
-                        backgroundColor: '#F8FAFC',
-                        border: '1px solid #CBD5E1',
-                        borderRadius: 6,
-                        padding: '4px 8px',
-                        fontSize: 12,
-                        color: '#334155',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6
-                      }}
-                    >
-                      <span>✓ {req}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteReq(idx)}
-                        style={{
-                          backgroundColor: 'transparent',
-                          border: 'none',
-                          color: '#94A3B8',
-                          cursor: 'pointer',
-                          padding: 0
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ))}
+              {/* 運用フロー表 */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', marginBottom: 6 }}>
+                  運用フロー
                 </div>
-                {/* 備品追加 */}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    type="text"
-                    value={newReqInput}
-                    onChange={(e) => setNewReqInput(e.target.value)}
-                    placeholder="機材や準備項目を追加..."
-                    style={{
-                      flex: 1,
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: '1px solid #CBD5E1',
-                      fontSize: 12,
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddReq}
-                    disabled={!newReqInput.trim()}
-                    style={{
-                      backgroundColor: '#F1F5F9',
-                      border: '1px solid #CBD5E1',
-                      borderRadius: 6,
-                      padding: '0 12px',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: '#334155',
-                      cursor: newReqInput.trim() ? 'pointer' : 'default',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>追加</span>
-                  </button>
+                <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
+                        <th style={{ width: '28%', padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>
+                          対象
+                        </th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>
+                          手順・内容
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {proposal.operationFlow.map((flow, idx) => (
+                        <tr key={idx} style={{ borderBottom: idx < proposal.operationFlow.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
+                          <td style={{ padding: '10px 12px', verticalAlign: 'top', fontWeight: 700, color: '#1E293B', backgroundColor: '#FAFAFA' }}>
+                            {isEditMode ? (
+                              <input
+                                type="text"
+                                value={flow.target}
+                                onChange={(e) => handleUpdateFlow(idx, 'target', e.target.value)}
+                                style={{ width: '100%', fontSize: 12, padding: '2px 4px' }}
+                              />
+                            ) : (
+                              flow.target
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#334155', lineHeight: 1.5 }}>
+                            {isEditMode ? (
+                              <textarea
+                                value={flow.content}
+                                onChange={(e) => handleUpdateFlow(idx, 'content', e.target.value)}
+                                rows={2}
+                                style={{ width: '100%', fontSize: 12, padding: '2px 4px' }}
+                              />
+                            ) : (
+                              flow.content
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-
-              {/* 7. 期待される効果 */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  期待される成果
-                </label>
-                <input
-                  type="text"
-                  value={proposal.expectedImpact}
-                  onChange={(e) => setProposal({ ...proposal, expectedImpact: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #CBD5E1',
-                    fontSize: 13,
-                    boxSizing: 'border-box'
-                  }}
-                />
               </div>
             </div>
-          )}
 
-          {/* アイデアマップビュー */}
-          {viewTab === 'map' && (
+            {/* 4. 導入による改善点 */}
+            <div>
+              <div
+                style={{
+                  borderLeft: '4px solid #0284C7',
+                  paddingLeft: 10,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  marginBottom: 12
+                }}
+              >
+                4. 導入による改善点
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                {proposal.stakeholderImpacts.map((imp, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <div
+                      style={{
+                        backgroundColor: idx === 0 ? '#EFF6FF' : idx === 1 ? '#F0FDF4' : '#FEF3C7',
+                        padding: '8px 12px',
+                        borderBottom: '1px solid #E2E8F0',
+                        fontSize: 12,
+                        fontWeight: 900,
+                        color: idx === 0 ? '#1D4ED8' : idx === 1 ? '#15803D' : '#B45309'
+                      }}
+                    >
+                      {imp.stakeholder}
+                    </div>
+                    <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1, backgroundColor: '#FFFFFF' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
+                        {imp.title}
+                      </div>
+                      <p style={{ fontSize: 11.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
+                        {imp.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 5. 必要資材および費用概算 */}
+            <div>
+              <div
+                style={{
+                  borderLeft: '4px solid #0284C7',
+                  paddingLeft: 10,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  marginBottom: 12
+                }}
+              >
+                5. 必要資材および費用概算
+              </div>
+
+              <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1.5px solid #CBD5E1' }}>
+                      <th style={{ width: '22%', padding: '8px 10px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>品名</th>
+                      <th style={{ width: '40%', padding: '8px 10px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>仕様</th>
+                      <th style={{ width: '18%', padding: '8px 10px', textAlign: 'left', fontWeight: 800, color: '#334155' }}>数量</th>
+                      <th style={{ width: '20%', padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: '#334155' }}>概算費用 税込</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {proposal.budgetItems.map((b, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                        <td style={{ padding: '8px 10px', fontWeight: 700, color: '#0F172A' }}>
+                          {isEditMode ? (
+                            <input
+                              type="text"
+                              value={b.name}
+                              onChange={(e) => handleUpdateBudget(idx, 'name', e.target.value)}
+                              style={{ width: '100%', fontSize: 12 }}
+                            />
+                          ) : (
+                            b.name
+                          )}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#475569' }}>
+                          {isEditMode ? (
+                            <input
+                              type="text"
+                              value={b.spec}
+                              onChange={(e) => handleUpdateBudget(idx, 'spec', e.target.value)}
+                              style={{ width: '100%', fontSize: 12 }}
+                            />
+                          ) : (
+                            b.spec
+                          )}
+                        </td>
+                        <td style={{ padding: '8px 10px', color: '#475569' }}>
+                          {isEditMode ? (
+                            <input
+                              type="text"
+                              value={b.quantity}
+                              onChange={(e) => handleUpdateBudget(idx, 'quantity', e.target.value)}
+                              style={{ width: '100%', fontSize: 12 }}
+                            />
+                          ) : (
+                            b.quantity
+                          )}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#0F172A' }}>
+                          {isEditMode ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                              <input
+                                type="text"
+                                value={b.cost}
+                                onChange={(e) => handleUpdateBudget(idx, 'cost', e.target.value)}
+                                style={{ width: '80px', fontSize: 12, textAlign: 'right' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBudgetItem(idx)}
+                                style={{ border: 'none', background: 'none', color: '#EF4444', cursor: 'pointer' }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ) : (
+                            b.cost
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* 合計行 */}
+                    <tr style={{ backgroundColor: '#F8FAFC' }}>
+                      <td colSpan={3} style={{ padding: '10px', fontWeight: 900, color: '#0F172A' }}>
+                        合計概算費用
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 900, color: '#0284C7', fontSize: 14 }}>
+                        {proposal.totalCostEstimate}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleAddBudgetItem}
+                  style={{
+                    marginTop: 8,
+                    backgroundColor: '#F1F5F9',
+                    border: '1px dashed #94A3B8',
+                    padding: '4px 10px',
+                    fontSize: 11,
+                    borderRadius: 4,
+                    cursor: 'pointer'
+                  }}
+                >
+                  + 品目を追加
+                </button>
+              )}
+            </div>
+
+            {/* 6. 導入手順 */}
+            <div>
+              <div
+                style={{
+                  borderLeft: '4px solid #0284C7',
+                  paddingLeft: 10,
+                  fontSize: 15,
+                  fontWeight: 900,
+                  color: '#0F172A',
+                  marginBottom: 10
+                }}
+              >
+                6. 導入手順 案
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {proposal.actionSteps.map((step, idx) => (
+                  <div key={idx} style={{ fontSize: 13, color: '#334155' }}>
+                    {isEditMode ? (
+                      <input
+                        type="text"
+                        value={step}
+                        onChange={(e) => handleUpdateStep(idx, e.target.value)}
+                        style={{ width: '100%', fontSize: 13, padding: '4px 6px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                      />
+                    ) : (
+                      step
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* まとめ */}
             <div
               style={{
                 backgroundColor: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: 12,
-                padding: 24,
-                minHeight: 220,
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 12
+                borderLeft: '4px solid #64748B',
+                padding: '14px 16px',
+                borderRadius: '0 6px 6px 0'
               }}
             >
-              <div
-                style={{
-                  backgroundColor: '#171A21',
-                  color: '#FFFFFF',
-                  borderRadius: 20,
-                  padding: '8px 18px',
-                  fontSize: 14,
-                  fontWeight: 800
-                }}
-              >
-                {proposal.title}
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#475569', marginBottom: 4 }}>
+                まとめ
               </div>
-              <div
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#0284C7',
-                  border: '1.5px solid #BAE6FD',
-                  borderRadius: 20,
-                  padding: '6px 14px',
-                  fontSize: 13,
-                  fontWeight: 700
-                }}
-              >
-                場所 {proposal.location}
-              </div>
-              <div
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  color: '#166534',
-                  border: '1.5px solid #BBF7D0',
-                  borderRadius: 20,
-                  padding: '6px 14px',
-                  fontSize: 13,
-                  fontWeight: 700
-                }}
-              >
-                対象 {proposal.targetAudience}
-              </div>
-              {proposal.actionSteps.slice(0, 3).map((st, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    color: '#171A21',
-                    border: '1px solid #CBD5E1',
-                    borderRadius: 20,
-                    padding: '6px 14px',
-                    fontSize: 12,
-                    fontWeight: 600
-                  }}
-                >
-                  {st}
-                </div>
-              ))}
+              {isEditMode ? (
+                <textarea
+                  value={proposal.summaryText}
+                  onChange={(e) => setProposal({ ...proposal, summaryText: e.target.value })}
+                  rows={3}
+                  style={{ width: '100%', fontSize: 13, padding: '4px 6px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                />
+              ) : (
+                <p style={{ fontSize: 13, color: '#334155', margin: 0, lineHeight: 1.6 }}>
+                  {proposal.summaryText}
+                </p>
+              )}
             </div>
-          )}
+          </div>
 
           {/* 確定アクションボタン */}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 10 }}>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 6 }}>
             <button
               type="button"
               onClick={handleConfirmProject}
@@ -1156,7 +1331,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                 backgroundColor: '#B92F3D',
                 color: '#FFFFFF',
                 border: 'none',
-                padding: '14px',
+                padding: '16px',
                 borderRadius: 10,
                 fontSize: 15,
                 fontWeight: 900,
@@ -1165,7 +1340,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                 boxShadow: '0 4px 14px rgba(185, 47, 61, 0.25)'
               }}
             >
-              {isSubmitting ? 'プロジェクト登録中...' : 'この企画書でプロジェクトを開始する'}
+              {isSubmitting ? 'プロジェクト登録中...' : 'この企画提案書でプロジェクトを開始する'}
             </button>
           </div>
         </div>
@@ -1225,7 +1400,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             </div>
 
             <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
-              Google AI Studioで無料発行したAPIキーを設定すると、クラウドのGeminiモデルへ直接接続して議事録の文脈要約や要点分析、本格企画書の作成が全自動で瞬時に実行されます。クレジットカード登録不要で数秒で取得可能です。
+              Google AI Studioで無料発行したAPIキーを設定すると、クラウドのGeminiモデルへ直接接続して議事録の文脈要約や要点分析、本格企画提案書の作成が全自動で瞬時に実行されます。クレジットカード登録不要で数秒で取得可能です。
             </p>
 
             <a
