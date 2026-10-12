@@ -358,7 +358,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                     borderRadius: 4
                   }}
                 >
-                  {apiKey ? 'Gemini 2.0 Flash 稼働中' : 'Gemini API 未接続'}
+                  {apiKey ? 'Gemini 3.8 Flash Medium 稼働中' : 'Gemini API 未接続'}
                 </span>
                 <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
                   {apiKey ? 'クラウドAI要約分析エンジン' : '現在ローカル簡易モード'}
@@ -631,7 +631,7 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
           </div>
           <div>
             <h3 style={{ fontSize: 18, fontWeight: 900, color: '#171A21', margin: '0 0 6px 0' }}>
-              {apiKey ? 'Gemini AI が文章を読み取り分析中' : 'テキストを読み取り企画書を構成中'}
+              {apiKey ? 'Gemini 3.8 Flash Medium が文章を読み取り分析中' : 'テキストを読み取り企画書を構成中'}
             </h3>
             <p style={{ fontSize: 13, color: '#596273', margin: 0, lineHeight: 1.6 }}>
               議事録やイベント概要から要約と要点分析を行い、人の手で編集できる企画書を作成しています
