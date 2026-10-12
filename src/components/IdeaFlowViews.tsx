@@ -349,19 +349,19 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 <span
                   style={{
-                    backgroundColor: '#EFF6FF',
-                    border: '1px solid #BAE6FD',
-                    color: '#0284C7',
+                    backgroundColor: apiKey ? '#ECFDF5' : '#FFFBEB',
+                    border: apiKey ? '1px solid #A7F3D0' : '1px solid #FDE68A',
+                    color: apiKey ? '#047857' : '#B45309',
                     fontSize: 11,
                     fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: 4
                   }}
                 >
-                  Gemini 3.8 Flash Medium 搭載
+                  {apiKey ? 'Gemini 2.0 Flash 稼働中' : 'Gemini API 未接続'}
                 </span>
                 <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
-                  イベント企画エンジン
+                  {apiKey ? 'クラウドAI要約分析エンジン' : '現在ローカル簡易モード'}
                 </span>
               </div>
               <h2 style={{ fontSize: 19, fontWeight: 900, color: '#171A21', margin: 0 }}>
@@ -379,9 +379,9 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
-                  backgroundColor: apiKey ? '#ECFDF5' : '#F1F5F9',
-                  border: apiKey ? '1px solid #A7F3D0' : '1px solid #CBD5E1',
-                  color: apiKey ? '#047857' : '#475569',
+                  backgroundColor: apiKey ? '#ECFDF5' : '#FFFBEB',
+                  border: apiKey ? '1px solid #A7F3D0' : '1px solid #FCD34D',
+                  color: apiKey ? '#047857' : '#B45309',
                   borderRadius: 6,
                   padding: '4px 10px',
                   fontSize: 12,
@@ -408,6 +408,46 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               </button>
             </div>
           </div>
+
+          {/* APIキー未接続時の案内バナー */}
+          {!apiKey && (
+            <div
+              style={{
+                backgroundColor: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                borderRadius: 8,
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={16} color="#D97706" />
+                <span style={{ fontSize: 12, color: '#92400E', fontWeight: 700, lineHeight: 1.4 }}>
+                  Gemini APIキーを設定すると、文章全体の文脈を深く理解した要約や要点分析、本格企画書が瞬時に生成されます
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenApiKeyModal}
+                style={{
+                  backgroundColor: '#D97706',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '6px 12px',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                APIキーを設定する
+              </button>
+            </div>
+          )}
 
           {/* 入力補助アクションバー */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 }}>
@@ -564,13 +604,13 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             backgroundColor: '#FFFFFF',
             borderRadius: 14,
             border: '1px solid #D9DEE7',
-            padding: '60px 24px',
+            padding: '48px 24px',
             boxShadow: '0 6px 16px rgba(23, 26, 33, 0.05)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 16,
+            gap: 20,
             textAlign: 'center'
           }}
         >
@@ -591,12 +631,39 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
           </div>
           <div>
             <h3 style={{ fontSize: 18, fontWeight: 900, color: '#171A21', margin: '0 0 6px 0' }}>
-              Gemini 3.8 Flash Medium が文章を読み取り中
+              {apiKey ? 'Gemini AI が文章を読み取り分析中' : 'テキストを読み取り企画書を構成中'}
             </h3>
             <p style={{ fontSize: 13, color: '#596273', margin: 0, lineHeight: 1.6 }}>
-              議事録の内容から企画の目的、当日の進行ステップ、必要備品を抽出し、<br />
-              人の手で編集できるイベント企画書を構成しています...
+              議事録やイベント概要から要約と要点分析を行い、人の手で編集できる企画書を作成しています
             </p>
+          </div>
+
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              backgroundColor: '#F8FAFC',
+              borderRadius: 10,
+              border: '1px solid #E2E8F0',
+              padding: '14px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              textAlign: 'left'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 700, color: '#0284C7' }}>
+              <Check size={14} color="#0284C7" />
+              <span>文章や議事録の文脈理解と要約</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 700, color: '#0284C7' }}>
+              <Check size={14} color="#0284C7" />
+              <span>目的や背景および狙いの要点分析</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 700, color: '#0284C7' }}>
+              <Check size={14} color="#0284C7" />
+              <span>進行ステップと必要備品の企画書化</span>
+            </div>
           </div>
         </div>
       )}
@@ -1158,8 +1225,30 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
             </div>
 
             <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
-              Google AI Studioで取得したAPIキーを入力すると、クラウドのGeminiモデルへ直接接続して議事録や文章を解析します。未設定の場合でも内蔵された自然言語エンジンにより入力文に即した企画書が自動生成されます。
+              Google AI Studioで無料発行したAPIキーを設定すると、クラウドのGeminiモデルへ直接接続して議事録の文脈要約や要点分析、本格企画書の作成が全自動で瞬時に実行されます。クレジットカード登録不要で数秒で取得可能です。
             </p>
+
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#0284C7',
+                textDecoration: 'none',
+                backgroundColor: '#F0F9FF',
+                padding: '8px 12px',
+                borderRadius: 6,
+                border: '1px solid #BAE6FD',
+                width: 'fit-content'
+              }}
+            >
+              <span>Google AI Studioで無料APIキーを取得する 外部サイト</span>
+            </a>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>

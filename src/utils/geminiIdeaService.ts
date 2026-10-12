@@ -37,8 +37,8 @@ export const setGeminiApiKey = (key: string): void => {
   }
 };
 
-const callGeminiApi = async (prompt: string, apiKey: string): Promise<string> => {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+const callGeminiApiWithModel = async (prompt: string, apiKey: string, modelName: string): Promise<string> => {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -51,7 +51,7 @@ const callGeminiApi = async (prompt: string, apiKey: string): Promise<string> =>
         }
       ],
       generationConfig: {
-        temperature: 0.3,
+        temperature: 0.2,
         responseMimeType: 'application/json'
       }
     })
@@ -69,6 +69,15 @@ const callGeminiApi = async (prompt: string, apiKey: string): Promise<string> =>
     throw new Error('Gemini API returned empty text');
   }
   return text;
+};
+
+const callGeminiApi = async (prompt: string, apiKey: string): Promise<string> => {
+  try {
+    return await callGeminiApiWithModel(prompt, apiKey, 'gemini-2.0-flash');
+  } catch (err) {
+    console.warn('Gemini 2.0 Flash failed, retrying with Gemini 1.5 Flash', err);
+    return await callGeminiApiWithModel(prompt, apiKey, 'gemini-1.5-flash');
+  }
 };
 
 const stripForbiddenBrackets = (str: string): string => {
