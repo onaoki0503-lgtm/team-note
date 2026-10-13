@@ -188,6 +188,13 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
     setProposal({ ...proposal, operationFlow: updated });
   };
 
+  // 3つの提案ボックス項目の更新
+  const handleUpdateConceptBox = (idx: number, field: 'title' | 'description', val: string) => {
+    const updated = [...proposal.conceptBoxes];
+    updated[idx] = { ...updated[idx], [field]: val };
+    setProposal({ ...proposal, conceptBoxes: updated });
+  };
+
   // 改善点項目の更新
   const handleUpdateImpact = (idx: number, field: 'stakeholder' | 'title' | 'description', val: string) => {
     const updated = [...proposal.stakeholderImpacts];
@@ -991,9 +998,18 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
               >
                 3. 提案内容の概要
               </div>
-              <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px 0' }}>
-                各フロアの共用スペースに、以下の専用設備および運用ルールを配備します。
-              </p>
+              {isEditMode ? (
+                <input
+                  type="text"
+                  value={proposal.proposalOverview}
+                  onChange={(e) => setProposal({ ...proposal, proposalOverview: e.target.value, proposalConcept: e.target.value })}
+                  style={{ width: '100%', fontSize: 13, padding: '6px 8px', marginBottom: 14, border: '1px solid #CBD5E1', borderRadius: 4, boxSizing: 'border-box' }}
+                />
+              ) : (
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 14px 0' }}>
+                  {proposal.proposalOverview || proposal.proposalConcept}
+                </p>
+              )}
 
               {/* 3つのボックス・要素カード */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -1022,18 +1038,37 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                           fontWeight: 800,
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          justifyContent: 'center',
+                          flexShrink: 0
                         }}
                       >
                         {box.number}
                       </span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A' }}>
-                        {box.title}
-                      </span>
+                      {isEditMode ? (
+                        <input
+                          type="text"
+                          value={box.title}
+                          onChange={(e) => handleUpdateConceptBox(idx, 'title', e.target.value)}
+                          style={{ width: '100%', fontSize: 12, fontWeight: 800, padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A' }}>
+                          {box.title}
+                        </span>
+                      )}
                     </div>
-                    <p style={{ fontSize: 11.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
-                      {box.description}
-                    </p>
+                    {isEditMode ? (
+                      <textarea
+                        value={box.description}
+                        onChange={(e) => handleUpdateConceptBox(idx, 'description', e.target.value)}
+                        rows={3}
+                        style={{ width: '100%', fontSize: 11.5, padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, boxSizing: 'border-box' }}
+                      />
+                    ) : (
+                      <p style={{ fontSize: 11.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
+                        {box.description}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1127,15 +1162,42 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                         color: idx === 0 ? '#1D4ED8' : idx === 1 ? '#15803D' : '#B45309'
                       }}
                     >
-                      {imp.stakeholder}
+                      {isEditMode ? (
+                        <input
+                          type="text"
+                          value={imp.stakeholder}
+                          onChange={(e) => handleUpdateImpact(idx, 'stakeholder', e.target.value)}
+                          style={{ width: '100%', fontSize: 12, fontWeight: 800, padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                        />
+                      ) : (
+                        imp.stakeholder
+                      )}
                     </div>
                     <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1, backgroundColor: '#FFFFFF' }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
-                        {imp.title}
-                      </div>
-                      <p style={{ fontSize: 11.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
-                        {imp.description}
-                      </p>
+                      {isEditMode ? (
+                        <input
+                          type="text"
+                          value={imp.title}
+                          onChange={(e) => handleUpdateImpact(idx, 'title', e.target.value)}
+                          style={{ width: '100%', fontSize: 12, fontWeight: 800, padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                        />
+                      ) : (
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
+                          {imp.title}
+                        </div>
+                      )}
+                      {isEditMode ? (
+                        <textarea
+                          value={imp.description}
+                          onChange={(e) => handleUpdateImpact(idx, 'description', e.target.value)}
+                          rows={3}
+                          style={{ width: '100%', fontSize: 11.5, padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, boxSizing: 'border-box' }}
+                        />
+                      ) : (
+                        <p style={{ fontSize: 11.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
+                          {imp.description}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1235,7 +1297,16 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
                         合計概算費用
                       </td>
                       <td style={{ padding: '10px', textAlign: 'right', fontWeight: 900, color: '#0284C7', fontSize: 14 }}>
-                        {proposal.totalCostEstimate}
+                        {isEditMode ? (
+                          <input
+                            type="text"
+                            value={proposal.totalCostEstimate}
+                            onChange={(e) => setProposal({ ...proposal, totalCostEstimate: e.target.value })}
+                            style={{ width: '140px', fontSize: 13, fontWeight: 900, textAlign: 'right', padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4 }}
+                          />
+                        ) : (
+                          proposal.totalCostEstimate
+                        )}
                       </td>
                     </tr>
                   </tbody>
