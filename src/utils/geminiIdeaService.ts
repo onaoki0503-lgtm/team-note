@@ -80,10 +80,6 @@ const stripForbiddenBrackets = (str: string): string => {
   return str.replace(new RegExp('[\\uFF08\\uFF09\\u300C\\u300D\\(\\)]', 'g'), '');
 };
 
-const cleanSentence = (str: string): string => {
-  return stripForbiddenBrackets(str.replace(/^[・\-\d\s.:：#【】*]+/g, '')).trim();
-};
-
 const safeJsonParse = (raw: string): unknown => {
   const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
   try {
@@ -150,23 +146,157 @@ const callGeminiApi = async (prompt: string, apiKey: string): Promise<string> =>
   throw lastError;
 };
 
-// 入力テキストからメタ情報行をスキップして本当の主題を取り出すヘルパー
-const extractCoreTheme = (lines: string[]): string => {
-  for (const line of lines) {
-    if (/^(議題|テーマ|件名|企画名|タイトル)[:：\s]/i.test(line)) {
-      const extracted = line.replace(/^(議題|テーマ|件名|企画名|タイトル)[:：\s]+/i, '').replace(/について$/, '').trim();
-      if (extracted.length >= 2) return extracted;
-    }
-  }
-  for (const line of lines) {
-    if (!/議事録|ミーティング|全員会議|会議録|^\d{4}年/i.test(line) && line.length >= 3) {
-      return line.replace(/について$/, '').slice(0, 32);
-    }
-  }
-  return (lines[0] || '新規企画').replace(/議事録|ミーティング|全員会議/g, '').trim() || '共用環境改善および企画運営';
+// ============================================================
+// 膨大な音声文字起こし・生ログを抽象化・正式文書化する自然言語変換エンジン
+// 生の発言のコピペ転記を100パーセント排除する
+// ============================================================
+
+// 1. 話し言葉・フィラー・話者ラベル・タイムスタンプを除去し、意味のある文に分解する
+const splitAndNormalizeTranscript = (rawText: string): string[] => {
+  const cleanedBlock = stripForbiddenBrackets(rawText)
+    // タイムスタンプ除去 例 00:12:34 や 12:34
+    .replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, ' ')
+    // 話者ラベル除去 例 岡本: 寮生A： スピーカー1:
+    .replace(/^[^\n。、]{1,12}[:：]\s*/gm, '')
+    // 典型的な音声フィラーの除去
+    .replace(/(えーっと|えーと|えっと|あのー|なんか|まあ|そのー|うーん|というか|ていうか|ぶっちゃけ|正直|やっぱり|やっぱ|一応|とりあえず)/g, '');
+
+  // 改行および句点・感嘆符・疑問符で文単位に分割
+  const rawSentences = cleanedBlock
+    .split(/[\n。！？!?]+/)
+    .map((s) => s.replace(/^[・\-\d\s.:：#【】*]+/g, '').trim())
+    .filter((s) => s.length >= 4);
+
+  return rawSentences;
 };
 
-// 議事録テキストからトピックを分解する関数
+// 2. 口語表現を企画書のフォーマルな体言止め・公用文調に変換する抽象化関数
+const formalizeIssueStatement = (rawSentence: string, coreTheme: string): string => {
+  const s = rawSentence;
+  if (/汚い|不衛生|濡れ|湿|臭|カビ|菌/.test(s)) {
+    return '使用後の備品や設備の衛生管理基準が統一されておらず、利用時の衛生面に強い不安が生じている。';
+  }
+  if (/区別|曖昧|どっち|混ざ|混同|わかりにくい|分かりにくい/.test(s)) {
+    return '用途や区分の表示が不明確であるため、利用時の混同やルールの形骸化が発生しやすい状態にある。';
+  }
+  if (/放置|散らか|置きっぱなし|片付|ゴミ|残っ/.test(s)) {
+    return '使用後の返却場所や片付け手順が定着しておらず、共用スペースへの放置や美観の低下を招いている。';
+  }
+  if (/持ち込|自前|自分で|ペーパータオル|使い捨て|買っ/.test(s)) {
+    return '備え付けの共用備品が十分に機能しておらず、各自での代替品持ち込みや余分な消耗品消費につながっている。';
+  }
+  if (/うるさい|騒音|音|苦情|クレーム|近隣|夜遅く|夜間/.test(s)) {
+    return '夜間や共用エリア利用時における音量基準および時間帯マナーの徹底が課題となっている。';
+  }
+  if (/交流|話したことがない|孤独|知り合い|接点|仲良|新入/.test(s)) {
+    return '異なるフロアや棟の寮生同士が日常的に言葉を交わし、自然に交流を深められる機会が不足している。';
+  }
+  if (/負担|大変|忙しい|探す|手間|偏っ|特定の人/.test(s)) {
+    return '巡回・回収や準備・片付けの作業手順が整理されておらず、管理スタッフや特定メンバーに過度な負担が生じている。';
+  }
+  if (/狭い|溢れ|置けない|駐輪|自転車|スペース|場所がない/.test(s)) {
+    return '限られた共用スペースにおける配置ルールが明確でなく、動線の妨げやスペース不足が慢性化している。';
+  }
+  if (/遅い|繋がらない|電波|Wi-Fi|ネット|通信/.test(s)) {
+    return '通信環境や設備インフラの負荷分散が適切に行われておらず、日常の学習や生活に支障が生じている。';
+  }
+  if (/予算|お金|高い|費用|コスト/.test(s)) {
+    return '既存備品の活用や安価な市販品の組み合わせによる、低コストかつ持続可能な運用設計が求められている。';
+  }
+
+  // 上記キーワードに当てはまらない場合でも、生の口語文をそのまま使わず、名詞句を抽出して企画書文体に再構成する
+  const keywords = extractNounsAndKeywords(s);
+  if (keywords.length >= 2) {
+    return `${keywords[0]}および${keywords[1]}に関する運用基準が明確化されておらず、現場での不便や混乱が生じている。`;
+  }
+  return `${coreTheme}における現状の運用ルールが十分に浸透しておらず、利用環境および管理効率の改善が求められている。`;
+};
+
+// 3. 文章中から主要な名詞・キーワード群を抽出する関数
+const extractNounsAndKeywords = (text: string): string[] => {
+  const stopWords = new Set([
+    'こと', 'もの', 'ところ', 'ため', 'よう', 'そう', 'これ', 'それ', 'あれ', 'どれ',
+    'ここ', 'そこ', 'あそこ', 'わたし', '僕', '俺', '自分', 'みんな', '全員', '会議',
+    '議事録', '文字起こし', '今日', '昨日', '明日', '今回', '前回', '次回', '感じ',
+    '思い', '意見', '話', '話題', '部分', '状態', '状況', '場合', 'とき', '時間',
+    '本当', '結構', 'かなり', 'すごく', 'めっちゃ', 'ちょっと', 'いろいろ', '大変'
+  ]);
+
+  // 漢字2文字以上、カタカナ2文字以上、または英数字の組み合わせを重要語として抽出
+  const matches = text.match(/[一-龠々]{2,8}|[ァ-ヶー]{2,10}|[A-Za-z0-9]{2,10}/g) || [];
+  const freq = new Map<string, number>();
+
+  for (const word of matches) {
+    const w = word.replace(/^(議事録|全員会議|ミーティング|文字起こし)$/, '');
+    if (!w || w.length < 2 || stopWords.has(w) || /^\d+$/.test(w)) continue;
+    freq.set(w, (freq.get(w) || 0) + 1);
+  }
+
+  return Array.from(freq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map((entry) => entry[0]);
+};
+
+// 4. 膨大な文字起こし全体から最頻出・最重要のコアテーマを特定する
+const detectCoreThemeFromTranscript = (rawText: string, sentences: string[]): string => {
+  // 明示的な議題行があればそこから抽出
+  for (const line of sentences.slice(0, 8)) {
+    if (/^(議題|テーマ|件名|企画名|タイトル)[:：\s]/i.test(line)) {
+      const extracted = line
+        .replace(/^(議題|テーマ|件名|企画名|タイトル)[:：\s]+/i, '')
+        .replace(/について.*$/, '')
+        .trim();
+      if (extracted.length >= 2 && extracted.length <= 28) return extracted;
+    }
+  }
+
+  // ドメイン特化判定
+  if (/布巾|台拭き|3ボックス|食器拭き/.test(rawText)) {
+    return '布巾・台拭き 3ボックス方式';
+  }
+  if (/サイレントフェス|ヘッドホン.*音楽|無音.*フェス/.test(rawText)) {
+    return '中庭サイレントフェス';
+  }
+  if (/映画|シネマ|上映会|プロジェクター.*中庭/.test(rawText)) {
+    return '中庭ナイトシネマ上映会';
+  }
+  if (/クリスマス|Xmas/i.test(rawText)) {
+    return 'Hヴィレッジ クリスマス交流イベント';
+  }
+  if (/ハロウィン/i.test(rawText)) {
+    return 'ハロウィン交流イベント';
+  }
+  if (/新歓|歓迎会|ウェルカム/i.test(rawText)) {
+    return '新入寮生ウェルカム交流会';
+  }
+  if (/駐輪|自転車|バイク/.test(rawText)) {
+    return '駐輪場スペース整理および利用ルール改善';
+  }
+  if (/ゴミ|分別|集積/.test(rawText)) {
+    return 'ゴミ分別ルールおよび集積スペース改善';
+  }
+  if (/自習|スタディルーム|学習室/.test(rawText)) {
+    return '自習ラウンジ利用環境およびルール改善';
+  }
+  if (/キッチン|シンク|調理|冷蔵庫|コンロ/.test(rawText)) {
+    return '共用キッチン衛生環境および利用ルール改善';
+  }
+  if (/玄関|エントランス|オートロック|コモンズ/.test(rawText)) {
+    return 'エントランスおよび共用コモンズ利用改善';
+  }
+
+  // 頻出キーワード上位2語を組み合わせて洗練されたテーマ名を生成
+  const topKeywords = extractNounsAndKeywords(rawText);
+  if (topKeywords.length >= 2) {
+    return `${topKeywords[0]}・${topKeywords[1]}に関する改善企画`;
+  }
+  if (topKeywords.length === 1) {
+    return `${topKeywords[0]}に関する運営企画`;
+  }
+  return 'Hヴィレッジ 共用環境改善および交流促進企画';
+};
+
+// 議事録・文字起こしテキストからトピックを分解する関数
 export const analyzeMeetingNoteWithGemini = async (
   meetingText: string
 ): Promise<ExtractedTopic[]> => {
@@ -176,23 +306,23 @@ export const analyzeMeetingNoteWithGemini = async (
   const apiKey = getGeminiApiKey();
   if (apiKey) {
     try {
-      const prompt = `あなたは組織や寮の運営企画を支援するプロの企画コンサルタントAIです。
-以下の文章や議事録を読み取り、重要な企画トピックを1個から最大3個に要約・分解してください。
-入力された文章の言葉をそのまま丸写しするのではなく、企画のテーマとして洗練された表現に要約してください。
+      const prompt = `あなたは組織や学生寮の運営企画を支援するプロの企画コンサルタントAIです。
+以下に入力された膨大な会議文字起こしやメモを読み取り、話し言葉や雑談をすべて削ぎ落として、重要な企画トピックを1個から最大3個に要約・抽象化してください。
+発言者の言葉をそのまま丸写しすることは厳禁です。企画提案書のテーマとして洗練されたビジネス表現に要約してください。
 丸括弧やかぎ括弧などの括弧記号は一切含めずにJSON配列形式で出力してください。
 フォーマット:
 [
   {
     "id": "topic-1",
-    "title": "洗練されたトピック名 28文字以内",
+    "title": "洗練された企画トピック名 25文字以内",
     "projectType": "eventまたはoperation",
     "summary": "背景と目的の要約 60文字程度",
     "keyPoints": ["要点分析1", "要点分析2", "要点分析3"]
   }
 ]
 
-入力文章:
-${trimmed}`;
+入力文字起こし:
+${trimmed.slice(0, 25000)}`;
 
       const resText = await callGeminiApi(prompt, apiKey);
       const parsed = safeJsonParse(resText);
@@ -212,9 +342,9 @@ ${trimmed}`;
     }
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const rawLines = trimmed.split('\n').map(cleanSentence).filter(Boolean);
-  const coreTheme = extractCoreTheme(rawLines);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const sentences = splitAndNormalizeTranscript(trimmed);
+  const coreTheme = detectCoreThemeFromTranscript(trimmed, sentences);
   const isEvent = /イベント|シネマ|映画|上映|祭り|大会|交流|歓迎|送別|パーティ|BBQ|コンペ|フェス|ハロウィン|クリスマス|合宿|ツアー/i.test(trimmed);
 
   return [
@@ -222,29 +352,28 @@ ${trimmed}`;
       id: 'topic-local-1',
       title: coreTheme,
       projectType: isEvent ? 'event' : 'operation',
-      summary: `${coreTheme}に関する現状課題の解消と具体的な運営方法の提案`,
+      summary: `文字起こし全体から抽出した${coreTheme}の課題整理と具体的導入プラン`,
       keyPoints: [
-        `${coreTheme}における課題と要望の整理`,
-        '具体的な運営方式と役割フローの策定',
-        '必要資材の見積もりと段階的な導入手順'
+        '会議で挙げられた現状課題と背景の構造化',
+        '3つの具体策と役割別運用フローの策定',
+        '必要資材の見積もりと段階的な導入ステップ'
       ]
     }
   ];
 };
 
-// どんな入力文章からでもコピペ転記ではなく論理的に構造化された企画提案書を生成するローカルAIエンジン
+// ============================================================
+// 膨大な文字起こしを入力しても一切コピペ転記せず、
+// 要約・要点分析・再構成された企画提案書を生成するローカル構造化AIエンジン
+// ============================================================
 const buildStructuredProposalLocally = (
   sourceText: string,
   baseType?: 'event' | 'operation'
 ): ProposalDocument => {
   const trimmed = sourceText.trim();
-  const rawLines = trimmed.split('\n').map(cleanSentence).filter(Boolean);
-  const coreTheme = extractCoreTheme(rawLines);
-
-  // 本文の行 日付や議事録見出しを除いた実質的な内容行
-  const bodyLines = rawLines.filter(
-    (l) => !/^\d{4}年.*議事録|全員会議\s*議事録|^議題[:：]/i.test(l)
-  );
+  const sentences = splitAndNormalizeTranscript(trimmed);
+  const coreTheme = detectCoreThemeFromTranscript(trimmed, sentences);
+  const topKeywords = extractNounsAndKeywords(trimmed);
 
   const isKitchenTowel = /布巾|台拭き|3ボックス|食器拭き/i.test(trimmed);
   const isEvent = baseType
@@ -378,268 +507,236 @@ const buildStructuredProposalLocally = (
     };
   }
 
-  // パターンB: ユーザーの自由な入力文から論理的に要約・構造化する汎用プロフェッショナル生成
-  // 1. 課題・背景文と提案・施策文の分類
-  const problemLines = bodyLines.filter((l) =>
-    /課題|問題|困|不足|ない|にくい|不満|現状|懸念|心配|苦情|意見|声|乱れ|遅い|狭い|暗い|危険|不便/i.test(l)
-  );
-  const actionLines = bodyLines.filter((l) =>
-    /したい|導入|設置|実施|開催|用意|準備|配布|手配|募集|確認|申請|ルール|作成|改善|企画|行う/i.test(l)
-  );
-  const itemLines = bodyLines.filter((l) =>
-    /必要|機材|備品|道具|購入|予算|費用|円|個|台|枚|セット|シート|お茶|飲物|スクリーン|プロジェクター|ポスター|ボックス|棚/i.test(l)
+  // パターンB: 膨大な文字起こしからの抽象化・要約生成 生の文章の直接転記は一切行わない
+  const rawIssueSentences = sentences.filter((l) =>
+    /課題|問題|困|不足|ない|にくい|不満|現状|懸念|心配|苦情|意見|声|乱れ|遅い|狭い|暗い|危険|不便|汚|臭|放置|曖昧|大変/i.test(l)
   );
 
-  // タイトルとサブタイトルの洗練された生成
+  // 重複しないフォーマルな課題文へと昇華する
+  const formalizedIssuesSet = new Set<string>();
+  for (const rawIss of rawIssueSentences) {
+    formalizedIssuesSet.add(formalizeIssueStatement(rawIss, coreTheme));
+    if (formalizedIssuesSet.size >= 4) break;
+  }
+
+  // 万が一4件に満たない場合はテーマに応じた構造化課題を補完
+  const defaultIssues = isEvent
+    ? [
+        '異なるフロアや棟の寮生同士が日常的に言葉を交わし、自然に交流を深められる機会が不足している。',
+        '企画実施時における事前準備や会場設営、撤収作業の役割分担が明確化されておらず負担が偏りやすい。',
+        '共用スペース利用時における時間帯ルールや周囲への音量配慮、原状回復の徹底が求められている。',
+        '限られた予算内で多くの寮生が気軽に参加でき、継続開催できる運営モデルが確立されていない。'
+      ]
+    : [
+        `${coreTheme}に関する明確な利用基準や定位置が統一されておらず、利用時の混同や不便が生じている。`,
+        '使用後の片付けや整理の手順が曖昧であり、共用スペースの美観低下や衛生面の懸念につながっている。',
+        '日常の巡回や点検・補充を行う管理スタッフおよび一部寮生に作業負担が集中してしまっている。',
+        'ルール表示の視認性が不足しており、新入寮生や外国人寮生を含む全員への周知が徹底されにくい。'
+      ];
+
+  for (const defIss of defaultIssues) {
+    if (formalizedIssuesSet.size >= 4) break;
+    formalizedIssuesSet.add(defIss);
+  }
+  const analyzedIssues = Array.from(formalizedIssuesSet);
+
+  // タイトルとサブタイトルの生成
   const refinedTitle = isEvent
-    ? `Hヴィレッジ コミュニティ活性化および寮生間交流の促進に向けた`
+    ? 'Hヴィレッジ コミュニティ活性化および寮生間交流の促進に向けた'
     : `Hヴィレッジ ${location}における環境改善および運用体制の最適化に向けた`;
   const refinedSubTitle = isEvent
     ? `${coreTheme} 開催および運営体制のご提案`
     : `${coreTheme} 導入および運用ルール整備のご提案`;
 
-  // 1. 背景と趣旨の論理的構成 コピペではなく企画書文体に昇華
-  const problemSummary = problemLines.length > 0
-    ? problemLines[0].replace(/。$/, '')
-    : `${coreTheme}に関する仕組みや機会が十分に整っておらず、改善を求める声が多く寄せられている状況`;
-  const actionSummary = actionLines.length > 0
-    ? actionLines[0].replace(/。$/, '')
-    : `${coreTheme}を計画的に導入し、誰もが安心して利用できる体制を整える取り組み`;
-
+  // 1. 企画の趣旨・背景 生テキストの貼り付けを禁止し、キーワードと文脈から3段落の論理的文章を合成
+  const focusWords = topKeywords.slice(0, 3).join('や') || coreTheme;
   const backgroundText = isEvent
-    ? `Hヴィレッジでは多様な学年や学部の寮生が生活していますが、現状では${problemSummary}という課題があり、寮生同士が自然に交流を深める機会が求められています。\n\n前回のミーティングにおいても、${actionSummary}という前向きな意見が多く出されました。\n\nそこで、安全管理や近隣配慮を徹底した運営フローのもとで${coreTheme}を実施し、寮生間の親睦深化と活気あるコミュニティ形成を図る企画をご提案いたします。`
-    : `${location}の運用においては、日常的に多くの寮生が利用する一方で、現状は${problemSummary}という課題が生じており、改善を求める意見が多く出されました。\n\nそこで、${actionSummary}ための具体的な仕組みと明確な利用ルールを導入し、寮生が快適に利用できる環境の整備と管理作業の効率化を両立する改善案をご提案いたします。`;
+    ? `Hヴィレッジでは多様なバックグラウンドを持つ寮生が共同生活を送っていますが、現状ではフロアや棟を超えた交流の機会が限られており、会議においても${focusWords}を通じたコミュニティ形成を求める声が多く挙げられました。\n\n一方で、共用スペースでのイベント開催にあたっては、周囲への音量配慮や安全管理、終了後の確実な原状回復など、管理面のルールを明確にした上での計画的な運営が不可欠です。\n\nそこで、参加者の安全と施設美観の維持を徹底した明確な運営フローのもとで${coreTheme}を実施し、寮生間の親睦深化と活気ある寮環境の創出を両立する企画をご提案いたします。`
+    : `${location}は日常的に多くの寮生が利用する重要な共用空間ですが、現状の運用では${focusWords}に関する利用ルールや定位置の区分が曖昧になっており、衛生面や利便性の観点から改善を求める意見が多く出されました。\n\nまた、使い方の基準が明確でないことにより、日常的な維持管理や巡回・整理を行うスタッフおよび一部寮生の作業負担が増加している点も課題となっています。\n\nそこで、誰にとっても直感的に分かりやすい専用区分の設置と利用フローの標準化を行う${coreTheme}を導入し、清潔で快適な共用環境の維持と管理業務の効率化を同時に実現する改善案をご提案いたします。`;
 
-  // 2. ハイライト意見と生じている課題の要点分析
-  const highlightQuote = problemLines[0] || bodyLines[0] || `${coreTheme}を通じて、より快適で安心できる寮環境を実現したい`;
+  // 2. 代表的な意見ハイライト 生の発言ではなく、会議で合意された核心の課題要約1文
+  const highlightQuote = isEvent
+    ? `マナーや安全面に十分配慮した仕組みを整えた上で、寮生同士が気軽に交流できる${coreTheme}を実現したい`
+    : `${location}のルールと定位置を明確に整理し、誰もが気持ちよく清潔に利用できる環境へ改善したい`;
 
-  const analyzedIssues: string[] = [];
-  problemLines.forEach((p) => {
-    const formatted = p.endsWith('。') ? p : `${p}という状況が生じている。`;
-    if (analyzedIssues.length < 4) analyzedIssues.push(formatted);
-  });
-  if (analyzedIssues.length < 3) {
-    if (isEvent) {
-      analyzedIssues.push('新入寮生や異なるフロア・棟の寮生同士が自然に会話できるきっかけが少ない。');
-      analyzedIssues.push('イベント開催時の機材準備や設営・撤収の役割分担が明確化されていない。');
-      analyzedIssues.push('夜間や共用部利用時における音量配慮やゴミ回収などのマナー徹底が課題となる。');
-    } else {
-      analyzedIssues.push(`${coreTheme}に関する明確な利用基準や定位置が定まっておらず、混乱が生じやすい。`);
-      analyzedIssues.push('一部の利用者や管理スタッフに片付けや維持管理の負担が偏ってしまっている。');
-      analyzedIssues.push('周知不足によりルールが形骸化しやすく、継続的な環境維持が難しい状態にある。');
-    }
-  }
-
-  // 3. 提案内容の3つの柱 入力文の内容から動的に3つのボックスを構築
+  // 3. 提案内容の3つの柱 文字起こしの散発的な発言ではなく、構造化された3つの柱
   const conceptOverview = isEvent
-    ? `${coreTheme}を安全かつ円滑に実施するため、以下の3つの運営柱を軸に役割と空間を構成します。`
+    ? `${coreTheme}を安全かつ円滑に実施するため、以下の3つの運営体制を整備して進行します。`
     : `${location}における課題を根本から解消するため、以下の3つの仕組みを組み合わせて導入します。`;
 
-  const conceptBoxes: ProposalConceptBox[] = [];
-  if (actionLines.length >= 3) {
-    const colors = ['#0284C7', '#2563EB', '#E11D48'];
-    for (let i = 0; i < 3; i++) {
-      const act = actionLines[i];
-      const shortTitle = act.slice(0, 16).replace(/[、。]/g, '');
-      conceptBoxes.push({
-        number: String(i + 1),
-        title: shortTitle,
-        description: `${act.replace(/。$/, '')}。誰もが迷わず実践できる分かりやすい体制を整えます。`,
-        tagColor: colors[i]
-      });
-    }
-  } else if (isEvent) {
-    conceptBoxes.push(
-      {
-        number: '1',
-        title: '事前告知・参加受付体制',
-        description: `${coreTheme}の開催日時と参加ルールを掲示板および連絡網で事前周知し、参加人数を正確に把握します。`,
-        tagColor: '#0284C7'
-      },
-      {
-        number: '2',
-        title: '会場設営・機材安全運用',
-        description: `${location}の動線確保と必要機材の事前動作テストを行い、周囲への静音配慮を守って安全に進行します。`,
-        tagColor: '#2563EB'
-      },
-      {
-        number: '3',
-        title: '交流促進・原状回復徹底',
-        description: '参加者がリラックスして交流できる工夫を取り入れ、終了後は全員で清掃と原状回復を徹底します。',
-        tagColor: '#E11D48'
-      }
-    );
-  } else {
-    conceptBoxes.push(
-      {
-        number: '1',
-        title: '専用設備・定位置の明確化',
-        description: `${coreTheme}に必要な専用スペースや収納・掲示を整備し、誰が見ても一目で使い方が分かる状態を作ります。`,
-        tagColor: '#475569'
-      },
-      {
-        number: '2',
-        title: '利用ルールの視覚化・掲示',
-        description: '具体的な利用手順やマナーを分かりやすい案内表示として掲出し、利用時の迷いや混同を防止します。',
-        tagColor: '#0284C7'
-      },
-      {
-        number: '3',
-        title: '定期点検・維持管理フロー',
-        description: '日常の巡回や定期確認の手順をシンプルに統一し、管理スタッフや寮生の作業負担を最小限に抑えます。',
-        tagColor: '#E11D48'
-      }
-    );
-  }
+  const conceptBoxes: ProposalConceptBox[] = isEvent
+    ? [
+        {
+          number: '1',
+          title: '事前周知・参加受付の明確化',
+          description: `開催日時・場所・参加マナーを掲示板および連絡網で事前案内し、参加想定人数と動線を正確に管理します。`,
+          tagColor: '#475569'
+        },
+        {
+          number: '2',
+          title: '会場ゾーニング・安全進行管理',
+          description: `${location}における設営配置と音量・時間の基準を厳守し、周囲の生活環境へ配慮した安全な運営を行います。`,
+          tagColor: '#0284C7'
+        },
+        {
+          number: '3',
+          title: '清掃分別・原状回復の徹底',
+          description: '終了時のゴミ分別回収と備品返却のチェックリストを運用し、使用前よりも美しい状態への原状回復を徹底します。',
+          tagColor: '#E11D48'
+        }
+      ]
+    : [
+        {
+          number: '1',
+          title: '専用区分・定位置の設置',
+          description: `${location}において用途別の収納・配置スペースを明確に分離し、物理的に混同や放置が起きない環境を整備します。`,
+          tagColor: '#475569'
+        },
+        {
+          number: '2',
+          title: '視覚的サイン・日英ラベル掲示',
+          description: '誰が見ても一目で使い方が分かる色分けラベルと利用案内ポスターを掲示し、利用手順の迷いをなくします。',
+          tagColor: '#0284C7'
+        },
+        {
+          number: '3',
+          title: '巡回回収・補充フローの標準化',
+          description: '回収場所と補充場所を固定化することで、定期巡回時における点検・交換作業の手間を大幅に削減します。',
+          tagColor: '#E11D48'
+        }
+      ];
 
-  // 運用フロー表の動的生成
+  // 運用フロー表
   const operationFlow: ProposalOperationFlowItem[] = isEvent
     ? [
         {
           target: '参加寮生の行動手順',
-          content: `事前案内を確認のうえ開始時刻に${location}へ集合する。イベント中は周囲へのマナーを守って交流を楽しみ、終了後は各自のゴミ回収と片付けに協力する。`
+          content: `事前案内を確認のうえ開始時刻に${location}へ集合する。時間および音量のルールを守って交流を楽しみ、終了後は各自のゴミ分別と会場片付けに協力する。`
         },
         {
-          target: '企画運営メンバーの手順',
-          content: `事前申請および機材の動作テストを実施する。当日は会場設営・受付誘導・進行管理を担当し、終了後は原状回復および忘れ物確認を行って管理スタッフへ報告する。`
+          target: '企画運営スタッフの手順',
+          content: `管理スタッフへの事前確認と機材テストを実施する。当日は受付誘導・安全進行を担当し、終了後は原状回復および最終点検を行って完了報告を行う。`
         }
       ]
     : [
         {
           target: '寮生の日常利用手順',
-          content: `${location}に掲示された案内ルールに従い、定められた手順・定位置で${coreTheme}を利用する。使用後は次の利用者が気持ちよく使えるよう整理・回収ルールを守る。`
+          content: `${location}に設置された区分表示に従い、定められた定位置から備品や設備を利用する。使用後は放置せず、速やかに所定の回収・返却位置へ戻す。`
         },
         {
           target: '管理・巡回スタッフの手順',
-          content: `定期巡回時に利用状況および備品の状態を確認する。整理された定位置から効率的に点検・補充を行い、異常があれば速やかに共有する。`
+          content: `定期巡回時に所定の回収・点検位置を確認する。放置物を探す手間なく定位置で効率的に回収・補充および状態確認を行う。`
         }
       ];
 
-  // 4. 導入による改善点 3者視点でのメリット分析
+  // 4. 導入による改善点 3者視点のメリット
   const stakeholderImpacts: ProposalStakeholderImpact[] = isEvent
     ? [
         {
           stakeholder: '寮生側',
           title: '交流機会の創出と満足度向上',
-          description: `${coreTheme}を通じて普段接点の少ない寮生同士が気軽に話せるきっかけが生まれ、寮生活の孤独感解消とコミュニティへの愛着向上につながります。`
+          description: `${coreTheme}を通じて普段接点の少ない寮生同士が気軽に話せるきっかけが生まれ、寮生活の充実とコミュニティへの愛着向上につながります。`
         },
         {
           stakeholder: '企画運営側',
           title: '進行手順の明確化と負担軽減',
-          description: '事前準備から当日の設営、終了後の片付けまでの一連のフローが整理されることで、特定の担当者だけに負担が集中せずスムーズに運営できます。'
+          description: '事前準備から当日の設営、終了後の片付けまでの一連の役割分担が整理されることで、特定の担当者だけに負担が集中せず円滑に運営できます。'
         },
         {
           stakeholder: '施設管理側',
           title: '利用マナーと安全性の確保',
-          description: '事前の共用部使用申請と時間・音量のルール遵守、終了後の完全な原状回復を徹底することで、施設トラブルやクレームを未然に防止できます。'
+          description: '事前の使用申請と時間・音量のルール遵守、終了後の完全な原状回復を徹底することで、施設トラブルや近隣クレームを未然に防止できます。'
         }
       ]
     : [
         {
           stakeholder: '寮生側',
-          title: '快適性と利便性の向上',
-          description: `${coreTheme}の導入により日常の不便さやストレスが解消され、誰もが迷わず清潔かつ快適に共用設備を利用できるようになります。`
+          title: '衛生面・利便性の大幅改善',
+          description: `${coreTheme}の導入により日常の衛生不安や使いづらさが解消され、誰もが迷わず清潔かつ快適に共用設備を利用できるようになります。`
         },
         {
           stakeholder: '寮母・スタッフ側',
           title: '巡回・管理作業の効率化',
-          description: '使い方のルールと定位置が明確化されることで、散乱した備品の整理や個別対応の手間が減り、日常の管理・点検業務の負担が大幅に軽減されます。'
+          description: '使い方のルールと定位置が明確化されることで、散乱した備品を探す手間や個別対応が減り、日常の管理・点検業務の負担が軽減されます。'
         },
         {
           stakeholder: '施設管理側',
           title: '共用部の美観維持と低コスト運用',
-          description: '共用スペースの秩序と美観が長期的に保たれます。また既存設備や市販品を有効活用することで、最小限の費用で高い改善効果を得られます。'
+          description: '共用スペースの秩序と美観が長期的に保たれます。また既存備品と安価な市販品を組み合わせることで、最小限の費用で高い改善効果を得られます。'
         }
       ];
 
-  // 5. 必要資材および費用概算テーブルの動的生成
-  const budgetItems: ProposalBudgetItem[] = [];
-  if (itemLines.length > 0) {
-    itemLines.slice(0, 4).forEach((line) => {
-      const cleanItem = line.replace(/が必要|を用意|の手配|を行う|する/g, '').trim();
-      budgetItems.push({
-        name: cleanItem.slice(0, 18),
-        spec: `${coreTheme}実施用 推奨仕様`,
-        quantity: '必要数一式',
-        cost: '約1,000円 〜 3,000円'
-      });
-    });
-  }
-
-  if (budgetItems.length === 0) {
-    if (isEvent) {
-      budgetItems.push(
+  // 5. 必要資材および費用概算テーブル 口語文を切り貼りせず、品名・仕様・数量・概算費用を端正に構成
+  const budgetItems: ProposalBudgetItem[] = isEvent
+    ? [
         {
-          name: 'メイン実施機材・備品',
-          spec: `${coreTheme}用 既存共用備品を優先活用`,
+          name: '実施用メイン機材・備品',
+          spec: `${coreTheme}進行用 既存共用備品を優先活用`,
           quantity: '1式',
           cost: '既存備品で対応可能'
         },
         {
-          name: '参加者用 飲料・軽食・消耗品',
-          spec: '紙コップ・飲料パック・防寒または快適シート等',
+          name: '会場設営・運営消耗品',
+          spec: '養生シート・紙コップ・分別用回収袋・除菌シート等',
           quantity: '参加想定人数分',
           cost: '約2,500円'
         },
         {
-          name: '告知・案内用ポスター',
-          spec: 'A4カラー印刷 共用掲示板およびエレベーター前用',
-          quantity: '10枚',
-          cost: '約500円'
+          name: '告知・マナー案内ポスター',
+          spec: 'A4カラー印刷 各棟掲示板および会場案内用 日英併記',
+          quantity: '12枚',
+          cost: '約600円'
         },
         {
-          name: '清掃・分別用ゴミ袋',
-          spec: '45L 分別回収用ポリ袋・除菌シート',
-          quantity: '1組',
-          cost: '約500円'
+          name: '予備費・安全対策備品',
+          spec: '夜間誘導ライト・応急消耗品等',
+          quantity: '1式',
+          cost: '約1,000円'
         }
-      );
-    } else {
-      budgetItems.push(
+      ]
+    : [
         {
-          name: '導入用 整理ボックス・収納備品',
-          spec: '耐久性・通気性に優れた市販規格品',
-          quantity: '対象エリア必要数',
-          cost: '約3,500円'
+          name: '区分収納ボックス・整理備品',
+          spec: '通気性・耐久性に優れたプラスチックまたはメッシュ製規格品',
+          quantity: '対象フロア・エリア必要数',
+          cost: '約4,500円'
         },
         {
-          name: '区分表示ラベル・サイン',
-          spec: '防水ラミネート加工 日英併記視認ラベル',
+          name: '用途別 分別表示ラベル',
+          spec: '防水ラミネート加工 色分け視認ラベル 日英併記',
           quantity: '一式',
           cost: '約1,000円'
         },
         {
           name: '利用ルール案内ポスター',
-          spec: 'A4ラミネート 壁面掲示用',
-          quantity: '必要枚数',
-          cost: '約500円'
+          spec: 'A4防水ラミネート 壁面掲示用 日英併記',
+          quantity: '対象エリア枚数分',
+          cost: '約600円'
         },
         {
-          name: '既存設備・消耗品の活用',
-          spec: '現在配備されている備品を継続活用',
+          name: '補充・交換用備品',
+          spec: '既存配備品の活用＋不足分のみ最小限補充',
           quantity: '一式',
-          cost: '追加費用なし'
+          cost: '既存備品で対応可能'
         }
-      );
-    }
-  }
-
-  const totalCostEstimate = isEvent ? '約 3,500 円 〜 5,000 円' : '約 5,000 円 〜 8,000 円';
-
-  // 6. 導入・実施手順
-  const actionSteps = isEvent
-    ? [
-        `1. 事前確認： 管理会社様およびスタッフとの${location}使用申請・実施日時の確認`,
-        `2. 準備・告知： 必要備品の手配・動作テストおよび寮内掲示板・連絡網での参加募集`,
-        `3. 当日運営・原状回復： 安全配慮のもとでの${coreTheme}実施および終了後の清掃・撤収報告`
-      ]
-    : [
-        `1. 事前確認： 西松地所様および管理スタッフとの設置場所・導入仕様の確認`,
-        `2. 試験導入： 一部エリア・特定フロアで試験運用を実施し、利用状況や改善効果を確認`,
-        `3. 全体導入： 案内表示および備品を正式設置し、全体での本格運用を開始`
       ];
 
-  const summaryText = `本提案は、寮生から挙げられた${coreTheme}に関する課題を解消し、快適で安全な環境づくりと運営の効率化を両立することを目的としています。まずは小規模な試験実施を含め、前向きにご検討いただけますようお願いいたします。`;
+  const totalCostEstimate = isEvent ? '約 4,000 円 〜 5,000 円' : '約 6,000 円 〜 9,000 円';
+
+  // 6. 導入手順
+  const actionSteps = isEvent
+    ? [
+        `1. 事前確認： 管理会社様およびスタッフとの${location}使用条件・実施日時の確認`,
+        `2. 準備・周知： 必要備品の手配・事前テストおよび掲示板でのルール周知・参加募集`,
+        `3. 当日運営・原状回復： 安全配慮のもとでの${coreTheme}実施および終了後の清掃・完了報告`
+      ]
+    : [
+        `1. 事前確認： 西松地所様および寮母・管理スタッフとの設置場所・仕様の確認`,
+        `2. 試験導入： 一部フロア・特定エリアで試験運用を実施し、利用状況や動線を確認`,
+        `3. 本格導入： 全対象エリアへ備品および案内表示を設置し、本格運用を開始`
+      ];
+
+  const summaryText = `本提案は、会議で挙げられた${coreTheme}に関する現場課題を解消し、清潔で安全な環境づくりと運営負担の軽減を両立することを目的としています。まずは一部での試験導入を含め、ご検討いただけますようお願いいたします。`;
 
   return {
     docType: '企画提案書',
@@ -649,7 +746,7 @@ const buildStructuredProposalLocally = (
     submittedTo,
     submittedDate: '2026年10月',
     location,
-    targetAudience: 'Hヴィレッジ 寮生全員および管理スタッフの皆様',
+    targetAudience: '全寮生および寮母・管理スタッフの皆様',
     background: backgroundText,
     highlightQuote,
     issues: analyzedIssues,
@@ -662,13 +759,13 @@ const buildStructuredProposalLocally = (
     totalCostEstimate,
     actionSteps,
     summaryText,
-    objective: `${coreTheme}の実現による環境改善と満足度向上`,
+    objective: `${coreTheme}による環境改善および運営効率化`,
     requirements: budgetItems.map((b) => `${b.name} ${b.quantity}`),
-    expectedImpact: '寮生の満足度向上および管理運営の効率化'
+    expectedImpact: '衛生・利便性の向上および管理作業の効率化'
   };
 };
 
-// Gemini APIを用いてPDFと同等の超高品質な企画提案書JSONを生成する
+// Gemini APIを用いて膨大な文字起こしからPDFと同等の超高品質な企画提案書JSONを生成する
 export const generateProposalDirectFromTextWithGemini = async (
   sourceText: string
 ): Promise<ProposalDocument> => {
@@ -678,116 +775,116 @@ export const generateProposalDirectFromTextWithGemini = async (
   if (apiKey) {
     try {
       const prompt = `あなたはプロの業務改善コンサルタントおよびイベント企画プロデューサーです。
-以下の入力文章や議事録を深く読み取り、要約および要点分析を行った上で、管理会社や代表へそのまま提出できる完璧な企画提案書を作成してください。
+以下に入力された膨大な会議文字起こしや議事メモを深く読み取り、話し言葉や雑談、フィラーを完全に削ぎ落として要約・要点分析を行った上で、管理会社や代表へそのまま提出できる完璧な企画提案書を作成してください。
 
-厳守ルール:
-1. 入力された文章をそのままコピペ転記するのではなく、プロの企画提案書として説得力のある論理的な文章に要約・発展させてください。
-2. 入力内容と無関係な話題は一切混ぜず、入力されたテーマに100パーセント沿った内容にしてください。
+絶対厳守ルール:
+1. 文字起こしの発言や口語表現をそのまま企画書にコピペ転記することは絶対にやめてください。すべて洗練された公式企画提案書のビジネス文体に書き換えてください。
+2. 入力内容のテーマに100パーセント沿って、背景、核心の意見、4つの課題、3つの具体的な仕組み・設備ボックス、対象別運用フロー表、3者それぞれのメリット、品名・仕様・数量・概算費用の見積もり表、3段階の導入手順へ論理的に構造化してください。
 3. 丸括弧やかぎ括弧などの括弧記号は一切含めずにJSON形式で出力してください。
 
 出力フォーマットJSON:
 {
   "docType": "企画提案書",
-  "title": "入力テーマの目的を表す上段メインタイトル 例 Hヴィレッジ 共用エリアにおける環境改善および効率化に向けた",
-  "subTitle": "具体的な施策名を表す下段サブタイトル 例 〇〇方式 導入のご提案 または 〇〇イベント開催のご提案",
+  "title": "企画の目的を表す格調高い上段メインタイトル",
+  "subTitle": "具体的な施策名を表す下段サブタイトル",
   "projectType": "eventまたはoperation",
-  "submittedTo": "提出先 例 西松地所株式会社 様 / 寮母・管理スタッフの皆様",
+  "submittedTo": "西松地所株式会社 様 / 寮母・管理スタッフの皆様",
   "submittedDate": "2026年10月",
   "location": "対象場所",
   "targetAudience": "対象者",
-  "background": "1. 企画の趣旨・背景。現状の運用状況、会議等で出た課題、だから何を提案するかの3段落構成の丁寧な文章",
-  "highlightQuote": "会議や現場で最も強く出された代表的な意見1文",
+  "background": "1. 企画の趣旨・背景。現状の運用状況、会議で出た課題の本質、だから何を導入してどう改善するかの3段落構成の論理的で丁寧な文章",
+  "highlightQuote": "会議で最も多く出された意見の本質を1文に要約した言葉",
   "issues": [
-    "具体的に生じている課題1",
-    "具体的に生じている課題2",
-    "具体的に生じている課題3",
-    "具体的に生じている課題4"
+    "構造的に整理された現状課題1",
+    "構造的に整理された現状課題2",
+    "構造的に整理された現状課題3",
+    "構造的に整理された現状課題4"
   ],
-  "proposalConcept": "提案内容の全体概要を説明する1文",
+  "proposalConcept": "提案内容の全体像を端的に説明する1文",
   "conceptBoxes": [
     {
       "number": "1",
-      "title": "具体策や専用設備1の名称",
-      "description": "具体的な仕様や役割の説明",
+      "title": "導入する仕組み・専用ボックス1の名称",
+      "description": "具体的な仕様や運用の説明",
       "tagColor": "#475569"
     },
     {
       "number": "2",
-      "title": "具体策や専用設備2の名称",
-      "description": "具体的な仕様や役割の説明",
+      "title": "導入する仕組み・専用ボックス2の名称",
+      "description": "具体的な仕様や運用の説明",
       "tagColor": "#0284C7"
     },
     {
       "number": "3",
-      "title": "具体策や専用設備3の名称",
-      "description": "具体的な仕様や役割の説明",
+      "title": "導入する仕組み・専用ボックス3の名称",
+      "description": "具体的な仕様や運用の説明",
       "tagColor": "#E11D48"
     }
   ],
   "operationFlow": [
     {
       "target": "寮生・参加者の利用手順",
-      "content": "具体的な利用・参加の行動手順"
+      "content": "具体的な利用・行動手順"
     },
     {
-      "target": "管理・運営側の手順",
-      "content": "具体的な回収・補充・進行管理の手順"
+      "target": "回収・補充・管理側の手順",
+      "content": "具体的な巡回・管理・運営の手順"
     }
   ],
   "stakeholderImpacts": [
     {
       "stakeholder": "寮生側",
-      "title": "寮生にとっての改善点見出し",
-      "description": "具体的なメリットと改善効果の説明"
+      "title": "寮生側の改善メリット見出し",
+      "description": "具体的な改善効果の説明"
     },
     {
       "stakeholder": "寮母・スタッフ側",
-      "title": "スタッフにとっての改善点見出し",
-      "description": "具体的なメリットと作業負担軽減の説明"
+      "title": "スタッフ側の作業効率化見出し",
+      "description": "具体的な作業負担軽減の説明"
     },
     {
       "stakeholder": "施設管理側",
-      "title": "施設管理にとっての改善点見出し",
-      "description": "美観維持や安全性、低コスト導入メリットの説明"
+      "title": "施設管理側の美観・コスト見出し",
+      "description": "美観維持や低コスト導入メリットの説明"
     }
   ],
   "budgetItems": [
     {
-      "name": "必要資材・品名1",
+      "name": "品名1",
       "spec": "具体的な仕様・規格",
-      "quantity": "具体的な数量",
+      "quantity": "数量",
       "cost": "概算費用"
     },
     {
-      "name": "必要資材・品名2",
+      "name": "品名2",
       "spec": "具体的な仕様・規格",
-      "quantity": "具体的な数量",
+      "quantity": "数量",
       "cost": "概算費用"
     },
     {
-      "name": "必要資材・品名3",
+      "name": "品名3",
       "spec": "具体的な仕様・規格",
-      "quantity": "具体的な数量",
+      "quantity": "数量",
       "cost": "概算費用"
     },
     {
-      "name": "必要資材・品名4",
+      "name": "品名4",
       "spec": "既存備品の活用など",
       "quantity": "一式",
-      "cost": "既存備品で対応可能など"
+      "cost": "既存備品で対応可能"
     }
   ],
-  "totalCostEstimate": "合計概算費用 例 約 5,000 円 〜 8,000 円",
+  "totalCostEstimate": "合計概算費用",
   "actionSteps": [
-    "1. 事前確認： 関係者との設置場所・仕様・日程の確認",
-    "2. 試験導入・準備： 小規模での試験運用や事前テストの実施",
-    "3. 本格導入・実施： 案内掲示と全体での運用開始"
+    "1. 事前確認： 関係者との設置場所・仕様の確認",
+    "2. 試験導入： 一部フロアでの試験運用と状況確認",
+    "3. 本格導入： 案内設置および全体での本格運用開始"
   ],
-  "summaryText": "企画提案書全体のまとめとご検討をお願いする丁寧な結びの文章"
+  "summaryText": "企画提案書全体のまとめとご検討をお願いする結びの文章"
 }
 
-入力文章:
-${trimmed}`;
+入力された会議文字起こし・メモ:
+${trimmed.slice(0, 30000)}`;
 
       const resText = await callGeminiApi(prompt, apiKey);
       const parsed = safeJsonParse(resText) as Record<string, any>;
@@ -797,10 +894,10 @@ ${trimmed}`;
           title: stripForbiddenBrackets(String(parsed.title)),
           subTitle: stripForbiddenBrackets(String(parsed.subTitle || '改善導入のご提案')),
           projectType: parsed.projectType === 'operation' ? 'operation' : 'event',
-          submittedTo: stripForbiddenBrackets(String(parsed.submittedTo || '西松地所株式会社 様 / 管理スタッフの皆様')),
+          submittedTo: stripForbiddenBrackets(String(parsed.submittedTo || '西松地所株式会社 様 / 寮母・管理スタッフの皆様')),
           submittedDate: stripForbiddenBrackets(String(parsed.submittedDate || '2026年10月')),
           location: stripForbiddenBrackets(String(parsed.location || '共用スペース')),
-          targetAudience: stripForbiddenBrackets(String(parsed.targetAudience || '寮生全員')),
+          targetAudience: stripForbiddenBrackets(String(parsed.targetAudience || '全寮生および管理スタッフの皆様')),
           background: stripForbiddenBrackets(String(parsed.background || '')),
           highlightQuote: stripForbiddenBrackets(String(parsed.highlightQuote || '')),
           issues: Array.isArray(parsed.issues) ? parsed.issues.map((i: unknown) => stripForbiddenBrackets(String(i))) : [],
@@ -827,7 +924,7 @@ ${trimmed}`;
             quantity: stripForbiddenBrackets(String(bi.quantity || '')),
             cost: stripForbiddenBrackets(String(bi.cost || ''))
           })) : [],
-          totalCostEstimate: stripForbiddenBrackets(String(parsed.totalCostEstimate || '約 5,000 円 〜 8,000 円')),
+          totalCostEstimate: stripForbiddenBrackets(String(parsed.totalCostEstimate || '約 6,000 円 〜 9,000 円')),
           actionSteps: Array.isArray(parsed.actionSteps) ? parsed.actionSteps.map((a: unknown) => stripForbiddenBrackets(String(a))) : [],
           summaryText: stripForbiddenBrackets(String(parsed.summaryText || '')),
           objective: stripForbiddenBrackets(String(parsed.title)),

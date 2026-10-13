@@ -410,51 +410,233 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             </div>
           </div>
 
-          <div style={{ borderBottom: '1px solid #D9DEE7', paddingBottom: 14 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 900, color: '#171A21', margin: 0 }}>
+          <div style={{ borderBottom: '1.5px solid #E2E8F0', paddingBottom: 14 }}>
+            <div style={{ marginBottom: 8 }}>
+              <span
+                style={{
+                  backgroundColor: '#EFF6FF',
+                  color: '#0284C7',
+                  border: '1px solid #BAE6FD',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '3px 10px',
+                  borderRadius: 4
+                }}
+              >
+                企画提案書
+              </span>
+            </div>
+            <h2 style={{ fontSize: 19, fontWeight: 900, color: '#0F172A', margin: '0 0 6px 0', lineHeight: 1.4 }}>
               {project.proposalDoc?.title || `${project.title} 企画書`}
             </h2>
-          </div>
-
-          {/* 目次インデックス */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, color: '#596273' }}>
-            <span>01 目的</span>
-            <span>•</span>
-            <span>02 課題</span>
-            <span>•</span>
-            <span>03 提案内容</span>
-            <span>•</span>
-            <span>04 費用</span>
+            {project.proposalDoc?.subtitle && (
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1E293B', margin: '0 0 12px 0' }}>
+                {project.proposalDoc.subtitle}
+              </h3>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748B' }}>
+              <span>提出先: {project.proposalDoc?.recipient || '西松地所株式会社 様 / 寮母・管理スタッフの皆様'}</span>
+              <span>提出日: {project.proposalDoc?.submissionDate || '2026年10月'}</span>
+            </div>
           </div>
 
           {/* 企画書本文 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
             <div>
-              <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', marginBottom: 4 }}>
-                目的・背景
+              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 8 }}>
+                1. 企画の趣旨・背景
               </h4>
-              <p style={{ fontSize: 14, color: '#171A21', lineHeight: 1.7, margin: 0 }}>
-                {project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。'}
+              <p style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
+                {project.proposalDoc?.background || project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。'}
               </p>
             </div>
 
+            {project.proposalDoc?.problems && project.proposalDoc.problems.length > 0 && (
+              <div>
+                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 10 }}>
+                  2. 生じている課題 寮生側
+                </h4>
+                {project.proposalDoc.highlightQuote && (
+                  <div
+                    style={{
+                      backgroundColor: '#FEF2F2',
+                      border: '1.5px solid #FCA5A5',
+                      borderRadius: 6,
+                      padding: '10px 14px',
+                      marginBottom: 10
+                    }}
+                  >
+                    <div style={{ fontSize: 11.5, fontWeight: 900, color: '#991B1B', marginBottom: 3 }}>
+                      前回の会議で最も多く出された意見
+                    </div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#7F1D1D' }}>
+                      ・{project.proposalDoc.highlightQuote}
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {project.proposalDoc.problems.map((prob, i) => (
+                    <div key={i} style={{ fontSize: 13, color: '#334155', display: 'flex', gap: 6 }}>
+                      <span style={{ color: '#0284C7', fontWeight: 900 }}>・</span>
+                      <span>{prob}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
-              <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', marginBottom: 4 }}>
-                提案内容
+              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 8 }}>
+                3. 提案内容の概要
               </h4>
-              <p style={{ fontSize: 14, color: '#171A21', lineHeight: 1.7, margin: 0 }}>
-                {project.proposalDoc?.proposalOverview || '中庭にスクリーンを設置し、夕方から映画上映会を開催します。'}
+              <p style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.7, margin: '0 0 12px 0' }}>
+                {project.proposalDoc?.proposalOverview || '具体的な運用ルールおよび設備配置を導入します。'}
+              </p>
+
+              {project.proposalDoc?.conceptBoxes && project.proposalDoc.conceptBoxes.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+                  {project.proposalDoc.conceptBoxes.map((box, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        backgroundColor: '#F8FAFC',
+                        border: '1.5px solid #CBD5E1',
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 5
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            backgroundColor: box.tagColor || '#0284C7',
+                            color: '#FFFFFF',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}
+                        >
+                          {box.number}
+                        </span>
+                        <span style={{ fontSize: 11.5, fontWeight: 800, color: '#0F172A' }}>{box.title}</span>
+                      </div>
+                      <p style={{ fontSize: 11, color: '#475569', margin: 0, lineHeight: 1.45 }}>{box.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {project.proposalDoc?.flowItems && project.proposalDoc.flowItems.length > 0 && (
+                <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
+                        <th style={{ width: '30%', padding: '7px 10px', textAlign: 'left', fontWeight: 800 }}>対象</th>
+                        <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 800 }}>手順・内容</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {project.proposalDoc.flowItems.map((fl, idx) => (
+                        <tr key={idx} style={{ borderBottom: idx < project.proposalDoc!.flowItems!.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
+                          <td style={{ padding: '8px 10px', fontWeight: 700, backgroundColor: '#FAFAFA' }}>{fl.target}</td>
+                          <td style={{ padding: '8px 10px', color: '#334155' }}>{fl.content}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {project.proposalDoc?.improvements && project.proposalDoc.improvements.length > 0 && (
+              <div>
+                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 10 }}>
+                  4. 導入による改善点
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  {project.proposalDoc.improvements.map((imp, idx) => (
+                    <div key={idx} style={{ border: '1px solid #CBD5E1', borderRadius: 8, overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          backgroundColor: idx === 0 ? '#EFF6FF' : idx === 1 ? '#F0FDF4' : '#FEF3C7',
+                          padding: '6px 10px',
+                          fontSize: 11.5,
+                          fontWeight: 900,
+                          color: idx === 0 ? '#1D4ED8' : idx === 1 ? '#15803D' : '#B45309'
+                        }}
+                      >
+                        {imp.audience}
+                      </div>
+                      <div style={{ padding: '10px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>{imp.title}</div>
+                        <p style={{ fontSize: 11, color: '#475569', margin: 0, lineHeight: 1.45 }}>{imp.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 10 }}>
+                5. 必要資材および費用概算
+              </h4>
+              {project.proposalDoc?.budgetItems && project.proposalDoc.budgetItems.length > 0 && (
+                <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
+                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 800 }}>品名</th>
+                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 800 }}>仕様</th>
+                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 800 }}>数量</th>
+                        <th style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 800 }}>概算費用</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {project.proposalDoc.budgetItems.map((b, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                          <td style={{ padding: '7px 8px', fontWeight: 700 }}>{b.name}</td>
+                          <td style={{ padding: '7px 8px', color: '#475569' }}>{b.spec}</td>
+                          <td style={{ padding: '7px 8px', color: '#475569' }}>{b.quantity}</td>
+                          <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700 }}>{b.cost}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p style={{ fontSize: 13.5, fontWeight: 800, color: '#0284C7', margin: 0 }}>
+                合計概算費用: {project.proposalDoc?.totalBudget || '自治会費より約 4,800 円'}
               </p>
             </div>
 
-            <div>
-              <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', marginBottom: 4 }}>
-                合計概算費用
-              </h4>
-              <p style={{ fontSize: 14, color: '#171A21', lineHeight: 1.7, margin: 0 }}>
-                {project.proposalDoc?.totalBudget || '自治会費より約 4,800 円'}
-              </p>
-            </div>
+            {project.proposalDoc?.steps && project.proposalDoc.steps.length > 0 && (
+              <div>
+                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 8 }}>
+                  6. 導入手順 案
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#334155' }}>
+                  {project.proposalDoc.steps.map((st, idx) => (
+                    <div key={idx}>{st}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {project.proposalDoc?.summary && (
+              <div style={{ backgroundColor: '#F8FAFC', borderLeft: '4px solid #64748B', padding: '12px 14px', borderRadius: '0 6px 6px 0' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 900, color: '#475569', marginBottom: 4 }}>まとめ</div>
+                <p style={{ fontSize: 12.5, color: '#334155', margin: 0, lineHeight: 1.6 }}>{project.proposalDoc.summary}</p>
+              </div>
+            )}
           </div>
 
           {/* S11 添付資料 */}

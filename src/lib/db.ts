@@ -286,8 +286,15 @@ export interface ProjectProposalDoc {
   submissionDate?: string
   purpose: string
   background: string
+  highlightQuote?: string
   problems?: string[]
   proposalOverview?: string
+  conceptBoxes?: {
+    number: string
+    title: string
+    description: string
+    tagColor?: string
+  }[]
   flowItems?: ProposalOperationFlowItem[]
   improvements?: ProposalImprovementItem[]
   budgetItems?: ProposalBudgetItem[]

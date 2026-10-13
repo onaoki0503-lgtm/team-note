@@ -129,30 +129,78 @@ export const StepWorkflowView: React.FC<StepWorkflowViewProps> = ({
             padding: '24px 20px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 16
+            gap: 18
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#171A21', margin: 0 }}>
+          <div style={{ borderBottom: '1.5px solid #E2E8F0', paddingBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span
+                style={{
+                  backgroundColor: '#EFF6FF',
+                  color: '#0284C7',
+                  border: '1px solid #BAE6FD',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '3px 10px',
+                  borderRadius: 4
+                }}
+              >
+                企画提案書
+              </span>
+              <span style={{ fontSize: 12, color: '#596273' }}>
+                {project.proposalDoc?.submissionDate || '2026年10月'}
+              </span>
+            </div>
+            <h3 style={{ fontSize: 17, fontWeight: 900, color: '#0F172A', margin: '0 0 4px 0', lineHeight: 1.4 }}>
               {project.proposalDoc?.title || `${project.title} 企画書`}
             </h3>
-            <span style={{ fontSize: 12, color: '#596273' }}>
-              下書き
-            </span>
+            {project.proposalDoc?.subtitle && (
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1E293B' }}>
+                {project.proposalDoc.subtitle}
+              </div>
+            )}
           </div>
 
-          <p style={{ fontSize: 14, color: '#171A21', lineHeight: 1.7, margin: 0 }}>
-            {project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。'}
-          </p>
-
-          <div style={{ borderTop: '1px solid #D9DEE7', paddingTop: 14 }}>
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: '#596273', marginBottom: 6 }}>
-              提案内容
+          <div>
+            <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 8, fontSize: 13.5, fontWeight: 900, color: '#0F172A', marginBottom: 6 }}>
+              1. 企画の趣旨・背景
             </h4>
-            <p style={{ fontSize: 14, color: '#171A21', lineHeight: 1.7, margin: 0 }}>
-              {project.proposalDoc?.proposalOverview || '中庭にスクリーンを設置し、夕方から映画上映会を開催します。'}
+            <p style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
+              {project.proposalDoc?.background || project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。'}
             </p>
           </div>
+
+          {project.proposalDoc?.problems && project.proposalDoc.problems.length > 0 && (
+            <div>
+              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 8, fontSize: 13.5, fontWeight: 900, color: '#0F172A', marginBottom: 6 }}>
+                2. 生じている課題
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {project.proposalDoc.problems.map((p, i) => (
+                  <div key={i} style={{ fontSize: 13, color: '#334155', display: 'flex', gap: 6 }}>
+                    <span style={{ color: '#0284C7', fontWeight: 900 }}>・</span>
+                    <span>{p}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 14 }}>
+            <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 8, fontSize: 13.5, fontWeight: 900, color: '#0F172A', marginBottom: 6 }}>
+              3. 提案内容の概要
+            </h4>
+            <p style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.7, margin: 0 }}>
+              {project.proposalDoc?.proposalOverview || '具体的な運用ルールおよび専用設備を導入します。'}
+            </p>
+          </div>
+
+          {project.proposalDoc?.totalBudget && (
+            <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>合計概算費用</span>
+              <span style={{ fontSize: 14, fontWeight: 900, color: '#0284C7' }}>{project.proposalDoc.totalBudget}</span>
+            </div>
+          )}
         </div>
       )}
 

@@ -15,6 +15,7 @@ export interface IdeaDraftData {
   content: string;
   attachedFile?: string;
   meetingNote?: string;
+  proposalDocument?: ProposalDocument;
 }
 
 interface IdeaFlowViewsProps {
@@ -242,7 +243,8 @@ export const IdeaFlowViews: React.FC<IdeaFlowViewsProps> = ({
         projectType: proposal.projectType,
         title: `${proposal.title} ${proposal.subTitle}`.trim() || '新規運営企画提案',
         content: proposal.background.slice(0, 300) || proposal.proposalOverview,
-        meetingNote: sourceText.slice(0, 160)
+        meetingNote: sourceText.slice(0, 160),
+        proposalDocument: proposal
       };
       await onCreateProject(draft, nodes);
       localStorage.removeItem(draftKey);

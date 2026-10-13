@@ -327,13 +327,36 @@ export default function App() {
           joinedAt: new Date().toISOString().slice(0, 10)
         }
       ],
-      proposalDoc: {
-        title: `${draft.title} 企画書`,
-        purpose: draft.content,
-        background: draft.content,
-        proposalOverview: draft.content,
-        totalBudget: '自治会費より概算'
-      }
+      proposalDoc: draft.proposalDocument
+        ? {
+            title: draft.proposalDocument.title,
+            subtitle: draft.proposalDocument.subTitle,
+            recipient: draft.proposalDocument.submittedTo,
+            submissionDate: draft.proposalDocument.submittedDate,
+            purpose: draft.proposalDocument.background,
+            background: draft.proposalDocument.background,
+            highlightQuote: draft.proposalDocument.highlightQuote,
+            problems: draft.proposalDocument.issues,
+            proposalOverview: draft.proposalDocument.proposalOverview,
+            conceptBoxes: draft.proposalDocument.conceptBoxes,
+            flowItems: draft.proposalDocument.operationFlow,
+            improvements: draft.proposalDocument.stakeholderImpacts.map((imp) => ({
+              audience: imp.stakeholder,
+              title: imp.title,
+              desc: imp.description
+            })),
+            budgetItems: draft.proposalDocument.budgetItems,
+            totalBudget: draft.proposalDocument.totalCostEstimate,
+            steps: draft.proposalDocument.actionSteps,
+            summary: draft.proposalDocument.summaryText
+          }
+        : {
+            title: `${draft.title} 企画書`,
+            purpose: draft.content,
+            background: draft.content,
+            proposalOverview: draft.content,
+            totalBudget: '自治会費より概算'
+          }
     };
 
     const updated = [newProject, ...projects];
