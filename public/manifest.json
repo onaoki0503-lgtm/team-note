@@ -1,11 +1,11 @@
 {
-  "name": "チームノート (Team Note) - H-Village OS",
+  "name": "チームノート",
   "short_name": "チームノート",
-  "description": "組織のアイデアを爆速で形にする、次世代コミュニティ運営OS",
+  "description": "Hヴィレッジの活動・業務報告・資料管理",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ea580c",
+  "theme_color": "#ffffff",
   "orientation": "portrait-primary",
   "icons": [
     {

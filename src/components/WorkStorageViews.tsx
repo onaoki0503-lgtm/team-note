@@ -1,23 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Send,
-  Users,
-  Package,
-  Archive,
-  Search,
-  ChevronRight,
-  Plus,
-  Calendar,
-  Clock,
-  Check,
-  FileText,
-  Printer,
-  Copy,
-  Mail,
-  X,
-  Lock,
-  UserCheck
-} from 'lucide-react';
+import { localToday as todayStr, useCalendarDay } from '../lib/useCalendarDay';
+import { VoiceWorkReport } from './VoiceWorkReport';
+import { spokenReportDate } from '../lib/workReportVoice';
+import { useScreenState } from '../lib/navigation';
+import React, { useState } from 'react';
+import { Send, Users, Package, Archive, ChevronRight, Calendar, Check, FileText, Printer, Copy, Mail, X, Lock } from 'lucide-react';
 import type { CurrentUser } from '../lib/db';
 
 export interface WorkReportItem {
@@ -45,7 +31,7 @@ interface WorkStorageViewsProps {
     actionResult?: string,
     entryUnit?: string,
     entryPurpose?: string
-  ) => void;
+  ) => Promise<void>;
   onOpenRoster: () => void;
   onOpenInventory: () => void;
   onOpenArchives: () => void;
@@ -62,26 +48,43 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   onOpenArchives
 }) => {
   // 今日の日付 (YYYY-MM-DD)
-  const todayStr = () => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-
-  const [reportDate, setReportDate] = useState<string>(todayStr());
-  const [reportTitle, setReportTitle] = useState('');
-  const [activityType, setActivityType] = useState<'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry'>('inherent');
-  const [actionResult, setActionResult] = useState('');
-  const [reportContent, setReportContent] = useState('');
+  const [reportDate, setReportDate] = useScreenState<string>(`work:${currentUser.id}:reportDate`, todayStr, false);
+  const [reportTitle, setReportTitle] = useScreenState(`work:${currentUser.id}:reportTitle`, '', false);
+  const [activityType, setActivityType] = useScreenState<'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry'>(`work:${currentUser.id}:activityType`, 'inherent', false);
+  const [actionResult, setActionResult] = useScreenState(`work:${currentUser.id}:actionResult`, '', false);
+  const [reportContent, setReportContent] = useScreenState(`work:${currentUser.id}:reportContent`, '', false);
 
   // ユニット立ち入り用フォームステート
-  const [reportEntryUnit, setReportEntryUnit] = useState('');
-  const [reportEntryPurpose, setReportEntryPurpose] = useState('');
+  const [reportEntryUnit, setReportEntryUnit] = useScreenState(`work:${currentUser.id}:reportEntryUnit`, '', false);
+  const [reportEntryPurpose, setReportEntryPurpose] = useScreenState(`work:${currentUser.id}:reportEntryPurpose`, '', false);
+
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [dateNotice, setDateNotice] = useScreenState(`voice-report:${currentUser.id}:dateNotice`, '', false);
+  const [reviewing, setReviewing] = useScreenState(`work:${currentUser.id}:reviewing`, false);
+  const [saving, setSaving] = useState(false);
+  const [saveNotice, setSaveNotice] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [titleEdited, setTitleEdited] = useScreenState(`voice-report:${currentUser.id}:titleEdited`, false, false);
+  const updateReportBody = (value: string) => {
+    setActionResult(value);
+    setReportContent('');
+    if (!titleEdited) setReportTitle(Array.from(value.trim().split(/[。\n]/)[0]).slice(0, 40).join(''));
+    setSaveNotice('');
+  };
+  const requestReview = () => {
+    if (voiceBusy || !reportTitle.trim() || !actionResult.trim()) {
+      setSaveError('何をしたかと結果を入力し、報告書の内容を確認してください。'); return;
+    }
+    if (!reportDate || !spokenReportDate(reportDate, todayStr())) { setSaveError('実施日を選択してください。'); return; }
+    if (dateNotice) { setSaveError('実施日を確認して、日付を選択してください。'); return; }
+    if (activityType === 'unit_entry' && (!reportEntryUnit.trim() || !reportEntryPurpose.trim())) {
+      setSaveError('立ち入り先と目的を入力してください。'); return;
+    }
+    setSaveError(''); setReviewing(true);
+  };
 
   // 西松地所公式フォーマット用ステート
-  const [showNishimatsuModal, setShowNishimatsuModal] = useState(false);
+  const [showNishimatsuModal, setShowNishimatsuModal] = useScreenState('monthly-report-modal', false);
   const [copiedNotice, setCopiedNotice] = useState(false);
   const [studentYear, setStudentYear] = useState('3年');
   const [studentId, setStudentId] = useState('H24-0892');
@@ -102,31 +105,26 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
   const [filterPeriod, setFilterPeriod] = useState<'current_month' | 'all'>('current_month');
 
-  // 送信ハンドラー
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reportTitle.trim()) return;
-    const dateToSubmit = reportDate || todayStr();
-    const finalContent = reportContent.trim() || actionResult.trim() || reportTitle.trim();
-    onSubmitReport(
-      reportTitle.trim(),
-      finalContent,
-      dateToSubmit,
-      activityType,
-      actionResult.trim(),
-      reportEntryUnit.trim(),
-      reportEntryPurpose.trim()
-    );
-    setReportTitle('');
-    setReportContent('');
-    setActionResult('');
-    setReportEntryUnit('');
-    setReportEntryPurpose('');
-    setReportDate(todayStr());
+  const handleSubmit = (event: React.FormEvent) => { event.preventDefault(); requestReview(); };
+  const confirmReport = async () => {
+    if (saving || voiceBusy) return;
+    if (!reportTitle.trim() || !actionResult.trim() || !reportDate || dateNotice ||
+      (activityType === 'unit_entry' && (!reportEntryUnit.trim() || !reportEntryPurpose.trim()))) {
+      setSaveError('報告内容を確認してください。空の報告書は保存できません。'); setReviewing(false); return;
+    }
+    setSaving(true); setSaveError('');
+    try {
+      await onSubmitReport(reportTitle.trim(), reportContent.trim() || actionResult.trim(), reportDate || todayStr(), activityType,
+        actionResult.trim(), reportEntryUnit.trim(), reportEntryPurpose.trim());
+      setReviewing(false); setReportTitle(''); setReportContent(''); setActionResult('');
+      setReportEntryUnit(''); setReportEntryPurpose(''); setReportDate(todayStr()); setDateNotice('');
+      setTitleEdited(false); setSaveNotice('報告書を保存しました。今月の報告ログと月次レポートに反映しています。');
+    } catch { setSaveError('保存できませんでした。入力内容は残しています。もう一度お試しください。'); }
+    finally { setSaving(false); }
   };
 
   // 今月の年月プレフィックス (例: 2026/10 または 2026-10)
-  const now = new Date();
+  const now = useCalendarDay();
   const currentYearMonth = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
   const currentYearMonthDash = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -154,7 +152,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 900, color: '#171A21', margin: 0 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                 業務報告
               </h2>
               <span
@@ -162,8 +160,8 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 3,
-                  backgroundColor: '#F1F5F9',
-                  color: '#475569',
+                  backgroundColor: "var(--glass-inset)",
+                  color: "var(--glass-muted)",
                   fontSize: 11,
                   fontWeight: 700,
                   padding: '3px 8px',
@@ -175,16 +173,17 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               </span>
             </div>
 
-            <button
+            <button className="glass-button"
               type="button"
               onClick={() => setShowNishimatsuModal(true)}
+              disabled={voiceBusy}
               style={{
-                backgroundColor: '#1E293B',
+                backgroundColor: "var(--glass-primary)",
                 color: '#FFFFFF',
                 borderRadius: 8,
                 padding: '9px 14px',
                 fontSize: 12.5,
-                fontWeight: 800,
+                fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -198,17 +197,29 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
             </button>
           </div>
 
-          <p style={{ fontSize: 13, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
-            日々の業務を即時記録。西松地所への提出レポートもワンタップで作成できます
+          <p style={{ fontSize: 13, color: "var(--glass-muted)", margin: 0, lineHeight: 1.5 }}>
+            いつ・どこで・何をした・どうなった・申し送りを、話すか入力してください。
           </p>
         </div>
 
+        {saveNotice && <p role="status" className="voice-saved">{saveNotice}</p>}
+        {saveError && <p role="alert" className="voice-error">{saveError}</p>}
+        {reviewing ? <section className="work-review" aria-labelledby="work-review-heading">
+          <span className="voice-eyebrow">保存前の確認</span><h3 id="work-review-heading">報告書の内容</h3>
+          <dl><div><dt>実施日</dt><dd>{reportDate}</dd></div><div><dt>業務名</dt><dd>{reportTitle}</dd></div>
+          <div><dt>区分</dt><dd>{{ inherent: '役職固有業務', cooperation: '役職連携業務', common: '役職共通業務', trouble: 'トラブル対応', unit_entry: 'ユニット立ち入り' }[activityType]}</dd></div>
+          {activityType === 'unit_entry' && <><div><dt>立ち入り先</dt><dd>{reportEntryUnit}</dd></div><div><dt>目的</dt><dd>{reportEntryPurpose}</dd></div></>}
+          <div><dt>実施内容・結果</dt><dd className="work-review-body">{actionResult}</dd></div></dl>
+          {saveError && <p role="alert" className="voice-error">{saveError}</p>}
+          <button type="button" className="glass-button voice-primary" disabled={saving} onClick={confirmReport}>{saving ? '保存しています' : 'この内容で報告書を保存'}</button>
+          <button type="button" className="glass-button voice-secondary" disabled={saving} onClick={() => setReviewing(false)}>内容を直す</button>
+        </section> : <>
         {/* 業務報告入力フォーム */}
-        <div
+        <div className="glass-panel"
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             borderRadius: 12,
-            border: '1px solid #D9DEE7',
+            border: "1px solid var(--glass-border)",
             padding: '18px 14px',
             display: 'flex',
             flexDirection: 'column',
@@ -216,10 +227,13 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
             boxShadow: '0 2px 8px rgba(23, 26, 33, 0.04)'
           }}
         >
+          <h3 style={{ fontSize: 17 }}>報告書への反映内容</h3>
+          <p style={{ fontSize: 12, color: "var(--glass-muted)" }}>音声も文字入力も同じ報告書に反映します。まだ保存されていません。</p>
+          {dateNotice && <p className="voice-error" role="status">{dateNotice}</p>}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* 1. 日付 */}
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 6 }}>
                 <Calendar size={14} color="#ea580c" />
                 <span>日付</span>
                 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
@@ -227,17 +241,19 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <input
                 type="date"
                 value={reportDate}
-                onChange={(e) => setReportDate(e.target.value)}
+                disabled={voiceBusy}
+                onChange={(e) => { setReportDate(e.target.value); setDateNotice(''); }}
+                aria-label="報告の実施日"
                 required
                 style={{
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: 8,
-                  border: '1px solid #D9DEE7',
+                  border: "1px solid var(--glass-border)",
                   fontSize: 14,
                   fontWeight: 600,
-                  backgroundColor: '#FFFFFF',
-                  color: '#171A21',
+                  backgroundColor: "var(--glass-panel)",
+                  color: "var(--glass-ink)",
                   outline: 'none'
                 }}
               />
@@ -245,20 +261,22 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
             {/* 2. 業務名 */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 6 }}>
                 業務名 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
               </label>
               <input
                 type="text"
                 value={reportTitle}
-                onChange={(e) => setReportTitle(e.target.value)}
+                disabled={voiceBusy}
+                onChange={(e) => { setReportTitle(e.target.value); setTitleEdited(true); }}
                 placeholder="業務名を入力"
+                aria-label="報告の業務名"
                 required
                 style={{
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: 8,
-                  border: '1px solid #D9DEE7',
+                  border: "1px solid var(--glass-border)",
                   fontSize: 14,
                   outline: 'none'
                 }}
@@ -267,7 +285,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
             {/* 3. 区分 西松地所公式区分 */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 6 }}>
                 区分 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
@@ -280,10 +298,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 ].map((item) => {
                   const isSelected = activityType === item.key;
                   return (
-                    <button
+                    <button className="glass-button"
                       key={item.key}
                       type="button"
                       onClick={() => setActivityType(item.key as any)}
+                      aria-pressed={isSelected}
+                      disabled={voiceBusy}
                       style={{
                         padding: '10px 8px',
                         borderRadius: 8,
@@ -291,9 +311,9 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         fontWeight: 700,
                         textAlign: 'center',
                         cursor: 'pointer',
-                        backgroundColor: isSelected ? '#171A21' : '#F7F8FA',
-                        color: isSelected ? '#FFFFFF' : '#171A21',
-                        border: isSelected ? '1px solid #171A21' : '1px solid #D9DEE7',
+                        backgroundColor: isSelected ? "var(--glass-primary)" : "var(--glass-inset)",
+                        color: isSelected ? '#FFFFFF' : "var(--glass-ink)",
+                        border: isSelected ? '1px solid #171A21' : "1px solid var(--glass-border)",
                         transition: 'all 0.15s ease'
                       }}
                     >
@@ -303,7 +323,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 })}
               </div>
 
-              <span style={{ fontSize: 11, color: '#64748B', display: 'block', marginTop: 6 }}>
+              <span style={{ fontSize: 11, color: "var(--glass-muted)", display: 'block', marginTop: 6 }}>
                 {activityType === 'inherent'
                   ? '固有: 自身の役職のメイン業務'
                   : activityType === 'cooperation'
@@ -320,7 +340,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
             {activityType === 'unit_entry' && (
               <div
                 style={{
-                  backgroundColor: '#F0F9FF',
+                  backgroundColor: "var(--glass-inset)",
                   border: '1px solid #BAE6FD',
                   borderRadius: 8,
                   padding: '12px',
@@ -330,7 +350,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 }}
               >
                 <div>
-                  <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#0369A1', marginBottom: 4 }}>
+                  <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: "var(--glass-accent)", marginBottom: 4 }}>
                     棟・ユニット番号 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
                   </label>
                   <input
@@ -345,13 +365,13 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       borderRadius: 6,
                       border: '1px solid #7DD3FC',
                       fontSize: 13,
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: "var(--glass-panel)",
                       outline: 'none'
                     }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#0369A1', marginBottom: 4 }}>
+                  <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: "var(--glass-accent)", marginBottom: 4 }}>
                     立ち入り目的 <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
                   </label>
                   <input
@@ -366,7 +386,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       borderRadius: 6,
                       border: '1px solid #7DD3FC',
                       fontSize: 13,
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: "var(--glass-panel)",
                       outline: 'none'
                     }}
                   />
@@ -376,50 +396,29 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
             {/* 4. アクション内容 または 報告内容 */}
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#171A21', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 6 }}>
                 {activityType === 'trouble'
                   ? '報告内容'
                   : activityType === 'unit_entry'
                   ? '立ち入り詳細・結果'
                   : '起こしたアクションと結果'} <span style={{ color: '#B92F3D', fontSize: 11 }}>必須</span>
               </label>
-              <textarea
-                value={actionResult}
-                onChange={(e) => setActionResult(e.target.value)}
-                placeholder={
-                  activityType === 'trouble'
-                    ? '発生したトラブルの経緯、一次対応、結果を具体的に入力'
-                    : activityType === 'unit_entry'
-                    ? '立ち入り時の状況、寮生立ち会いの有無、対応結果を入力'
-                    : '実施したアクション、気づき、対応結果を具体的に入力'
-                }
-                rows={3}
-                required
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  border: '1px solid #D9DEE7',
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  outline: 'none',
-                  resize: 'vertical'
-                }}
-              />
+              <VoiceWorkReport value={actionResult} onChange={updateReportBody} onBusyChange={setVoiceBusy}
+                placeholder={activityType === 'trouble' ? 'トラブルの経緯・対応・結果' : activityType === 'unit_entry' ? '立ち入り時の状況・対応・結果' : 'いつ・どこで・何をした・結果・申し送り'} />
             </div>
 
             {/* 提出ボタン */}
-            <button
+            <button className="glass-button"
               type="submit"
-              disabled={!reportTitle.trim() || !actionResult.trim()}
+              disabled={voiceBusy || !reportTitle.trim() || !actionResult.trim()}
               style={{
                 width: '100%',
-                backgroundColor: reportTitle.trim() && actionResult.trim() ? '#B92F3D' : '#D9DEE7',
+                backgroundColor: reportTitle.trim() && actionResult.trim() ? "var(--glass-primary)" : '#D9DEE7',
                 color: '#FFFFFF',
                 padding: '13px',
                 borderRadius: 8,
                 fontSize: 15,
-                fontWeight: 800,
+                fontWeight: 700,
                 cursor: reportTitle.trim() && actionResult.trim() ? 'pointer' : 'not-allowed',
                 display: 'flex',
                 alignItems: 'center',
@@ -429,17 +428,19 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               }}
             >
               <Send size={16} />
-              <span>報告書を提出</span>
+              <span>報告書を確認する</span>
             </button>
           </form>
         </div>
+
+        </>}
 
         {/* 報告書を提出するのすぐ下に、その月の報告書が簡単に溜まるセクション */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
           {/* ヘッダー＆切り替え */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 15, fontWeight: 900, color: '#171A21' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--glass-ink)" }}>
                 今月の報告ログ
               </span>
               <span
@@ -447,7 +448,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   backgroundColor: '#FEE2E2',
                   color: '#B92F3D',
                   fontSize: 12,
-                  fontWeight: 800,
+                  fontWeight: 700,
                   padding: '2px 8px',
                   borderRadius: 10
                 }}
@@ -457,7 +458,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
             </div>
 
             <div style={{ display: 'flex', gap: 4 }}>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => setFilterPeriod('current_month')}
                 style={{
@@ -465,15 +466,15 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   borderRadius: 6,
                   fontSize: 11,
                   fontWeight: 700,
-                  backgroundColor: filterPeriod === 'current_month' ? '#171A21' : '#FFFFFF',
-                  color: filterPeriod === 'current_month' ? '#FFFFFF' : '#596273',
-                  border: '1px solid #D9DEE7',
+                  backgroundColor: filterPeriod === 'current_month' ? "var(--glass-primary)" : "var(--glass-panel)",
+                  color: filterPeriod === 'current_month' ? '#FFFFFF' : "var(--glass-muted)",
+                  border: "1px solid var(--glass-border)",
                   cursor: 'pointer'
                 }}
               >
                 今月
               </button>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => setFilterPeriod('all')}
                 style={{
@@ -481,9 +482,9 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   borderRadius: 6,
                   fontSize: 11,
                   fontWeight: 700,
-                  backgroundColor: filterPeriod === 'all' ? '#171A21' : '#FFFFFF',
-                  color: filterPeriod === 'all' ? '#FFFFFF' : '#596273',
-                  border: '1px solid #D9DEE7',
+                  backgroundColor: filterPeriod === 'all' ? "var(--glass-primary)" : "var(--glass-panel)",
+                  color: filterPeriod === 'all' ? '#FFFFFF' : "var(--glass-muted)",
+                  border: "1px solid var(--glass-border)",
                   cursor: 'pointer'
                 }}
               >
@@ -494,14 +495,14 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
           {/* 溜まっていく報告書カード一覧 */}
           {displayedReports.length === 0 ? (
-            <div
+            <div className="glass-panel"
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: "var(--glass-panel)",
                 borderRadius: 12,
-                border: '1px dashed #D9DEE7',
+                border: "1px dashed var(--glass-border)",
                 padding: '30px 16px',
                 textAlign: 'center',
-                color: '#596273',
+                color: "var(--glass-muted)",
                 fontSize: 13
               }}
             >
@@ -509,12 +510,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
             </div>
           ) : (
             displayedReports.map((rep) => (
-              <div
+              <div className="glass-panel"
                 key={rep.id}
                 style={{
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: "var(--glass-panel)",
                   borderRadius: 10,
-                  border: '1px solid #D9DEE7',
+                  border: "1px solid var(--glass-border)",
                   padding: '12px 14px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -531,16 +532,16 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                           rep.activityType === 'trouble'
                             ? '#FEE2E2'
                             : rep.activityType === 'unit_entry'
-                            ? '#E0F2FE'
+                            ? "var(--glass-inset)"
                             : '#F1F3F7',
                         color:
                           rep.activityType === 'trouble'
                             ? '#DC2626'
                             : rep.activityType === 'unit_entry'
-                            ? '#0284C7'
-                            : '#171A21',
+                            ? "var(--glass-accent)"
+                            : "var(--glass-ink)",
                         fontSize: 11,
-                        fontWeight: 800,
+                        fontWeight: 700,
                         padding: '2px 8px',
                         borderRadius: 4
                       }}
@@ -557,28 +558,28 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         ? 'ユニット立ち入り'
                         : rep.category || '業務'}
                     </span>
-                    <strong style={{ fontSize: 14, color: '#171A21' }}>{rep.title}</strong>
+                    <strong style={{ fontSize: 14, color: "var(--glass-ink)" }}>{rep.title}</strong>
                   </div>
-                  <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 800 }}>
+                  <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>
                     記録済み
                   </span>
                 </div>
 
                 {/* ユニット立ち入り時の棟・ユニット情報 */}
                 {rep.activityType === 'unit_entry' && (rep.entryUnit || rep.entryPurpose) && (
-                  <div style={{ fontSize: 11.5, color: '#0369A1', backgroundColor: '#F0F9FF', padding: '4px 8px', borderRadius: 4 }}>
+                  <div style={{ fontSize: 11.5, color: "var(--glass-accent)", backgroundColor: "var(--glass-inset)", padding: '4px 8px', borderRadius: 4 }}>
                     {rep.entryUnit && <span>対象: {rep.entryUnit} </span>}
                     {rep.entryPurpose && <span>目的: {rep.entryPurpose}</span>}
                   </div>
                 )}
 
                 {/* 業務内容 */}
-                <p style={{ fontSize: 12.5, color: '#475569', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12.5, color: "var(--glass-muted)", margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                   {rep.content}
                 </p>
 
                 {/* 日付と報告者 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#596273', paddingTop: 6, borderTop: '1px solid #F7F8FA' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: "var(--glass-muted)", paddingTop: 6, borderTop: '1px solid #F7F8FA' }}>
                   <span>報告者 {rep.author}</span>
                   <span>{rep.date}</span>
                 </div>
@@ -589,7 +590,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
         {/* 西松地所向け月次提出レポートモーダル */}
         {showNishimatsuModal && (
-          <div
+          <div role="dialog" aria-modal="true" className="app-modal"
             style={{
               position: 'fixed',
               inset: 0,
@@ -602,9 +603,9 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               zIndex: 90
             }}
           >
-            <div
+            <div className="glass-panel"
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: "var(--glass-panel)",
                 borderRadius: 16,
                 maxWidth: 620,
                 width: '100%',
@@ -619,7 +620,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <div
                 style={{
                   padding: '16px 20px',
-                  backgroundColor: '#0F172A',
+                  backgroundColor: "var(--glass-primary)",
                   color: '#FFFFFF',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -629,7 +630,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <FileText size={20} color="#38BDF8" />
                   <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 900, margin: 0, color: '#FFFFFF' }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#FFFFFF' }}>
                       西松地所 提出用業務報告レポート
                     </h3>
                     <span style={{ fontSize: 11, color: '#94A3B8' }}>
@@ -637,7 +638,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     </span>
                   </div>
                 </div>
-                <button
+                <button className="glass-button"
                   type="button"
                   onClick={() => setShowNishimatsuModal(false)}
                   style={{
@@ -663,13 +664,13 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 16,
-                  backgroundColor: '#F1F5F9'
+                  backgroundColor: "var(--glass-inset)"
                 }}
               >
                 {/* 公式報告書ペーパーデザイン */}
                 <div
                   style={{
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: "var(--glass-panel)",
                     border: '1px solid #94A3B8',
                     borderRadius: 8,
                     padding: '24px 20px',
@@ -677,17 +678,17 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     flexDirection: 'column',
                     gap: 16,
                     boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
-                    color: '#0F172A',
+                    color: "var(--glass-ink)",
                     fontFamily: 'sans-serif'
                   }}
                 >
                   {/* 書面トップ: 提出期限アラートバッジ & タイトル */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0F172A', paddingBottom: 12 }}>
                     <div>
-                      <span style={{ fontSize: 13, letterSpacing: 2, color: '#475569', display: 'block', marginBottom: 2 }}>
+                      <span style={{ fontSize: 13, letterSpacing: 2, color: "var(--glass-muted)", display: 'block', marginBottom: 2 }}>
                         H ヴィレッジ
                       </span>
-                      <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0F172A', margin: 0 }}>
+                      <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                         役職者活動報告書 {now.getFullYear()}年{now.getMonth() + 1}月分
                       </h2>
                     </div>
@@ -716,13 +717,13 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, border: '1px solid #334155' }}>
                     <tbody>
                       <tr>
-                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', width: '25%', textAlign: 'left', fontWeight: 700 }}>
+                        <th style={{ backgroundColor: "var(--glass-inset)", padding: '6px 8px', border: '1px solid #334155', width: '25%', textAlign: 'left', fontWeight: 700 }}>
                           役職 HL・OA/EA/IA・FL
                         </th>
                         <td style={{ padding: '6px 8px', border: '1px solid #334155', width: '25%', fontWeight: 700 }}>
                           {currentUser.role}
                         </td>
-                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', width: '25%', textAlign: 'left', fontWeight: 700 }}>
+                        <th style={{ backgroundColor: "var(--glass-inset)", padding: '6px 8px', border: '1px solid #334155', width: '25%', textAlign: 'left', fontWeight: 700 }}>
                           FLのみ 担当フロア
                         </th>
                         <td style={{ padding: '6px 8px', border: '1px solid #334155', width: '25%' }}>
@@ -730,7 +731,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         </td>
                       </tr>
                       <tr>
-                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
+                        <th style={{ backgroundColor: "var(--glass-inset)", padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
                           ハウス・部屋番号
                         </th>
                         <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #334155' }}>
@@ -738,38 +739,38 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         </td>
                       </tr>
                       <tr>
-                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
+                        <th style={{ backgroundColor: "var(--glass-inset)", padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
                           学年・学籍番号・氏名
                         </th>
                         <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #334155' }}>
                           <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ color: '#64748B' }}>学年:</span>
+                              <span style={{ color: "var(--glass-muted)" }}>学年:</span>
                               <input
                                 type="text"
                                 value={studentYear}
                                 onChange={(e) => setStudentYear(e.target.value)}
-                                style={{ width: 50, padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                                style={{ width: 50, padding: '2px 4px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 12 }}
                               />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ color: '#64748B' }}>学籍番号:</span>
+                              <span style={{ color: "var(--glass-muted)" }}>学籍番号:</span>
                               <input
                                 type="text"
                                 value={studentId}
                                 onChange={(e) => setStudentId(e.target.value)}
-                                style={{ width: 90, padding: '2px 4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                                style={{ width: 90, padding: '2px 4px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 12 }}
                               />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ color: '#64748B' }}>氏名:</span>
+                              <span style={{ color: "var(--glass-muted)" }}>氏名:</span>
                               <strong style={{ fontSize: 13 }}>{currentUser.name}</strong>
                             </div>
                           </div>
                         </td>
                       </tr>
                       <tr>
-                        <th style={{ backgroundColor: '#F8FAFC', padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
+                        <th style={{ backgroundColor: "var(--glass-inset)", padding: '6px 8px', border: '1px solid #334155', textAlign: 'left', fontWeight: 700 }}>
                           当該月内での不在日・期間
                         </th>
                         <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #334155' }}>
@@ -779,16 +780,16 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               value={absencePeriod}
                               onChange={(e) => setAbsencePeriod(e.target.value)}
                               placeholder="例: 10月10日〜10月12日"
-                              style={{ width: 170, padding: '2px 6px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                              style={{ width: 170, padding: '2px 6px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 12 }}
                             />
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ color: '#64748B' }}>理由:</span>
+                              <span style={{ color: "var(--glass-muted)" }}>理由:</span>
                               <input
                                 type="text"
                                 value={absenceReason}
                                 onChange={(e) => setAbsenceReason(e.target.value)}
                                 placeholder="帰省、合宿など"
-                                style={{ width: 150, padding: '2px 6px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 12 }}
+                                style={{ width: 150, padding: '2px 6px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 12 }}
                               />
                             </div>
                           </div>
@@ -800,10 +801,10 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   {/* 1. 活動報告 */}
                   <div>
                     <div style={{ marginBottom: 6 }}>
-                      <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 2px 0' }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 2px 0' }}>
                         1. 活動報告　<span style={{ color: '#DC2626', fontSize: 11 }}>必須</span>
                       </h3>
-                      <div style={{ fontSize: 10.5, color: '#475569', lineHeight: 1.4, backgroundColor: '#F8FAFC', padding: '6px 8px', borderRadius: 4, border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: 10.5, color: "var(--glass-muted)", lineHeight: 1.4, backgroundColor: "var(--glass-inset)", padding: '6px 8px', borderRadius: 4, border: "1px solid var(--glass-border)" }}>
                         <span>注1 項目詳細: 【固有】メイン業務 / 【連携】他役職へのサポートや協力 / 【共通】緊急対応、会議などの共通業務</span>
                         <br />
                         <span>注2 特に問題がなかった場合でも現状維持のために実施したことや気づきを記入してください</span>
@@ -812,7 +813,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
                       <thead>
-                        <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #334155' }}>
+                        <tr style={{ backgroundColor: "var(--glass-inset)", borderBottom: '1px solid #334155' }}>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '110px', textAlign: 'center' }}>項目</th>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '90px', textAlign: 'center' }}>日付</th>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>起こしたアクションと結果</th>
@@ -825,7 +826,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                           if (inherentList.length === 0) {
                             return (
                               <tr>
-                                <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
+                                <th style={{ backgroundColor: "var(--glass-inset)", padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
                                   役職固有業務
                                 </th>
                                 <td colSpan={2} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
@@ -839,7 +840,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               {idx === 0 && (
                                 <th
                                   rowSpan={inherentList.length}
-                                  style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
+                                  style={{ backgroundColor: "var(--glass-inset)", padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
                                 >
                                   役職固有業務
                                 </th>
@@ -848,7 +849,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 {item.date}
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
-                                <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
+                                <strong style={{ color: "var(--glass-ink)", display: 'block', marginBottom: 2 }}>{item.title}</strong>
                                 <span>{item.actionResult || item.content}</span>
                               </td>
                             </tr>
@@ -861,7 +862,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                           if (coopList.length === 0) {
                             return (
                               <tr>
-                                <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
+                                <th style={{ backgroundColor: "var(--glass-inset)", padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
                                   役職連携業務
                                 </th>
                                 <td colSpan={2} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
@@ -875,7 +876,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               {idx === 0 && (
                                 <th
                                   rowSpan={coopList.length}
-                                  style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
+                                  style={{ backgroundColor: "var(--glass-inset)", padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
                                 >
                                   役職連携業務
                                 </th>
@@ -884,7 +885,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 {item.date}
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
-                                <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
+                                <strong style={{ color: "var(--glass-ink)", display: 'block', marginBottom: 2 }}>{item.title}</strong>
                                 <span>{item.actionResult || item.content}</span>
                               </td>
                             </tr>
@@ -897,7 +898,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                           if (commonList.length === 0) {
                             return (
                               <tr>
-                                <th style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
+                                <th style={{ backgroundColor: "var(--glass-inset)", padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}>
                                   役職共通業務
                                 </th>
                                 <td colSpan={2} style={{ padding: '8px', border: '1px solid #334155', color: '#94A3B8', textAlign: 'center' }}>
@@ -911,7 +912,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               {idx === 0 && (
                                 <th
                                   rowSpan={commonList.length}
-                                  style={{ backgroundColor: '#F8FAFC', padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
+                                  style={{ backgroundColor: "var(--glass-inset)", padding: '8px', border: '1px solid #334155', textAlign: 'center', fontWeight: 700 }}
                                 >
                                   役職共通業務
                                 </th>
@@ -920,7 +921,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 {item.date}
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
-                                <strong style={{ color: '#0F172A', display: 'block', marginBottom: 2 }}>{item.title}</strong>
+                                <strong style={{ color: "var(--glass-ink)", display: 'block', marginBottom: 2 }}>{item.title}</strong>
                                 <span>{item.actionResult || item.content}</span>
                               </td>
                             </tr>
@@ -932,12 +933,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
                   {/* 2. トラブル対応など報告 */}
                   <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 6px 0' }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 6px 0' }}>
                       2. トラブル対応など報告
                     </h3>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
                       <thead>
-                        <tr style={{ backgroundColor: '#F1F5F9' }}>
+                        <tr style={{ backgroundColor: "var(--glass-inset)" }}>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '120px', textAlign: 'left' }}>日時</th>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>報告内容</th>
                         </tr>
@@ -966,7 +967,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               value={troubleDateTime}
                               onChange={(e) => setTroubleDateTime(e.target.value)}
                               placeholder="例: 10月3日"
-                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
+                              style={{ width: '100%', padding: '4px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 11.5 }}
                             />
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
@@ -975,7 +976,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               onChange={(e) => setTroubleContent(e.target.value)}
                               placeholder="追加で報告するトラブルの経緯、一次対応、結果を記入"
                               rows={2}
-                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
+                              style={{ width: '100%', padding: '4px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
                             />
                           </td>
                         </tr>
@@ -985,7 +986,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
                   {/* 3. ユニット立ち入り記録 */}
                   <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 2px 0' }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 2px 0' }}>
                       3. ユニット立ち入り記録
                     </h3>
                     <p style={{ fontSize: 10.5, color: '#DC2626', margin: '0 0 6px 0' }}>
@@ -993,7 +994,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     </p>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, border: '1px solid #334155' }}>
                       <thead>
-                        <tr style={{ backgroundColor: '#F1F5F9' }}>
+                        <tr style={{ backgroundColor: "var(--glass-inset)" }}>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '110px', textAlign: 'left' }}>日時</th>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', width: '130px', textAlign: 'left' }}>棟・ユニット</th>
                           <th style={{ padding: '6px 8px', border: '1px solid #334155', textAlign: 'left' }}>目的</th>
@@ -1004,7 +1005,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         {currentMonthReports
                           .filter((r) => r.activityType === 'unit_entry')
                           .map((item) => (
-                            <tr key={item.id} style={{ backgroundColor: '#F0F9FF' }}>
+                            <tr key={item.id} style={{ backgroundColor: "var(--glass-inset)" }}>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
                                 <strong>{item.date}</strong>
                               </td>
@@ -1012,7 +1013,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                                 <strong>{item.entryUnit || item.title}</strong>
                               </td>
                               <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
-                                <strong style={{ color: '#0369A1', display: 'block', marginBottom: 2 }}>{item.entryPurpose || item.title}</strong>
+                                <strong style={{ color: "var(--glass-accent)", display: 'block', marginBottom: 2 }}>{item.entryPurpose || item.title}</strong>
                                 <span>{item.actionResult || item.content}</span>
                               </td>
                             </tr>
@@ -1026,7 +1027,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               value={entryDateTime}
                               onChange={(e) => setEntryDateTime(e.target.value)}
                               placeholder="例: 10月8日"
-                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
+                              style={{ width: '100%', padding: '4px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 11.5 }}
                             />
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid #334155', verticalAlign: 'top' }}>
@@ -1035,7 +1036,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               value={entryUnit}
                               onChange={(e) => setEntryUnit(e.target.value)}
                               placeholder="例: ローズマリー棟 302"
-                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5 }}
+                              style={{ width: '100%', padding: '4px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 11.5 }}
                             />
                           </td>
                           <td style={{ padding: '6px 8px', border: '1px solid #334155' }}>
@@ -1044,7 +1045,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                               onChange={(e) => setEntryPurpose(e.target.value)}
                               placeholder="追加で記録する立ち入り理由・立ち会いの有無など"
                               rows={2}
-                              style={{ width: '100%', padding: '4px', border: '1px solid #CBD5E1', borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
+                              style={{ width: '100%', padding: '4px', border: "1px solid var(--glass-border)", borderRadius: 4, fontSize: 11.5, resize: 'vertical' }}
                             />
                           </td>
                         </tr>
@@ -1054,7 +1055,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
                   {/* 4. 学生寮について気づいたこと・要望・意見など */}
                   <div>
-                    <h3 style={{ fontSize: 14, fontWeight: 900, color: '#0F172A', margin: '0 0 2px 0' }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 2px 0' }}>
                       4. 学生寮について気づいたこと・要望・意見など　<span style={{ color: '#DC2626', fontSize: 11 }}>必須</span>
                     </h3>
                     <p style={{ fontSize: 10.5, color: '#DC2626', margin: '0 0 6px 0' }}>
@@ -1084,8 +1085,8 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <div
                 style={{
                   padding: '14px 20px',
-                  backgroundColor: '#FFFFFF',
-                  borderTop: '1px solid #E2E8F0',
+                  backgroundColor: "var(--glass-panel)",
+                  borderTop: "1px solid var(--glass-border)",
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -1104,7 +1105,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {/* テキストコピーボタン */}
-                  <button
+                  <button className="glass-button"
                     type="button"
                     onClick={() => {
                       const troubleReports = currentMonthReports.filter((r) => r.activityType === 'trouble');
@@ -1161,9 +1162,9 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       setTimeout(() => setCopiedNotice(false), 3000);
                     }}
                     style={{
-                      backgroundColor: '#F1F5F9',
-                      border: '1px solid #CBD5E1',
-                      color: '#1E293B',
+                      backgroundColor: "var(--glass-inset)",
+                      border: "1px solid var(--glass-border)",
+                      color: "var(--glass-ink)",
                       borderRadius: 8,
                       padding: '8px 12px',
                       fontSize: 12,
@@ -1179,18 +1180,18 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   </button>
 
                   {/* PDF印刷保存 */}
-                  <button
+                  <button className="glass-button"
                     type="button"
                     onClick={() => {
                       window.print();
                     }}
                     style={{
-                      backgroundColor: '#0284C7',
+                      backgroundColor: "var(--glass-primary)",
                       color: '#FFFFFF',
                       borderRadius: 8,
                       padding: '8px 14px',
                       fontSize: 12,
-                      fontWeight: 800,
+                      fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4,
@@ -1227,12 +1228,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       })()
                     )}`}
                     style={{
-                      backgroundColor: '#B92F3D',
+                      backgroundColor: "var(--glass-primary)",
                       color: '#FFFFFF',
                       borderRadius: 8,
                       padding: '8px 14px',
                       fontSize: 12,
-                      fontWeight: 800,
+                      fontWeight: 700,
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4,
@@ -1268,21 +1269,22 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
       }}
     >
       <div>
-        <h1 style={{ fontSize: 22, fontWeight: 900, color: '#171A21', margin: '0 0 4px 0' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 4px 0' }}>
           保管する
         </h1>
-        <p style={{ fontSize: 13, color: '#596273', margin: '0 0 10px 0' }}>
-          名簿、備品、過去の資料を一元管理します
-        </p>
+
       </div>
 
       {/* 3つの大きなアクセスしやすい白カード (S23) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, zIndex: 10 }}>
         {/* 1. 寮生名簿 */}
-        <div
+        <div className="glass-panel"
+          role="button"
+          tabIndex={0}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenRoster(); } }}
           onClick={onOpenRoster}
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             border: '1.5px solid #12BDE8',
             borderRadius: 16,
             padding: '20px',
@@ -1294,12 +1296,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
+            <div className="glass-panel"
               style={{
                 width: 44,
                 height: 44,
                 borderRadius: 10,
-                backgroundColor: '#F7F8FA',
+                backgroundColor: "var(--glass-inset)",
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1309,20 +1311,23 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <Users size={22} />
             </div>
             <div>
-              <strong style={{ fontSize: 16, color: '#171A21', display: 'block' }}>
+              <strong style={{ fontSize: 16, color: "var(--glass-ink)", display: 'block' }}>
                 寮生名簿
               </strong>
-              <span style={{ fontSize: 12, color: '#596273' }}>寮生の情報を管理</span>
+              <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>寮生の情報を管理</span>
             </div>
           </div>
           <ChevronRight size={20} color="#596273" />
         </div>
 
         {/* 2. 備品在庫 */}
-        <div
+        <div className="glass-panel"
+          role="button"
+          tabIndex={0}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenInventory(); } }}
           onClick={onOpenInventory}
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             border: '1.5px solid #F5BE32',
             borderRadius: 16,
             padding: '20px',
@@ -1334,12 +1339,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
+            <div className="glass-panel"
               style={{
                 width: 44,
                 height: 44,
                 borderRadius: 10,
-                backgroundColor: '#F7F8FA',
+                backgroundColor: "var(--glass-inset)",
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1349,20 +1354,23 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <Package size={22} />
             </div>
             <div>
-              <strong style={{ fontSize: 16, color: '#171A21', display: 'block' }}>
+              <strong style={{ fontSize: 16, color: "var(--glass-ink)", display: 'block' }}>
                 備品在庫
               </strong>
-              <span style={{ fontSize: 12, color: '#596273' }}>備品の在庫を確認</span>
+              <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>Excel・CSVから備品台帳を登録</span>
             </div>
           </div>
           <ChevronRight size={20} color="#596273" />
         </div>
 
         {/* 3. 年度別資料 */}
-        <div
+        <div className="glass-panel"
+          role="button"
+          tabIndex={0}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenArchives(); } }}
           onClick={onOpenArchives}
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             border: '1.5px solid #A876F5',
             borderRadius: 16,
             padding: '20px',
@@ -1374,12 +1382,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
+            <div className="glass-panel"
               style={{
                 width: 44,
                 height: 44,
                 borderRadius: 10,
-                backgroundColor: '#F7F8FA',
+                backgroundColor: "var(--glass-inset)",
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1389,10 +1397,10 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
               <Archive size={22} />
             </div>
             <div>
-              <strong style={{ fontSize: 16, color: '#171A21', display: 'block' }}>
+              <strong style={{ fontSize: 16, color: "var(--glass-ink)", display: 'block' }}>
                 年度別資料
               </strong>
-              <span style={{ fontSize: 12, color: '#596273' }}>過去の資料を閲覧</span>
+              <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>過去の資料を閲覧</span>
             </div>
           </div>
           <ChevronRight size={20} color="#596273" />

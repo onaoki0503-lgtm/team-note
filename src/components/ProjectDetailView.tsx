@@ -1,17 +1,15 @@
+import { useScreenState } from '../lib/navigation';
 import React, { useState } from 'react';
-import { Calendar, Users, FileText, CheckCircle2, ChevronRight, Plus, Download, Edit3, ArrowLeft, Lock } from 'lucide-react';
+import { FileText, ChevronRight, Download, Edit3 } from 'lucide-react';
 import type { ProjectRecord, CurrentUser } from '../lib/db';
 
 interface ProjectDetailViewProps {
   project: ProjectRecord;
   currentUser: CurrentUser;
-  onBack: () => void;
   onToggleJoin: () => void;
   onOpenStep: (stepId: string, stepTitle: string) => void;
-  onOpenProposalEdit?: () => void;
   onAddStaff: (residentId: string, role: string) => void;
   onAddGroup: (name: string, leader: string, goal: string, deadline: string) => void;
-  onOpenAddStep?: () => void;
   onUpdateProposal?: (proposal: any) => Promise<void>;
   onAddStepItem?: (name: string, dateRange: string) => Promise<void>;
   allResidents: any[];
@@ -20,52 +18,49 @@ interface ProjectDetailViewProps {
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   project,
   currentUser,
-  onBack,
   onToggleJoin,
   onOpenStep,
-  onOpenProposalEdit,
   onAddStaff,
   onAddGroup,
-  onOpenAddStep,
   onUpdateProposal,
   onAddStepItem,
   allResidents
 }) => {
   // S06/S07 タブ: 'overview' (概要) | 'proposal' (企画書) | 'staff' (スタッフ)
-  const [activeTab, setActiveTab] = useState<'overview' | 'proposal' | 'staff'>('overview');
+  const [activeTab, setActiveTab] = useScreenState<'overview' | 'proposal' | 'staff'>(`project:${project.id}:tab`, 'overview');
 
   // スタッフ追加モーダル・フォーム
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [showAddStaffModal, setShowAddStaffModal] = useScreenState('staff-modal', false);
   const [selectedResidentId, setSelectedResidentId] = useState('');
   const [selectedStaffRole, setSelectedStaffRole] = useState('スタッフ');
 
   // 班追加 (S12)
-  const [showAddGroupModal, setShowAddGroupModal] = useState(false);
+  const [showAddGroupModal, setShowAddGroupModal] = useScreenState('group-modal', false);
   const [groupName, setGroupName] = useState('');
   const [groupLeader, setGroupLeader] = useState('');
   const [groupGoal, setGroupGoal] = useState('');
-  const [groupDeadline, setGroupDeadline] = useState('');
+  const [groupDeadline] = useState('');
 
   // S10 企画書編集モーダル (S10)
-  const [showProposalEditModal, setShowProposalEditModal] = useState(false);
-  const [propTitle, setPropTitle] = useState(project.proposalDoc?.title || `${project.title} 企画書`);
-  const [propRecipient, setPropRecipient] = useState('西松地所様・寮母様');
-  const [propDate, setPropDate] = useState('2026/10/15');
-  const [propPurpose, setPropPurpose] = useState(project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。');
-  const [propIssues, setPropIssues] = useState('夜間の時間帯に共有部で会話するきっかけが少ない');
-  const [propProposal, setPropProposal] = useState(project.proposalDoc?.proposalOverview || '中庭にスクリーンを設置し、夕方から映画上映会を開催します。');
-  const [propCost, setPropCost] = useState(project.proposalDoc?.totalBudget || '自治会費より約 4,800 円');
-  const [propSummary, setPropSummary] = useState('安全管理と消灯時間を厳守して運営します');
+  const [showProposalEditModal, setShowProposalEditModal] = useScreenState('proposal-modal', false);
+  const [propTitle, setPropTitle] = useScreenState(`project:${project.id}:propTitle`, project.proposalDoc?.title || `${project.title} 企画書`, false);
+  const [propRecipient, setPropRecipient] = useScreenState(`project:${project.id}:propRecipient`, project.proposalDoc?.recipient || '', false);
+  const [propDate, setPropDate] = useScreenState(`project:${project.id}:propDate`, project.proposalDoc?.submissionDate || '', false);
+  const [propPurpose, setPropPurpose] = useScreenState(`project:${project.id}:propPurpose`, project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。', false);
+  const [propIssues, setPropIssues] = useScreenState(`project:${project.id}:propIssues`, project.proposalDoc?.problems?.join('\n') || '', false);
+  const [propProposal, setPropProposal] = useScreenState(`project:${project.id}:propProposal`, project.proposalDoc?.proposalOverview || '中庭にスクリーンを設置し、夕方から映画上映会を開催します。', false);
+  const [propCost, setPropCost] = useScreenState(`project:${project.id}:propCost`, project.proposalDoc?.totalBudget || '自治会費より約 4,800 円', false);
+  const [propSummary, setPropSummary] = useScreenState(`project:${project.id}:propSummary`, project.proposalDoc?.summary || '', false);
 
   // S11 添付ファイルステート (S11)
   const [attachments, setAttachments] = useState([
     { id: 'att-1', name: '会場レイアウト.pdf', size: '1.2 MB', type: 'pdf' },
     { id: 'att-2', name: '参考資料.docx', size: '480 KB', type: 'docx' }
   ]);
-  const [selectedPdfPreview, setSelectedPdfPreview] = useState(false);
+  const [selectedPdfPreview, setSelectedPdfPreview] = useScreenState('pdf-preview', false);
 
   // S14 ステップ追加モーダル (S14)
-  const [showAddStepModal, setShowAddStepModal] = useState(false);
+  const [showAddStepModal, setShowAddStepModal] = useScreenState('step-modal', false);
   const [newStepName, setNewStepName] = useState('');
   const [newStepDate, setNewStepDate] = useState('');
 
@@ -78,14 +73,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   return (
     <div style={{ maxWidth: 540, margin: '0 auto', padding: '12px 10px', width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* 画面トップバナー 実際の寮のモノクロバナー ＋ 細い色線  */}
-      <div
+      <div className="glass-panel"
         style={{
           position: 'relative',
           width: '100%',
           height: 140,
           borderRadius: 12,
           overflow: 'hidden',
-          backgroundColor: '#171A21'
+          backgroundColor: "var(--glass-primary)"
         }}
       >
         <img
@@ -122,34 +117,15 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             alignItems: 'center'
           }}
         >
-          <button
-            type="button"
-            onClick={onBack}
-            style={{
-              backgroundColor: 'rgba(23, 26, 33, 0.75)',
-              color: '#FFFFFF',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: 20,
-              fontSize: 12,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4
-            }}
-          >
-            <ArrowLeft size={14} />
-            <span>進行中一覧</span>
-          </button>
 
           <span
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              color: '#171A21',
+              color: "var(--glass-ink)",
               padding: '4px 10px',
               borderRadius: 12,
               fontSize: 11,
-              fontWeight: 800
+              fontWeight: 700
             }}
           >
             {project.status === 'planning' ? '企画中' : project.status === 'testing' ? '試行中' : '進行中'}
@@ -158,11 +134,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       </div>
 
       {/* 企画タイトル ＆ 説明 */}
-      <div
+      <div className="glass-panel"
         style={{
-          backgroundColor: '#FFFFFF',
+          backgroundColor: "var(--glass-panel)",
           borderRadius: 12,
-          border: '1px solid #D9DEE7',
+          border: "1px solid var(--glass-border)",
           padding: '18px 20px',
           display: 'flex',
           flexDirection: 'column',
@@ -171,25 +147,25 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 900, color: '#171A21', margin: '0 0 6px' }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 6px' }}>
               {project.title}
             </h1>
-            <p style={{ fontSize: 13, color: '#596273', margin: 0, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: "var(--glass-muted)", margin: 0, lineHeight: 1.6 }}>
               {project.description || '寮生同士のアイデアを形にするプロジェクトです'}
             </p>
           </div>
 
-          <button
+          <button className="glass-button"
             type="button"
             onClick={onToggleJoin}
             style={{
-              backgroundColor: isJoined ? '#F7F8FA' : '#B92F3D',
-              color: isJoined ? '#171A21' : '#FFFFFF',
-              border: isJoined ? '1px solid #D9DEE7' : 'none',
+              backgroundColor: isJoined ? "var(--glass-inset)" : "var(--glass-primary)",
+              color: isJoined ? "var(--glass-ink)" : '#FFFFFF',
+              border: isJoined ? "1px solid var(--glass-border)" : 'none',
               padding: '10px 18px',
               borderRadius: 8,
               fontSize: 13,
-              fontWeight: 800,
+              fontWeight: 700,
               cursor: 'pointer'
             }}
           >
@@ -198,12 +174,12 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         </div>
 
         {/* タブナビゲーション 概要 / 企画書 / スタッフ  */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #D9DEE7', marginTop: 8 }}>
+        <div style={{ display: 'flex', borderBottom: "1px solid var(--glass-border)", marginTop: 8 }}>
           {(['overview', 'proposal', 'staff'] as const).map((tab) => {
             const labels = { overview: '概要', proposal: '企画書', staff: 'スタッフ' };
             const active = activeTab === tab;
             return (
-              <button
+              <button className="glass-button"
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
@@ -213,7 +189,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   backgroundColor: 'transparent',
                   border: 'none',
                   borderBottom: active ? '2px solid #171A21' : '2px solid transparent',
-                  color: active ? '#171A21' : '#596273',
+                  color: active ? "var(--glass-ink)" : "var(--glass-muted)",
                   fontSize: 14,
                   fontWeight: active ? 800 : 600,
                   cursor: 'pointer'
@@ -232,7 +208,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* 次にやることカード */}
-          <div
+          <div className="glass-panel"
             style={{
               backgroundColor: isEvent ? '#FF6B68' : '#12BDE8',
               color: '#FFFFFF',
@@ -246,7 +222,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           >
             <div>
               <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.9, display: 'block' }}>次にやること</span>
-              <strong style={{ fontSize: 16, fontWeight: 800 }}>
+              <strong style={{ fontSize: 16, fontWeight: 700 }}>
                 {project.nextAction || (isEvent ? '会場の確認をする' : '試行結果を記録')}
               </strong>
             </div>
@@ -254,29 +230,29 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           </div>
 
           {/* 縦型タイムライン 運営ステップ  */}
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: "var(--glass-panel)",
               borderRadius: 12,
-              border: '1px solid #D9DEE7',
+              border: "1px solid var(--glass-border)",
               padding: '20px'
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, color: '#171A21', margin: 0 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                 運営工程
               </h3>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => setShowAddStepModal(true)}
                 style={{
-                  backgroundColor: '#F7F8FA',
-                  border: '1px solid #D9DEE7',
+                  backgroundColor: "var(--glass-inset)",
+                  border: "1px solid var(--glass-border)",
                   borderRadius: 6,
                   padding: '6px 12px',
                   fontSize: 12,
                   fontWeight: 700,
-                  color: '#171A21'
+                  color: "var(--glass-ink)"
                 }}
               >
                 ＋ ステップを追加
@@ -317,14 +293,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                       width: 24,
                       height: 24,
                       borderRadius: '50%',
-                      backgroundColor: st.done ? '#171A21' : st.active ? accentColor : '#FFFFFF',
-                      border: `2px solid ${st.done ? '#171A21' : st.active ? accentColor : '#D9DEE7'}`,
-                      color: st.done || st.active ? '#FFFFFF' : '#596273',
+                      backgroundColor: st.done ? "var(--glass-primary)" : st.active ? accentColor : "var(--glass-panel)",
+                      border: `2px solid ${st.done ? '#171A21' : st.active ? accentColor : "var(--glass-border)"}`,
+                      color: st.done || st.active ? '#FFFFFF' : "var(--glass-muted)",
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: 11,
-                      fontWeight: 800,
+                      fontWeight: 700,
                       flexShrink: 0
                     }}
                   >
@@ -332,14 +308,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <strong style={{ fontSize: 14, color: '#171A21' }}>{st.title}</strong>
+                      <strong style={{ fontSize: 14, color: "var(--glass-ink)" }}>{st.title}</strong>
                       {st.active && (
-                        <span style={{ fontSize: 11, color: '#596273', backgroundColor: '#F7F8FA', padding: '2px 6px', borderRadius: 4 }}>
+                        <span style={{ fontSize: 11, color: "var(--glass-muted)", backgroundColor: "var(--glass-inset)", padding: '2px 6px', borderRadius: 4 }}>
                           現在地
                         </span>
                       )}
                     </div>
-                    <span style={{ fontSize: 12, color: '#596273', display: 'block', marginTop: 2 }}>
+                    <span style={{ fontSize: 12, color: "var(--glass-muted)", display: 'block', marginTop: 2 }}>
                       {st.date}
                     </span>
                   </div>
@@ -355,11 +331,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       {/* 2. 企画書タブ (S09 閲覧) */}
       {/* ============================================================ */}
       {activeTab === 'proposal' && (
-        <div
+        <div className="glass-panel"
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             borderRadius: 12,
-            border: '1px solid #D9DEE7',
+            border: "1px solid var(--glass-border)",
             padding: '24px 20px',
             display: 'flex',
             flexDirection: 'column',
@@ -367,16 +343,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ backgroundColor: '#F7F8FA', color: '#596273', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
+            <span style={{ backgroundColor: "var(--glass-inset)", color: "var(--glass-muted)", fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
               下書き
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => window.print()}
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #D9DEE7',
+                  backgroundColor: "var(--glass-panel)",
+                  border: "1px solid var(--glass-border)",
                   borderRadius: 6,
                   padding: '6px 12px',
                   fontSize: 13,
@@ -389,11 +365,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                 <Download size={14} />
                 <span>PDF保存</span>
               </button>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => setShowProposalEditModal(true)}
                 style={{
-                  backgroundColor: '#171A21',
+                  backgroundColor: "var(--glass-primary)",
                   color: '#FFFFFF',
                   borderRadius: 6,
                   padding: '6px 14px',
@@ -410,15 +386,15 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             </div>
           </div>
 
-          <div style={{ borderBottom: '1.5px solid #E2E8F0', paddingBottom: 14 }}>
+          <div style={{ borderBottom: "1.5px solid var(--glass-border)", paddingBottom: 14 }}>
             <div style={{ marginBottom: 8 }}>
               <span
                 style={{
-                  backgroundColor: '#EFF6FF',
-                  color: '#0284C7',
+                  backgroundColor: "var(--glass-inset)",
+                  color: "var(--glass-accent)",
                   border: '1px solid #BAE6FD',
                   fontSize: 11,
-                  fontWeight: 800,
+                  fontWeight: 700,
                   padding: '3px 10px',
                   borderRadius: 4
                 }}
@@ -426,34 +402,38 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                 企画提案書
               </span>
             </div>
-            <h2 style={{ fontSize: 19, fontWeight: 900, color: '#0F172A', margin: '0 0 6px 0', lineHeight: 1.4 }}>
+            <h2 style={{ fontSize: 19, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 6px 0', lineHeight: 1.4 }}>
               {project.proposalDoc?.title || `${project.title} 企画書`}
             </h2>
             {project.proposalDoc?.subtitle && (
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1E293B', margin: '0 0 12px 0' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--glass-ink)", margin: '0 0 12px 0' }}>
                 {project.proposalDoc.subtitle}
               </h3>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748B' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: "var(--glass-muted)" }}>
               <span>提出先: {project.proposalDoc?.recipient || '西松地所株式会社 様 / 寮母・管理スタッフの皆様'}</span>
               <span>提出日: {project.proposalDoc?.submissionDate || '2026年10月'}</span>
             </div>
           </div>
 
+          {project.proposalDoc && <dl className="proposal-saved-details">{[
+            ['目的', project.proposalDoc.objective], ['実施日時', project.proposalDoc.implementationDate], ['場所', project.proposalDoc.location], ['対象・人数', project.proposalDoc.targetAudience], ['担当・役割', project.proposalDoc.responsible], ['安全・確認事項', project.proposalDoc.requirements?.join('\n')], ['成果・振り返り方法', project.proposalDoc.expectedImpact]
+          ].filter(([, value]) => value).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
+
           {/* 企画書本文 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
             <div>
-              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 8 }}>
+              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 8 }}>
                 1. 企画の趣旨・背景
               </h4>
-              <p style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
+              <p style={{ fontSize: 13.5, color: "var(--glass-ink)", lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
                 {project.proposalDoc?.background || project.proposalDoc?.purpose || project.description || '日常の中で気軽に交流できる場をつくり、寮生同士のつながりを深めたい。'}
               </p>
             </div>
 
             {project.proposalDoc?.problems && project.proposalDoc.problems.length > 0 && (
               <div>
-                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 10 }}>
+                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 10 }}>
                   2. 生じている課題 寮生側
                 </h4>
                 {project.proposalDoc.highlightQuote && (
@@ -466,7 +446,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                       marginBottom: 10
                     }}
                   >
-                    <div style={{ fontSize: 11.5, fontWeight: 900, color: '#991B1B', marginBottom: 3 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: '#991B1B', marginBottom: 3 }}>
                       前回の会議で最も多く出された意見
                     </div>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: '#7F1D1D' }}>
@@ -476,8 +456,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {project.proposalDoc.problems.map((prob, i) => (
-                    <div key={i} style={{ fontSize: 13, color: '#334155', display: 'flex', gap: 6 }}>
-                      <span style={{ color: '#0284C7', fontWeight: 900 }}>・</span>
+                    <div key={i} style={{ fontSize: 13, color: "var(--glass-ink)", display: 'flex', gap: 6 }}>
+                      <span style={{ color: "var(--glass-accent)", fontWeight: 700 }}>・</span>
                       <span>{prob}</span>
                     </div>
                   ))}
@@ -486,10 +466,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             )}
 
             <div>
-              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 8 }}>
+              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 8 }}>
                 3. 提案内容の概要
               </h4>
-              <p style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.7, margin: '0 0 12px 0' }}>
+              <p style={{ fontSize: 13.5, color: "var(--glass-ink)", lineHeight: 1.7, margin: '0 0 12px 0' }}>
                 {project.proposalDoc?.proposalOverview || '具体的な運用ルールおよび設備配置を導入します。'}
               </p>
 
@@ -499,8 +479,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                     <div
                       key={idx}
                       style={{
-                        backgroundColor: '#F8FAFC',
-                        border: '1.5px solid #CBD5E1',
+                        backgroundColor: "var(--glass-inset)",
+                        border: "1.5px solid var(--glass-border)",
                         borderRadius: 8,
                         padding: '10px 12px',
                         display: 'flex',
@@ -514,10 +494,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                             width: 18,
                             height: 18,
                             borderRadius: '50%',
-                            backgroundColor: box.tagColor || '#0284C7',
+                            backgroundColor: box.tagColor || "var(--glass-primary)",
                             color: '#FFFFFF',
                             fontSize: 10,
-                            fontWeight: 800,
+                            fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -526,28 +506,28 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                         >
                           {box.number}
                         </span>
-                        <span style={{ fontSize: 11.5, fontWeight: 800, color: '#0F172A' }}>{box.title}</span>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--glass-ink)" }}>{box.title}</span>
                       </div>
-                      <p style={{ fontSize: 11, color: '#475569', margin: 0, lineHeight: 1.45 }}>{box.description}</p>
+                      <p style={{ fontSize: 11, color: "var(--glass-muted)", margin: 0, lineHeight: 1.45 }}>{box.description}</p>
                     </div>
                   ))}
                 </div>
               )}
 
               {project.proposalDoc?.flowItems && project.proposalDoc.flowItems.length > 0 && (
-                <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{ border: "1px solid var(--glass-border)", borderRadius: 6, overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
-                      <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
-                        <th style={{ width: '30%', padding: '7px 10px', textAlign: 'left', fontWeight: 800 }}>対象</th>
-                        <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 800 }}>手順・内容</th>
+                      <tr style={{ backgroundColor: "var(--glass-inset)", borderBottom: "1px solid var(--glass-border)" }}>
+                        <th style={{ width: '30%', padding: '7px 10px', textAlign: 'left', fontWeight: 700 }}>対象</th>
+                        <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700 }}>手順・内容</th>
                       </tr>
                     </thead>
                     <tbody>
                       {project.proposalDoc.flowItems.map((fl, idx) => (
-                        <tr key={idx} style={{ borderBottom: idx < project.proposalDoc!.flowItems!.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
+                        <tr key={idx} style={{ borderBottom: idx < project.proposalDoc!.flowItems!.length - 1 ? "1px solid var(--glass-border)" : 'none' }}>
                           <td style={{ padding: '8px 10px', fontWeight: 700, backgroundColor: '#FAFAFA' }}>{fl.target}</td>
-                          <td style={{ padding: '8px 10px', color: '#334155' }}>{fl.content}</td>
+                          <td style={{ padding: '8px 10px', color: "var(--glass-ink)" }}>{fl.content}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -558,26 +538,26 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
             {project.proposalDoc?.improvements && project.proposalDoc.improvements.length > 0 && (
               <div>
-                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 10 }}>
+                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 10 }}>
                   4. 導入による改善点
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                   {project.proposalDoc.improvements.map((imp, idx) => (
-                    <div key={idx} style={{ border: '1px solid #CBD5E1', borderRadius: 8, overflow: 'hidden' }}>
+                    <div key={idx} style={{ border: "1px solid var(--glass-border)", borderRadius: 8, overflow: 'hidden' }}>
                       <div
                         style={{
-                          backgroundColor: idx === 0 ? '#EFF6FF' : idx === 1 ? '#F0FDF4' : '#FEF3C7',
+                          backgroundColor: idx === 0 ? "var(--glass-inset)" : idx === 1 ? "var(--glass-inset)" : "var(--glass-inset)",
                           padding: '6px 10px',
                           fontSize: 11.5,
-                          fontWeight: 900,
+                          fontWeight: 700,
                           color: idx === 0 ? '#1D4ED8' : idx === 1 ? '#15803D' : '#B45309'
                         }}
                       >
                         {imp.audience}
                       </div>
                       <div style={{ padding: '10px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>{imp.title}</div>
-                        <p style={{ fontSize: 11, color: '#475569', margin: 0, lineHeight: 1.45 }}>{imp.desc}</p>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 4 }}>{imp.title}</div>
+                        <p style={{ fontSize: 11, color: "var(--glass-muted)", margin: 0, lineHeight: 1.45 }}>{imp.desc}</p>
                       </div>
                     </div>
                   ))}
@@ -586,26 +566,26 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             )}
 
             <div>
-              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 10 }}>
+              <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 10 }}>
                 5. 必要資材および費用概算
               </h4>
               {project.proposalDoc?.budgetItems && project.proposalDoc.budgetItems.length > 0 && (
-                <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ border: "1px solid var(--glass-border)", borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
-                      <tr style={{ backgroundColor: '#F1F5F9', borderBottom: '1px solid #CBD5E1' }}>
-                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 800 }}>品名</th>
-                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 800 }}>仕様</th>
-                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 800 }}>数量</th>
-                        <th style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 800 }}>概算費用</th>
+                      <tr style={{ backgroundColor: "var(--glass-inset)", borderBottom: "1px solid var(--glass-border)" }}>
+                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 700 }}>品名</th>
+                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 700 }}>仕様</th>
+                        <th style={{ padding: '7px 8px', textAlign: 'left', fontWeight: 700 }}>数量</th>
+                        <th style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700 }}>概算費用</th>
                       </tr>
                     </thead>
                     <tbody>
                       {project.proposalDoc.budgetItems.map((b, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                        <tr key={idx} style={{ borderBottom: "1px solid var(--glass-border)" }}>
                           <td style={{ padding: '7px 8px', fontWeight: 700 }}>{b.name}</td>
-                          <td style={{ padding: '7px 8px', color: '#475569' }}>{b.spec}</td>
-                          <td style={{ padding: '7px 8px', color: '#475569' }}>{b.quantity}</td>
+                          <td style={{ padding: '7px 8px', color: "var(--glass-muted)" }}>{b.spec}</td>
+                          <td style={{ padding: '7px 8px', color: "var(--glass-muted)" }}>{b.quantity}</td>
                           <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700 }}>{b.cost}</td>
                         </tr>
                       ))}
@@ -613,17 +593,17 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   </table>
                 </div>
               )}
-              <p style={{ fontSize: 13.5, fontWeight: 800, color: '#0284C7', margin: 0 }}>
+              <p style={{ fontSize: 13.5, fontWeight: 700, color: "var(--glass-accent)", margin: 0 }}>
                 合計概算費用: {project.proposalDoc?.totalBudget || '自治会費より約 4,800 円'}
               </p>
             </div>
 
             {project.proposalDoc?.steps && project.proposalDoc.steps.length > 0 && (
               <div>
-                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 900, color: '#0F172A', marginBottom: 8 }}>
+                <h4 style={{ borderLeft: '4px solid #0284C7', paddingLeft: 10, fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", marginBottom: 8 }}>
                   6. 導入手順 案
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: '#334155' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 13, color: "var(--glass-ink)" }}>
                   {project.proposalDoc.steps.map((st, idx) => (
                     <div key={idx}>{st}</div>
                   ))}
@@ -632,9 +612,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             )}
 
             {project.proposalDoc?.summary && (
-              <div style={{ backgroundColor: '#F8FAFC', borderLeft: '4px solid #64748B', padding: '12px 14px', borderRadius: '0 6px 6px 0' }}>
-                <div style={{ fontSize: 11.5, fontWeight: 900, color: '#475569', marginBottom: 4 }}>まとめ</div>
-                <p style={{ fontSize: 12.5, color: '#334155', margin: 0, lineHeight: 1.6 }}>{project.proposalDoc.summary}</p>
+              <div style={{ backgroundColor: "var(--glass-inset)", borderLeft: '4px solid #64748B', padding: '12px 14px', borderRadius: '0 6px 6px 0' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--glass-muted)", marginBottom: 4 }}>まとめ</div>
+                <p style={{ fontSize: 12.5, color: "var(--glass-ink)", margin: 0, lineHeight: 1.6 }}>{project.proposalDoc.summary}</p>
               </div>
             )}
           </div>
@@ -642,10 +622,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           {/* S11 添付資料 */}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #EEF0F5' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', margin: 0 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                 添付資料
               </h4>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => {
                   const name = window.prompt('資料名を入力してください: 例 会場図面.pdf');
@@ -653,33 +633,33 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                     setAttachments([...attachments, { id: `att-${Date.now()}`, name: name.trim(), size: '840 KB', type: name.endsWith('.docx') ? 'docx' : 'pdf' }]);
                   }
                 }}
-                style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}
+                style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}
               >
                 ＋ 資料を追加
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {attachments.map((att) => (
-                <div key={att.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7' }}>
+                <div key={att.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)" }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <FileText size={16} color="#596273" />
-                    <strong style={{ fontSize: 13, color: '#171A21' }}>{att.name}</strong>
-                    <span style={{ fontSize: 11, color: '#596273' }}>{att.size}</span>
+                    <strong style={{ fontSize: 13, color: "var(--glass-ink)" }}>{att.name}</strong>
+                    <span style={{ fontSize: 11, color: "var(--glass-muted)" }}>{att.size}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {att.type === 'pdf' ? (
-                      <button
+                      <button className="glass-button"
                         type="button"
                         onClick={() => setSelectedPdfPreview(!selectedPdfPreview)}
-                        style={{ backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
+                        style={{ backgroundColor: "var(--glass-panel)", border: "1px solid var(--glass-border)", borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
                       >
                         {selectedPdfPreview ? 'プレビューを閉じる' : 'プレビュー'}
                       </button>
                     ) : (
-                      <button
+                      <button className="glass-button"
                         type="button"
                         onClick={() => alert('ダウンロードを開始しました')}
-                        style={{ backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
+                        style={{ backgroundColor: "var(--glass-panel)", border: "1px solid var(--glass-border)", borderRadius: 6, padding: '4px 8px', fontSize: 12, fontWeight: 700 }}
                       >
                         ダウンロードして開く
                       </button>
@@ -688,9 +668,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                 </div>
               ))}
               {selectedPdfPreview && (
-                <div style={{ padding: '16px', borderRadius: 8, backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', textAlign: 'center' }}>
-                  <span style={{ fontSize: 11, color: '#596273', display: 'block', marginBottom: 8 }}>プレビュー</span>
-                  <div style={{ width: '100%', height: 160, backgroundColor: '#EEF0F5', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#596273' }}>
+                <div style={{ padding: '16px', borderRadius: 8, backgroundColor: "var(--glass-panel)", border: "1px solid var(--glass-border)", textAlign: 'center' }}>
+                  <span style={{ fontSize: 11, color: "var(--glass-muted)", display: 'block', marginBottom: 8 }}>プレビュー</span>
+                  <div style={{ width: '100%', height: 160, backgroundColor: "var(--glass-inset)", borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: "var(--glass-muted)" }}>
                     会場レイアウト図面
                   </div>
                 </div>
@@ -707,30 +687,30 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* スタッフ追加バー */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: '#596273' }}>
+            <span style={{ fontSize: 13, color: "var(--glass-muted)" }}>
               企画全体および班ごとのメンバー一覧
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => setShowAddGroupModal(true)}
                 style={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #D9DEE7',
+                  backgroundColor: "var(--glass-panel)",
+                  border: "1px solid var(--glass-border)",
                   borderRadius: 8,
                   padding: '8px 12px',
                   fontSize: 12,
                   fontWeight: 700,
-                  color: '#171A21'
+                  color: "var(--glass-ink)"
                 }}
               >
                 ＋ 班を追加
               </button>
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => setShowAddStaffModal(true)}
                 style={{
-                  backgroundColor: '#171A21',
+                  backgroundColor: "var(--glass-primary)",
                   color: '#FFFFFF',
                   borderRadius: 8,
                   padding: '8px 14px',
@@ -744,15 +724,15 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           </div>
 
           {/* 企画全体セクション */}
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: "var(--glass-panel)",
               borderRadius: 12,
-              border: '1px solid #D9DEE7',
+              border: "1px solid var(--glass-border)",
               padding: '16px 20px'
             }}
           >
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: '#596273', marginBottom: 12 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--glass-muted)", marginBottom: 12 }}>
               企画全体
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -773,24 +753,24 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                         width: 32,
                         height: 32,
                         borderRadius: '50%',
-                        backgroundColor: '#EEF0F5',
+                        backgroundColor: "var(--glass-inset)",
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontWeight: 800,
+                        fontWeight: 700,
                         fontSize: 12
                       }}
                     >
                       {m.name.charAt(0)}
                     </div>
                     <div>
-                      <strong style={{ fontSize: 14, color: '#171A21', display: 'block' }}>
+                      <strong style={{ fontSize: 14, color: "var(--glass-ink)", display: 'block' }}>
                         {m.name}
                       </strong>
-                      <span style={{ fontSize: 11, color: '#596273' }}>{m.building}棟</span>
+                      <span style={{ fontSize: 11, color: "var(--glass-muted)" }}>{m.building}棟</span>
                     </div>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#171A21' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--glass-ink)" }}>
                     {m.eventRole || m.role || 'メンバー'}
                   </span>
                 </div>
@@ -803,23 +783,23 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             { id: 'g1', name: '広報班', glName: '寮生B', milestoneTitle: 'ポスター作成' },
             { id: 'g2', name: '会場班', glName: '寮生C', milestoneTitle: '会場レイアウト作成' }
           ]).map((grp) => (
-            <div
+            <div className="glass-panel"
               key={grp.id}
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: "var(--glass-panel)",
                 borderRadius: 12,
-                border: '1px solid #D9DEE7',
+                border: "1px solid var(--glass-border)",
                 padding: '16px 20px'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                   {grp.name}
                 </h4>
-                <span style={{ fontSize: 12, color: '#596273' }}>リーダー {grp.glName}</span>
+                <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>リーダー {grp.glName}</span>
               </div>
               {grp.milestoneTitle && (
-                <span style={{ fontSize: 12, color: '#596273', display: 'block' }}>
+                <span style={{ fontSize: 12, color: "var(--glass-muted)", display: 'block' }}>
                   目標 {grp.milestoneTitle}
                 </span>
               )}
@@ -830,7 +810,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
       {/* S12 班を追加モーダル */}
       {showAddGroupModal && (
-        <div
+        <div role="dialog" aria-modal="true" className="app-modal"
           style={{
             position: 'fixed',
             inset: 0,
@@ -842,11 +822,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             zIndex: 60
           }}
         >
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: "var(--glass-panel)",
               borderRadius: 12,
-              border: '1px solid #D9DEE7',
+              border: "1px solid var(--glass-border)",
               maxWidth: 480,
               width: '100%',
               padding: '24px 20px',
@@ -855,7 +835,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               gap: 16
             }}
           >
-            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
               班を追加
             </h3>
 
@@ -879,7 +859,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   onChange={(e) => setGroupName(e.target.value)}
                   placeholder="会場班"
                   required
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                 />
               </div>
 
@@ -892,7 +872,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={groupLeader}
                   onChange={(e) => setGroupLeader(e.target.value)}
                   placeholder="寮生B"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                 />
               </div>
 
@@ -905,21 +885,21 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={groupGoal}
                   onChange={(e) => setGroupGoal(e.target.value)}
                   placeholder="会場レイアウトを決める"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                 />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-                <button
+                <button className="glass-button"
                   type="button"
                   onClick={() => setShowAddGroupModal(false)}
-                  style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                  style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", padding: '10px 16px', borderRadius: 8 }}
                 >
                   キャンセル
                 </button>
-                <button
+                <button className="glass-button"
                   type="submit"
-                  style={{ backgroundColor: '#B92F3D', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                  style={{ backgroundColor: "var(--glass-primary)", color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
                 >
                   班を追加する
                 </button>
@@ -931,7 +911,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
       {/* スタッフ追加モーダル */}
       {showAddStaffModal && (
-        <div
+        <div role="dialog" aria-modal="true" className="app-modal"
           style={{
             position: 'fixed',
             inset: 0,
@@ -943,11 +923,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             zIndex: 60
           }}
         >
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: "var(--glass-panel)",
               borderRadius: 12,
-              border: '1px solid #D9DEE7',
+              border: "1px solid var(--glass-border)",
               maxWidth: 480,
               width: '100%',
               padding: '24px 20px',
@@ -956,7 +936,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               gap: 16
             }}
           >
-            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
               スタッフを追加
             </h3>
 
@@ -977,7 +957,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={selectedResidentId}
                   onChange={(e) => setSelectedResidentId(e.target.value)}
                   required
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                 >
                   <option value="">選択してください</option>
                   {allResidents.map((r) => (
@@ -997,22 +977,22 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={selectedStaffRole}
                   onChange={(e) => setSelectedStaffRole(e.target.value)}
                   placeholder="スタッフ"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                 />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-                <button
+                <button className="glass-button"
                   type="button"
                   onClick={() => setShowAddStaffModal(false)}
-                  style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                  style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", padding: '10px 16px', borderRadius: 8 }}
                 >
                   キャンセル
                 </button>
-                <button
+                <button className="glass-button"
                   type="submit"
                   disabled={!selectedResidentId}
-                  style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                  style={{ backgroundColor: "var(--glass-primary)", color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
                 >
                   追加する
                 </button>
@@ -1024,7 +1004,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
       {/* S10 企画書編集モーダル */}
       {showProposalEditModal && (
-        <div
+        <div role="dialog" aria-modal="true" className="app-modal"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1036,11 +1016,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             zIndex: 60
           }}
         >
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: "var(--glass-panel)",
               borderRadius: 12,
-              border: '1px solid #D9DEE7',
+              border: "1px solid var(--glass-border)",
               maxWidth: 540,
               width: '100%',
               maxHeight: '90vh',
@@ -1052,7 +1032,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                 企画書を編集
               </h3>
               <span style={{ fontSize: 11, color: '#FF6B68', fontWeight: 700 }}>未保存の変更</span>
@@ -1062,11 +1042,13 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               onSubmit={async (e) => {
                 e.preventDefault();
                 const doc = {
+                  ...project.proposalDoc,
                   title: propTitle,
                   recipient: propRecipient,
-                  submittedDate: propDate,
+                  submissionDate: propDate,
                   purpose: propPurpose,
-                  issues: propIssues,
+                  problems: propIssues.split(/\r?\n/).filter(Boolean),
+                  ...(project.proposalDoc?.objective ? { objective: propPurpose } : {}),
                   proposalOverview: propProposal,
                   totalBudget: propCost,
                   summary: propSummary
@@ -1084,7 +1066,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   type="text"
                   value={propTitle}
                   onChange={(e) => setPropTitle(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                   required
                 />
               </div>
@@ -1096,7 +1078,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                     type="text"
                     value={propRecipient}
                     onChange={(e) => setPropRecipient(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                   />
                 </div>
                 <div>
@@ -1105,7 +1087,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                     type="text"
                     value={propDate}
                     onChange={(e) => setPropDate(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                   />
                 </div>
               </div>
@@ -1116,7 +1098,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={propPurpose}
                   onChange={(e) => setPropPurpose(e.target.value)}
                   rows={3}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                 />
               </div>
 
@@ -1126,7 +1108,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={propIssues}
                   onChange={(e) => setPropIssues(e.target.value)}
                   rows={2}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                 />
               </div>
 
@@ -1136,7 +1118,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={propProposal}
                   onChange={(e) => setPropProposal(e.target.value)}
                   rows={3}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                 />
               </div>
 
@@ -1146,7 +1128,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   type="text"
                   value={propCost}
                   onChange={(e) => setPropCost(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                 />
               </div>
 
@@ -1156,21 +1138,21 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={propSummary}
                   onChange={(e) => setPropSummary(e.target.value)}
                   rows={2}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                 />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button
+                <button className="glass-button"
                   type="button"
                   onClick={() => setShowProposalEditModal(false)}
-                  style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                  style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", padding: '10px 16px', borderRadius: 8 }}
                 >
                   キャンセル
                 </button>
-                <button
+                <button className="glass-button"
                   type="submit"
-                  style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                  style={{ backgroundColor: "var(--glass-primary)", color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
                 >
                   保存する
                 </button>
@@ -1182,7 +1164,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
       {/* S14 ステップ追加モーダル */}
       {showAddStepModal && (
-        <div
+        <div role="dialog" aria-modal="true" className="app-modal"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1194,11 +1176,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             zIndex: 60
           }}
         >
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: "var(--glass-panel)",
               borderRadius: 12,
-              border: '1px solid #D9DEE7',
+              border: "1px solid var(--glass-border)",
               maxWidth: 480,
               width: '100%',
               padding: '24px 20px',
@@ -1207,7 +1189,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               gap: 16
             }}
           >
-            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
               ステップを追加
             </h3>
 
@@ -1234,9 +1216,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   onChange={(e) => setNewStepName(e.target.value)}
                   placeholder="会場の下見"
                   required
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                 />
-                <span style={{ fontSize: 11, color: '#596273', display: 'block', marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: "var(--glass-muted)", display: 'block', marginTop: 4 }}>
                   完了条件を明確にする名前がおすすめ
                 </span>
               </div>
@@ -1250,21 +1232,21 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   value={newStepDate}
                   onChange={(e) => setNewStepDate(e.target.value)}
                   placeholder="2026/10/20〜2026/10/25"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                 />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button
+                <button className="glass-button"
                   type="button"
                   onClick={() => setShowAddStepModal(false)}
-                  style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                  style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", padding: '10px 16px', borderRadius: 8 }}
                 >
                   キャンセル
                 </button>
-                <button
+                <button className="glass-button"
                   type="submit"
-                  style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                  style={{ backgroundColor: "var(--glass-primary)", color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
                 >
                   ステップを追加
                 </button>

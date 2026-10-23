@@ -102,6 +102,8 @@ export interface ResidentRecord {
   evaluations?: LeaderEvaluationRecord[] // 人事評価・リーダーカルテ
 }
 
+export type ResidentProfileUpdates = Omit<Partial<ResidentRecord>, 'projectHistory' | 'careers'>
+
 export interface BuildingUnitConfig {
   unitNumber: string
   unitName: string
@@ -230,6 +232,7 @@ export interface ProjectRecord {
   evaluations?: LeaderEvaluationRecord[] // 周囲の関係者がスコアリングした振り返り・評価ログ
   
   members: ProjectMemberRecord[]
+  pastMembers?: (ProjectMemberRecord & { leftAt: string })[]
   meetingNotes?: {
     id?: string
     date: string
@@ -280,6 +283,13 @@ export interface ProposalBudgetItem {
 }
 
 export interface ProjectProposalDoc {
+  objective?: string
+  location?: string
+  targetAudience?: string
+  implementationDate?: string
+  responsible?: string
+  requirements?: string[]
+  expectedImpact?: string
   title: string
   subtitle?: string
   recipient?: string
@@ -314,7 +324,13 @@ export interface WorkReportRecord {
   status: '報告完了' | '要対応' | '対応完了'
   reporter: string
   submittedAt: string
+  reportDate?: string
+  activityType?: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry'
+  actionResult?: string
+  entryUnit?: string
+  entryPurpose?: string
 }
+
 
 export interface ArchiveDocRecord {
   id: string
@@ -1306,7 +1322,10 @@ export const dbService = {
     return newResident
   },
 
-  async updateResident(id: string, updates: Partial<ResidentRecord>): Promise<ResidentRecord | null> {
+  async updateResident(id: string, updates: ResidentProfileUpdates): Promise<ResidentRecord | null> {
+    // Derived participation records cannot be edited through the profile update API.
+    const { projectHistory: _history, careers: _careers, ...profileUpdates } = updates as Partial<ResidentRecord>;
+    updates = profileUpdates;
     const current = await this.getResidents()
     const index = current.findIndex((r) => r.id === id)
     if (index === -1) return null
@@ -1332,52 +1351,6 @@ export const dbService = {
       }
     }
     return updatedRecord
-  },
-
-  async addProjectHistoryToResident(
-    residentId: string,
-    historyItem: Omit<ProjectHistoryItem, 'id'>
-  ): Promise<ResidentRecord | null> {
-    const current = await this.getResidents()
-    const resident = current.find((r) => r.id === residentId)
-    if (!resident) return null
-
-    const newItem: ProjectHistoryItem = {
-      ...historyItem,
-      id: `ph-${Date.now()}`
-    }
-    const currentHistory = resident.projectHistory || []
-    const updatedHistory = [newItem, ...currentHistory]
-    return this.updateResident(residentId, { projectHistory: updatedHistory })
-  },
-
-  async updateProjectHistoryOfResident(
-    residentId: string,
-    historyId: string,
-    updates: Partial<ProjectHistoryItem>
-  ): Promise<ResidentRecord | null> {
-    const current = await this.getResidents()
-    const resident = current.find((r) => r.id === residentId)
-    if (!resident) return null
-
-    const currentHistory = resident.projectHistory || []
-    const updatedHistory = currentHistory.map((item) =>
-      item.id === historyId ? { ...item, ...updates } : item
-    )
-    return this.updateResident(residentId, { projectHistory: updatedHistory })
-  },
-
-  async deleteProjectHistoryFromResident(
-    residentId: string,
-    historyId: string
-  ): Promise<ResidentRecord | null> {
-    const current = await this.getResidents()
-    const resident = current.find((r) => r.id === residentId)
-    if (!resident) return null
-
-    const currentHistory = resident.projectHistory || []
-    const updatedHistory = currentHistory.filter((item) => item.id !== historyId)
-    return this.updateResident(residentId, { projectHistory: updatedHistory })
   },
 
   async deleteResident(id: string): Promise<ResidentRecord[]> {
@@ -1513,7 +1486,7 @@ export const dbService = {
           avatar: user.avatar,
           role: user.role,
           building: user.building,
-          joinedAt: new Date().toISOString().slice(0, 10)
+          joinedAt: new Date().toISOString()
         }
         return {
           ...p,
@@ -1544,7 +1517,8 @@ export const dbService = {
       if (p.id === projectId) {
         return {
           ...p,
-          members: p.members.filter((m) => m.residentId !== userId)
+          members: p.members.filter((m) => m.residentId !== userId),
+          pastMembers: [...(p.pastMembers || []), ...p.members.filter(m => m.residentId === userId).map(member => ({ ...member, leftAt: new Date().toISOString() }))]
         }
       }
       return p
@@ -2012,7 +1986,8 @@ export const dbService = {
       if (p.id === projectId) {
         return {
           ...p,
-          members: p.members.filter((m) => m.residentId !== residentId)
+          members: p.members.filter((m) => m.residentId !== residentId),
+          pastMembers: [...(p.pastMembers || []), ...p.members.filter(m => m.residentId === residentId).map(member => ({ ...member, leftAt: new Date().toISOString() }))]
         }
       }
       return p

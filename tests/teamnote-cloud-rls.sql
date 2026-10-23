@@ -1,0 +1,82 @@
+-- Runs inside a transaction and rolls back all test communities, profiles, posts and reactions.
+-- Auth users are read only to select two existing UUIDs. No passwords or API keys are involved.
+begin;
+create temp table tn_test_results(name text primary key,passed boolean not null);
+create or replace function pg_temp.tn_assert(label text,ok boolean) returns void language plpgsql as $$
+begin if ok is distinct from true then raise exception 'FAILED: %',label; end if; insert into tn_test_results values(label,true); end$$;
+grant insert,select on tn_test_results to authenticated,anon;
+do $$
+declare
+ u1 uuid; u2 uuid; outsider uuid := gen_random_uuid();
+ a text := '__tn_rls_a_'||txid_current(); b text := '__tn_rls_b_'||txid_current();
+ pa uuid := gen_random_uuid(); pb uuid := gen_random_uuid(); first_cap uuid; last_cap uuid; next_id uuid;
+ result jsonb; i integer; baseline integer;
+ profile jsonb := '{"name":"RLS試験用A","role":"一般寮生","building":"rosemary","floor":1,"unit":"TEST-A"}';
+begin
+ select id into u1 from auth.users order by created_at,id limit 1;
+ select id into u2 from auth.users order by created_at,id limit 1 offset 1;
+ if u1 is null or u2 is null then raise exception 'Two existing Auth identities are needed for this rollback-only policy test'; end if;
+ select count(*) into baseline from public.tenant_members;
+ insert into teamnote_private.communities(id,name,invite_hash) values(a,'Rollback test A',extensions.digest(a,'sha256')),(b,'Rollback test B',extensions.digest(b,'sha256'));
+ execute 'set local role authenticated';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u1,'role','authenticated')::text,true);
+ begin perform public.tn_get_board(a); raise exception 'unjoined account accessed board'; exception when insufficient_privilege then perform pg_temp.tn_assert('unjoined account denied',true); end;
+ begin perform public.tn_join_community('invalid-code',profile); raise exception 'invalid invite accepted'; exception when insufficient_privilege then perform pg_temp.tn_assert('invalid invite denied',true); end;
+ result:=public.tn_join_community(a,profile);
+ perform pg_temp.tn_assert('joined own identity only',result->>'userId'=u1::text and jsonb_array_length(result->'members')=1);
+ result:=public.tn_post_idea(a,pa,'共有する試験用のアイデアです');
+ perform pg_temp.tn_assert('post attributed to authenticated author',result->'ideas'->0->>'authorId'=u1::text);
+ result:=public.tn_post_idea(a,pa,'共有する試験用のアイデアです');
+ perform pg_temp.tn_assert('post retry is idempotent',jsonb_array_length(result->'ideas')=1);
+ begin perform public.tn_post_idea(a,pa,'既存の本文を書き換える試みです'); raise exception 'duplicate changed body'; exception when insufficient_privilege then perform pg_temp.tn_assert('duplicate cannot rewrite body',true); end;
+ begin perform public.tn_post_idea(a,gen_random_uuid(),repeat('長',141)); raise exception 'oversize accepted'; exception when invalid_parameter_value then perform pg_temp.tn_assert('141 character text denied',true); end;
+ begin update public.tn_members set active=false where community_id=a; raise exception 'direct membership write allowed'; exception when insufficient_privilege then perform pg_temp.tn_assert('direct membership write denied',true); end;
+ begin insert into public.tn_ideas(id,community_id,author_id,body) values(gen_random_uuid(),a,u2,'他の人を騙った試験用の本文です'); raise exception 'direct author spoof allowed'; exception when insufficient_privilege then perform pg_temp.tn_assert('direct post/author spoof denied',true); end;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u2,'role','authenticated')::text,true);
+ result:=public.tn_join_community(a,profile||'{"name":"RLS試験用B","unit":"TEST-B"}');
+ perform pg_temp.tn_assert('second member sees first member post',jsonb_array_length(result->'members')=2 and jsonb_array_length(result->'ideas')=1);
+ result:=public.tn_set_like(a,pa,true); result:=public.tn_set_like(a,pa,true);
+ perform pg_temp.tn_assert('reaction retry is idempotent',(result->'ideas'->0->>'likes')::integer=1 and jsonb_array_length(result->'ideas'->0->'likedUserIds')=1);
+ begin perform public.tn_delete_idea(a,pa); raise exception 'other member deletion allowed'; exception when insufficient_privilege then perform pg_temp.tn_assert('other author delete denied',true); end;
+ result:=public.tn_join_community(b,profile||'{"name":"別団体の試験用B"}'); result:=public.tn_post_idea(b,pb,'別の団体だけで共有する本文です');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',u1,'role','authenticated')::text,true);
+ begin perform public.tn_get_board(b); raise exception 'foreign board accessed'; exception when insufficient_privilege then perform pg_temp.tn_assert('foreign community RPC denied',true); end;
+ perform pg_temp.tn_assert('foreign community SELECT filtered',(select count(*) from public.tn_ideas where community_id=b)=0);
+ begin perform public.tn_set_like(a,pb,true); raise exception 'foreign id reaction accepted'; exception when invalid_parameter_value then perform pg_temp.tn_assert('foreign idea id denied',true); end;
+ result:=public.tn_set_like(a,pa,true);
+ perform pg_temp.tn_assert('two users have distinct reactions',(result->'ideas'->0->>'likes')::integer=2 and jsonb_array_length(result->'ideas'->0->'likedUserIds')=2);
+ result:=public.tn_set_like(a,pa,false);
+ perform pg_temp.tn_assert('unlike removes only own reaction',(result->'ideas'->0->>'likes')::integer=1 and result->'ideas'->0->'likedUserIds'=jsonb_build_array(u2));
+ result:=public.tn_update_profile(a,profile||'{"name":"更新済み試験A","roleType":"hl","active":false}');
+ perform pg_temp.tn_assert('profile cannot promote authorization',result->'members'->0->>'roleType'='member' and (select active from public.tn_members where community_id=a and user_id=u1));
+ execute 'reset role';
+ update public.tn_ideas set created_at=now()-interval '8 days',last_reaction_at=now()-interval '7 days'+interval '1 millisecond' where community_id=a and id=pa;
+ execute 'set local role authenticated';
+ result:=public.tn_get_board(a); perform pg_temp.tn_assert('one millisecond before expiry remains visible',(result->'ideas'->0->>'hiddenAt') is null);
+ execute 'reset role';
+ update public.tn_ideas set last_reaction_at=now()-interval '7 days' where community_id=a and id=pa;
+ execute 'set local role authenticated';
+ result:=public.tn_get_board(a); perform pg_temp.tn_assert('seven day boundary hides without deleting',result->'ideas'->0->>'hiddenReason'='inactive' and jsonb_array_length(result->'ideas')=1);
+ begin perform public.tn_set_like(a,pa,true); raise exception 'expired post revived'; exception when invalid_parameter_value then perform pg_temp.tn_assert('hidden post cannot revive with reaction',true); end;
+ for i in 1..14 loop
+  next_id:=gen_random_uuid(); if i=1 then first_cap:=next_id; end if; last_cap:=next_id;
+  result:=public.tn_post_idea(a,next_id,'上限を確認する試験用アイデア'||i);
+ end loop;
+ perform pg_temp.tn_assert('capacity stays at twelve',(select count(*) from public.tn_ideas where community_id=a and hidden_at is null and deleted_at is null)=12);
+ perform pg_temp.tn_assert('oldest overflow is hidden',(select hidden_reason from public.tn_ideas where id=first_cap)='capacity' and (select count(*) from public.tn_ideas where community_id=a and hidden_reason='capacity')=2);
+ perform pg_temp.tn_assert('original bodies retained',(select count(*) from public.tn_ideas where community_id=a)=15 and (select body from public.tn_ideas where id=pa)='共有する試験用のアイデアです');
+ result:=public.tn_delete_idea(a,last_cap); result:=public.tn_delete_idea(a,last_cap);
+ perform pg_temp.tn_assert('own deletion is idempotent and hidden records stay hidden',jsonb_array_length(result->'ideas')=14 and (select count(*) from public.tn_ideas where community_id=a and hidden_at is null and deleted_at is null)=11);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',outsider,'role','authenticated')::text,true);
+ perform pg_temp.tn_assert('outsider cannot SELECT members posts or reactions',(select count(*) from public.tn_members)=0 and (select count(*) from public.tn_ideas)=0 and (select count(*) from public.tn_reactions)=0);
+ perform pg_temp.tn_assert('outsider cannot SELECT restaurant business data',(select count(*) from public.ingredients)=0 and (select count(*) from public.recipes)=0 and (select count(*) from public.reports)=0 and (select count(*) from public.stores)=0);
+ begin perform public.tn_post_idea(a,gen_random_uuid(),'非参加者による書き込み試験です'); raise exception 'outsider wrote post'; exception when insufficient_privilege then perform pg_temp.tn_assert('outsider cannot call write RPC',true); end;
+ execute 'set local role anon'; perform set_config('request.jwt.claims','{"role":"anon"}',true);
+ begin perform public.tn_get_board(a); raise exception 'anon called RPC'; exception when insufficient_privilege then perform pg_temp.tn_assert('unauthenticated RPC denied',true); end;
+ begin perform count(*) from public.tn_ideas; raise exception 'anon read table'; exception when insufficient_privilege then perform pg_temp.tn_assert('unauthenticated SELECT denied',true); end;
+ execute 'reset role';
+ perform pg_temp.tn_assert('join did not enroll restaurant membership',(select count(*) from public.tenant_members)=baseline);
+ perform pg_temp.tn_assert('realtime publishes only new teamnote tables',(select count(*) from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename in ('tn_ideas','tn_members'))=2);
+end$$;
+select jsonb_build_object('passed',count(*),'failed',count(*) filter(where not passed),'tests',jsonb_agg(name order by name)) as teamnote_rls_verification from tn_test_results;
+rollback;

@@ -1,88 +1,69 @@
+import { InventoryView } from './InventoryView';
+import { useScreenState } from '../lib/navigation';
 import React, { useState, useRef } from 'react';
-import { Search, Plus, Users, UserPlus, ArrowLeft, ChevronRight, Download, Eye, Award, Camera, Edit3, Trash2 } from 'lucide-react';
-import {
-  BUILDING_FLOORS_CONFIG,
-  parseUnitNumber,
-  getUnitCapacity,
-  getUnitRoomType,
-  type ResidentRecord,
-  type CurrentUser,
-  type ResidentRoleKey,
-  type ProjectHistoryItem,
-  DORM_ROLES_CONFIG,
-  getRoleBadgeInfo
-} from '../lib/db';
+import { Search, Plus, ChevronRight, Camera, Edit3 } from 'lucide-react';
+import { parseUnitNumber, type ResidentRecord, type CurrentUser, type ResidentRoleKey, type ProjectRecord, type ResidentProfileUpdates, DORM_ROLES_CONFIG, getRoleBadgeInfo } from '../lib/db';
+import { getActivityHistory } from '../lib/activityHistory';
 import { processAndResizeImage, playBurnImpactSound } from '../utils/avatarEffect';
 
 interface RosterArchiveViewsProps {
   viewType: 'roster' | 'inventory' | 'archives' | 'profile' | 'switch_user' | 'register_user';
   currentUser: CurrentUser;
+  allowAddResident?: boolean;
   residents: ResidentRecord[];
+  projects: ProjectRecord[];
   selectedResident: ResidentRecord | null;
   onSelectResident: (resident: ResidentRecord) => void;
-  onBackToPortal: () => void;
   onAddResident: (data: any) => Promise<void>;
   onSwitchUser: (resident: ResidentRecord) => void;
   onRegisterUser: (name: string, building: any, unit: string) => void;
-  onUpdateResident?: (residentId: string, updates: Partial<ResidentRecord>) => Promise<void>;
+  onUpdateResident?: (residentId: string, updates: ResidentProfileUpdates) => Promise<void>;
 }
 
 export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   viewType,
+  allowAddResident = true,
   currentUser,
   residents,
+  projects,
   selectedResident,
   onSelectResident,
-  onBackToPortal,
   onAddResident,
   onSwitchUser,
   onRegisterUser,
   onUpdateResident
 }) => {
   // S25/S26 部屋割り・一覧切り替え
-  const [rosterTab, setRosterTab] = useState<'units' | 'list'>('units');
-  const [selectedBuilding, setSelectedBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
-  const [selectedFloor, setSelectedFloor] = useState<1 | 2 | 3 | 4>(3);
-  const [searchRoster, setSearchRoster] = useState('');
+  const [rosterTab, setRosterTab] = useScreenState<'units' | 'list'>(`roster:${currentUser.id}:rosterTab`, 'units', false);
+  const [selectedBuilding, setSelectedBuilding] = useScreenState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>(`roster:${currentUser.id}:selectedBuilding`, 'rosemary', false);
+  const [selectedFloor, setSelectedFloor] = useScreenState<1 | 2 | 3 | 4>(`roster:${currentUser.id}:selectedFloor`, 3, false);
+  const [searchRoster, setSearchRoster] = useScreenState(`roster:${currentUser.id}:searchRoster`, '', false);
 
   // S27 寮生登録フォーム
-  const [isAddingResident, setIsAddingResident] = useState(false);
-  const [newResName, setNewResName] = useState('');
-  const [newResBuilding, setNewResBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
-  const [newResFloor, setNewResFloor] = useState<1 | 2 | 3 | 4>(3);
-  const [newResUnit, setNewResUnit] = useState('301');
-  const [newResRole, setNewResRole] = useState('一般寮生');
-
-  // S24 備品在庫ステート
-  const [invSearch, setInvSearch] = useState('');
-  const [invFilter, setInvFilter] = useState<'all' | 'needs_check'>('all');
+  const [isAddingResident, setIsAddingResident] = useScreenState('resident-modal', false);
+  const [newResName, setNewResName] = useScreenState(`roster:${currentUser.id}:newResName`, '', false);
+  const [newResBuilding, setNewResBuilding] = useScreenState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>(`roster:${currentUser.id}:newResBuilding`, 'rosemary', false);
+  const [newResFloor, setNewResFloor] = useScreenState<1 | 2 | 3 | 4>(`roster:${currentUser.id}:newResFloor`, 3, false);
+  const [newResUnit, setNewResUnit] = useScreenState(`roster:${currentUser.id}:newResUnit`, '301', false);
+  const [newResRole, setNewResRole] = useScreenState(`roster:${currentUser.id}:newResRole`, '一般寮生', false);
 
   // S30 年度別資料ステート
   const [archiveYear, setArchiveYear] = useState('2026年度');
   const [archiveSearch, setArchiveSearch] = useState('');
 
   // S31/S32 利用者登録ステート
-  const [showRegisterUserModal, setShowRegisterUserModal] = useState(false);
+  const [showRegisterUserModal, setShowRegisterUserModal] = useScreenState('register-modal', false);
   const [regName, setRegName] = useState('');
   const [regBuilding, setRegBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
   const [regUnit, setRegUnit] = useState('105');
 
   // プロフィール編集ステート
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useScreenState('profile-modal', false);
   const [editName, setEditName] = useState('');
   const [editBuilding, setEditBuilding] = useState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>('rosemary');
   const [editUnit, setEditUnit] = useState('');
   const [editRole, setEditRole] = useState<ResidentRoleKey>('一般寮生');
   const [editBio, setEditBio] = useState('');
-
-  // S29 活動履歴編集ステート
-  const [showAddHistoryModal, setShowAddHistoryModal] = useState(false);
-  const [editingHistoryId, setEditingHistoryId] = useState<string | null>(null);
-  const [histProjectName, setHistProjectName] = useState('');
-  const [histRole, setHistRole] = useState('企画・運営');
-  const [histPeriod, setHistPeriod] = useState('2026.10');
-  const [histStatus, setHistStatus] = useState<'進行中' | '完了'>('進行中');
-  const [histSummary, setHistSummary] = useState('');
 
   // プロフィール編集モーダルを開く
   const openEditProfileModal = () => {
@@ -108,36 +89,6 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
       bio: editBio.trim()
     });
     setShowEditProfileModal(false);
-  };
-
-  // 活動履歴の新規追加モーダルを開く
-  const openAddHistoryModal = () => {
-    setEditingHistoryId(null);
-    setHistProjectName('');
-    setHistRole('企画・運営');
-    setHistPeriod('2026.10');
-    setHistStatus('進行中');
-    setHistSummary('');
-    setShowAddHistoryModal(true);
-  };
-
-  // 活動履歴の編集モーダルを開く
-  const openEditHistoryModal = (item: ProjectHistoryItem) => {
-    setEditingHistoryId(item.id);
-    setHistProjectName(item.projectTitle || '');
-    setHistRole(item.role || '');
-    setHistPeriod(item.period || '');
-    setHistStatus((item.status as any) || '進行中');
-    setHistSummary(item.summary || '');
-    setShowAddHistoryModal(true);
-  };
-
-  // 活動履歴の削除ハンドラー
-  const handleDeleteHistory = async (historyId: string) => {
-    if (!selectedResident || !onUpdateResident) return;
-    const currentHist = selectedResident.projectHistory || [];
-    const updatedHist = currentHist.filter((h) => h.id !== historyId);
-    await onUpdateResident(selectedResident.id, { projectHistory: updatedHist });
   };
 
   // 📸 アバター変更演出ステート 画面背景維持・文字なし演出 
@@ -181,115 +132,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   // ============================================================
   // S24: 備品在庫
   // ============================================================
-  if (viewType === 'inventory') {
-    const inventoryItems = [
-      { id: '1', name: 'ペーパータオル', count: '24巻', location: '倉庫A', status: '十分', date: '2026/06/10 寮生A' },
-      { id: '2', name: 'ヘッドホン', count: '30台', location: '倉庫A', status: '整備中', date: '2026/06/08 寮生A' }
-    ];
-
-    return (
-      <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={onBackToPortal}
-            style={{
-              background: 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#171A21'
-            }}
-          >
-            <ArrowLeft size={16} />
-            <span>保管する</span>
-          </button>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#171A21', margin: 0 }}>
-            備品在庫
-          </h2>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', borderRadius: 8, padding: '10px 14px' }}>
-          <Search size={18} color="#596273" />
-          <input
-            type="text"
-            placeholder="備品を検索"
-            value={invSearch}
-            onChange={(e) => setInvSearch(e.target.value)}
-            style={{ border: 'none', outline: 'none', width: '100%', fontSize: 14 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => setInvFilter('all')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              fontSize: 13,
-              fontWeight: invFilter === 'all' ? 800 : 600,
-              backgroundColor: invFilter === 'all' ? '#171A21' : '#FFFFFF',
-              color: invFilter === 'all' ? '#FFFFFF' : '#596273',
-              border: '1px solid #D9DEE7'
-            }}
-          >
-            すべて
-          </button>
-          <button
-            type="button"
-            onClick={() => setInvFilter('needs_check')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              fontSize: 13,
-              fontWeight: invFilter === 'needs_check' ? 800 : 600,
-              backgroundColor: invFilter === 'needs_check' ? '#171A21' : '#FFFFFF',
-              color: invFilter === 'needs_check' ? '#FFFFFF' : '#596273',
-              border: '1px solid #D9DEE7'
-            }}
-          >
-            要確認
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {inventoryItems.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: 12,
-                border: '1px solid #D9DEE7',
-                padding: '16px 20px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <strong style={{ fontSize: 15, color: '#171A21' }}>{item.name}</strong>
-                  <span style={{ backgroundColor: item.status === '十分' ? '#F7F8FA' : '#FFF7ED', color: '#171A21', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
-                    {item.status}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: '#596273', display: 'flex', gap: 12 }}>
-                  <span>数量 {item.count}</span>
-                  <span>保管場所 {item.location}</span>
-                </div>
-                <span style={{ fontSize: 11, color: '#596273', display: 'block', marginTop: 4 }}>
-                  最終更新 {item.date}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  if (viewType === 'inventory') return <InventoryView />;
 
   // ============================================================
   // S30: 年度別資料
@@ -303,23 +146,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     return (
       <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={onBackToPortal}
-            style={{
-              background: 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#171A21'
-            }}
-          >
-            <ArrowLeft size={16} />
-            <span>保管する</span>
-          </button>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#171A21', margin: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
             年度別資料
           </h2>
         </div>
@@ -328,12 +155,12 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
           <select
             value={archiveYear}
             onChange={(e) => setArchiveYear(e.target.value)}
-            style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontWeight: 700 }}
+            style={{ padding: '10px 14px', borderRadius: 8, border: "1px solid var(--glass-border)", backgroundColor: "var(--glass-panel)", fontWeight: 700 }}
           >
             <option value="2026年度">2026年度</option>
             <option value="2025年度">2025年度</option>
           </select>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', borderRadius: 8, padding: '10px 14px' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, backgroundColor: "var(--glass-panel)", border: "1px solid var(--glass-border)", borderRadius: 8, padding: '10px 14px' }}>
             <Search size={18} color="#596273" />
             <input
               type="text"
@@ -347,12 +174,12 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {archiveDocs.map((doc) => (
-            <div
+            <div className="glass-panel"
               key={doc.id}
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: "var(--glass-panel)",
                 borderRadius: 12,
-                border: '1px solid #D9DEE7',
+                border: "1px solid var(--glass-border)",
                 padding: '16px 20px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -360,18 +187,18 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: 15, color: '#171A21' }}>{doc.title}</strong>
-                <span style={{ fontSize: 12, color: '#596273' }}>{doc.year} {doc.type}</span>
+                <strong style={{ fontSize: 15, color: "var(--glass-ink)" }}>{doc.title}</strong>
+                <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>{doc.year} {doc.type}</span>
               </div>
-              <p style={{ fontSize: 13, color: '#596273', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 13, color: "var(--glass-muted)", margin: 0, lineHeight: 1.5 }}>
                 {doc.desc}
               </p>
               <div style={{ display: 'flex', gap: 10, paddingTop: 6 }}>
-                <button
+                <button className="glass-button"
                   type="button"
                   style={{
-                    backgroundColor: '#F7F8FA',
-                    border: '1px solid #D9DEE7',
+                    backgroundColor: "var(--glass-inset)",
+                    border: "1px solid var(--glass-border)",
                     borderRadius: 6,
                     padding: '6px 14px',
                     fontSize: 12,
@@ -380,10 +207,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                 >
                   開く
                 </button>
-                <button
+                <button className="glass-button"
                   type="button"
                   style={{
-                    backgroundColor: '#B92F3D',
+                    backgroundColor: "var(--glass-primary)",
                     color: '#FFFFFF',
                     border: 'none',
                     borderRadius: 6,
@@ -412,33 +239,17 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     return (
       <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={onBackToPortal}
-            style={{
-              background: 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#171A21'
-            }}
-          >
-            <ArrowLeft size={16} />
-            <span>名簿に戻る</span>
-          </button>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#171A21', margin: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
             プロフィール
           </h2>
         </div>
 
         {/* ヘッダー情報 */}
-        <div
+        <div className="glass-panel"
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             borderRadius: 12,
-            border: '1px solid #D9DEE7',
+            border: "1px solid var(--glass-border)",
             padding: '16px 14px',
             display: 'flex',
             flexDirection: 'column',
@@ -569,7 +380,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <h3 style={{ fontSize: 18, fontWeight: 900, color: '#171A21', margin: 0 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                     {selectedResident.name}
                   </h3>
                   {/* 役職表示: 背景なく文字のみ */}
@@ -579,9 +390,9 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     return (
                       <span
                         style={{
-                          color: badgeInfo.isLeadership ? '#ea580c' : '#596273',
+                          color: badgeInfo.isLeadership ? '#ea580c' : "var(--glass-muted)",
                           fontSize: 13,
-                          fontWeight: 800,
+                          fontWeight: 700,
                           letterSpacing: '0.02em'
                         }}
                       >
@@ -590,26 +401,26 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     );
                   })()}
                 </div>
-                <span style={{ fontSize: 12, color: '#596273', display: 'block', marginTop: 4 }}>
+                <span style={{ fontSize: 12, color: "var(--glass-muted)", display: 'block', marginTop: 4 }}>
                   {selectedResident.building}棟 {selectedResident.unit}
                 </span>
               </div>
 
               {/* プロフィール編集ボタン */}
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={openEditProfileModal}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 5,
-                  backgroundColor: '#F7F8FA',
-                  border: '1px solid #D9DEE7',
+                  backgroundColor: "var(--glass-inset)",
+                  border: "1px solid var(--glass-border)",
                   borderRadius: 8,
                   padding: '6px 12px',
                   fontSize: 12,
                   fontWeight: 700,
-                  color: '#171A21',
+                  color: "var(--glass-ink)",
                   cursor: 'pointer'
                 }}
               >
@@ -621,11 +432,11 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
           {/* 自己紹介 */}
           <div style={{ paddingTop: 12, borderTop: '1px solid #F0F2F6' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#596273', display: 'block', marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--glass-muted)", display: 'block', marginBottom: 4 }}>
               自己紹介
             </span>
             {selectedResident.bio ? (
-              <p style={{ margin: 0, fontSize: 13, color: '#171A21', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--glass-ink)", lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                 {selectedResident.bio}
               </p>
             ) : (
@@ -638,7 +449,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
           {/* 役職の変更セレクター */}
           <div style={{ paddingTop: 12, borderTop: '1px solid #F0F2F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#596273' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--glass-muted)" }}>
                 役職の選択:
               </span>
               <select
@@ -647,11 +458,11 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                 style={{
                   padding: '6px 10px',
                   borderRadius: 6,
-                  border: '1px solid #D9DEE7',
-                  backgroundColor: '#FFFFFF',
+                  border: "1px solid var(--glass-border)",
+                  backgroundColor: "var(--glass-panel)",
                   fontSize: 13,
                   fontWeight: 700,
-                  color: '#171A21'
+                  color: "var(--glass-ink)"
                 }}
               >
                 {DORM_ROLES_CONFIG.map((role) => (
@@ -664,17 +475,17 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
             {/* アプリ利用者の切り替えボタン */}
             {isCurrentActiveUser ? (
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#16a34a' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a' }}>
                 ✓ 現在の利用者
               </span>
             ) : (
-              <button
+              <button className="glass-button"
                 type="button"
                 onClick={() => onSwitchUser(selectedResident)}
                 style={{
                   padding: '6px 12px',
                   borderRadius: 6,
-                  backgroundColor: '#171A21',
+                  backgroundColor: "var(--glass-primary)",
                   color: '#FFFFFF',
                   fontSize: 12,
                   fontWeight: 700,
@@ -687,155 +498,28 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
           </div>
         </div>
 
-        {/* 活動履歴セクション */}
-        <div
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            border: '1px solid #D9DEE7',
-            padding: '20px'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <h4 style={{ fontSize: 14, fontWeight: 800, color: '#171A21', margin: 0 }}>
-              活動履歴
-            </h4>
-            <button
-              type="button"
-              onClick={openAddHistoryModal}
-              style={{
-                backgroundColor: '#F7F8FA',
-                border: '1px solid #D9DEE7',
-                borderRadius: 6,
-                padding: '5px 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#171A21',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4
-              }}
-            >
-              <Plus size={14} />
-              <span>履歴を追加</span>
-            </button>
-          </div>
-
+        <section className="glass-panel" aria-labelledby="activity-history-heading" style={{ padding: 20, borderRadius: 16 }}>
+          <h4 id="activity-history-heading" style={{ fontSize: 14, marginBottom: 8 }}>活動履歴</h4>
+          <p style={{ fontSize: 12, color: 'var(--glass-muted)', marginBottom: 14 }}>スタッフ加入・担当の記録から自動表示</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {selectedResident.projectHistory && selectedResident.projectHistory.length > 0 ? (
-              selectedResident.projectHistory.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 8,
-                    backgroundColor: '#F7F8FA',
-                    border: '1px solid #E2E6EC',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div>
-                      <strong style={{ fontSize: 14, color: '#171A21', display: 'block' }}>
-                        {item.projectTitle}
-                      </strong>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 12, color: '#596273', fontWeight: 600 }}>
-                          役割: {item.role || 'メンバー'}
-                        </span>
-                        {item.period && (
-                          <span style={{ fontSize: 12, color: '#596273' }}>
-                            期間: {item.period}
-                          </span>
-                        )}
-                        {item.status && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: item.status === '進行中' ? '#ea580c' : '#16a34a'
-                            }}
-                          >
-                            {item.status}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 編集・削除ボタン */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={() => openEditHistoryModal(item)}
-                        title="編集"
-                        style={{
-                          background: '#FFFFFF',
-                          border: '1px solid #D9DEE7',
-                          borderRadius: 6,
-                          padding: '4px 8px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: '#171A21',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3
-                        }}
-                      >
-                        <Edit3 size={12} />
-                        <span>編集</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteHistory(item.id)}
-                        title="削除"
-                        style={{
-                          background: '#FFFFFF',
-                          border: '1px solid #FCA5A5',
-                          borderRadius: 6,
-                          padding: '4px 8px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: '#B92F3D',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3
-                        }}
-                      >
-                        <Trash2 size={12} />
-                        <span>削除</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {item.summary && (
-                    <p style={{ margin: 0, fontSize: 12, color: '#4B5563', lineHeight: 1.5 }}>
-                      {item.summary}
-                    </p>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
-                活動履歴はまだありません。上のボタンから追加できます。
-              </div>
-            )}
+            {getActivityHistory(projects, selectedResident.id).map(item => <article key={item.id} className="activity-history-item" style={{ padding: 14, borderRadius: 12, background: 'var(--glass-inset)' }}>
+              <strong style={{ display: 'block', fontSize: 14 }}>{item.projectTitle}</strong>
+              <p style={{ fontSize: 12, color: 'var(--glass-muted)', marginTop: 6 }}>{item.role}{item.groupName ? `・${item.groupName}` : ''}</p>
+              <p style={{ fontSize: 12, color: 'var(--glass-muted)', marginTop: 4 }}>{item.period} ・ {item.status}</p>
+            </article>)}
+            {getActivityHistory(projects, selectedResident.id).length === 0 && <p style={{ fontSize: 13, color: 'var(--glass-muted)', padding: '12px 0' }}>スタッフとして参加した企画はまだありません。</p>}
           </div>
-        </div>
+        </section>
 
         {/* 非公開メモ・関係者のみ */}
-        <div
+        <div className="glass-panel"
           style={{
-            backgroundColor: '#F7F8FA',
+            backgroundColor: "var(--glass-inset)",
             borderRadius: 12,
-            border: '1px solid #D9DEE7',
+            border: "1px solid var(--glass-border)",
             padding: '16px 20px',
             fontSize: 13,
-            color: '#596273'
+            color: "var(--glass-muted)"
           }}
         >
           関係者のみ閲覧できます
@@ -843,7 +527,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
         {/* プロフィール編集モーダル */}
         {showEditProfileModal && (
-          <div
+          <div role="dialog" aria-modal="true" className="app-modal"
             style={{
               position: 'fixed',
               inset: 0,
@@ -855,11 +539,11 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               zIndex: 60
             }}
           >
-            <div
+            <div className="glass-panel"
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: "var(--glass-panel)",
                 borderRadius: 12,
-                border: '1px solid #D9DEE7',
+                border: "1px solid var(--glass-border)",
                 maxWidth: 480,
                 width: '100%',
                 maxHeight: '90vh',
@@ -871,10 +555,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                   プロフィールを編集
                 </h3>
-                <button
+                <button className="glass-button"
                   type="button"
                   onClick={() => setShowEditProfileModal(false)}
                   style={{
@@ -882,7 +566,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     border: 'none',
                     fontSize: 18,
                     fontWeight: 700,
-                    color: '#596273',
+                    color: "var(--glass-muted)",
                     cursor: 'pointer'
                   }}
                 >
@@ -900,19 +584,19 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     <img
                       src={selectedResident.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(selectedResident.name)}`}
                       alt="アバター"
-                      style={{ width: 50, height: 50, borderRadius: '50%', objectFit: 'cover', border: '1px solid #D9DEE7' }}
+                      style={{ width: 50, height: 50, borderRadius: '50%', objectFit: 'cover', border: "1px solid var(--glass-border)" }}
                     />
-                    <button
+                    <button className="glass-button"
                       type="button"
                       onClick={() => avatarFileInputRef.current?.click()}
                       style={{
                         padding: '6px 12px',
                         borderRadius: 6,
-                        border: '1px solid #D9DEE7',
-                        backgroundColor: '#F7F8FA',
+                        border: "1px solid var(--glass-border)",
+                        backgroundColor: "var(--glass-inset)",
                         fontSize: 12,
                         fontWeight: 700,
-                        color: '#171A21',
+                        color: "var(--glass-ink)",
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -936,7 +620,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="例: 岡本 直樹"
                     required
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                   />
                 </div>
 
@@ -947,7 +631,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     <select
                       value={editBuilding}
                       onChange={(e) => setEditBuilding(e.target.value as any)}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", backgroundColor: "var(--glass-panel)", fontSize: 14 }}
                     >
                       <option value="rosemary">rosemary棟</option>
                       <option value="basil">basil棟</option>
@@ -962,7 +646,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                       value={editUnit}
                       onChange={(e) => setEditUnit(e.target.value)}
                       placeholder="例: Unit 301 - A室"
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                     />
                   </div>
                 </div>
@@ -973,7 +657,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as ResidentRoleKey)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", backgroundColor: "var(--glass-panel)", fontSize: 14 }}
                   >
                     {DORM_ROLES_CONFIG.map((role) => (
                       <option key={role.key} value={role.key}>
@@ -991,21 +675,21 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     onChange={(e) => setEditBio(e.target.value)}
                     rows={4}
                     placeholder="自身の専門分野、興味関心、寮生活で取り組みたいことなど"
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                   />
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                  <button
+                  <button className="glass-button"
                     type="button"
                     onClick={() => setShowEditProfileModal(false)}
-                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8, cursor: 'pointer' }}
+                    style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", padding: '10px 16px', borderRadius: 8, cursor: 'pointer' }}
                   >
                     キャンセル
                   </button>
-                  <button
+                  <button className="glass-button"
                     type="submit"
-                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ backgroundColor: "var(--glass-primary)", color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
                   >
                     保存する
                   </button>
@@ -1015,167 +699,6 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
           </div>
         )}
 
-        {/* 活動履歴の追加・編集モーダル */}
-        {showAddHistoryModal && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              backgroundColor: 'rgba(23, 26, 33, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 16,
-              zIndex: 60
-            }}
-          >
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: 12,
-                border: '1px solid #D9DEE7',
-                maxWidth: 480,
-                width: '100%',
-                padding: '24px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
-                  {editingHistoryId ? '活動履歴の編集' : '活動履歴を追加'}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddHistoryModal(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: '#596273',
-                    cursor: 'pointer'
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!histProjectName.trim()) return;
-                  const currentHist = selectedResident.projectHistory || [];
-                  let updatedHist: ProjectHistoryItem[] = [];
-
-                  if (editingHistoryId) {
-                    updatedHist = currentHist.map((item) =>
-                      item.id === editingHistoryId
-                        ? {
-                            ...item,
-                            projectTitle: histProjectName.trim(),
-                            role: histRole.trim() || 'メンバー',
-                            period: histPeriod.trim() || '2026.10',
-                            status: histStatus,
-                            summary: histSummary.trim()
-                          }
-                        : item
-                    );
-                  } else {
-                    const newHist: ProjectHistoryItem = {
-                      id: `ph-${Date.now()}`,
-                      projectTitle: histProjectName.trim(),
-                      role: histRole.trim() || 'メンバー',
-                      period: histPeriod.trim() || '2026.10',
-                      status: histStatus,
-                      summary: histSummary.trim()
-                    };
-                    updatedHist = [newHist, ...currentHist];
-                  }
-
-                  if (onUpdateResident) {
-                    await onUpdateResident(selectedResident.id, { projectHistory: updatedHist });
-                  }
-                  setShowAddHistoryModal(false);
-                }}
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                    プロジェクト名 <span style={{ color: '#B92F3D' }}>必須</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={histProjectName}
-                    onChange={(e) => setHistProjectName(e.target.value)}
-                    placeholder="例: 中庭シネマ"
-                    required
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>役割</label>
-                    <input
-                      type="text"
-                      value={histRole}
-                      onChange={(e) => setHistRole(e.target.value)}
-                      placeholder="例: 企画・運営"
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>時期</label>
-                    <input
-                      type="text"
-                      value={histPeriod}
-                      onChange={(e) => setHistPeriod(e.target.value)}
-                      placeholder="例: 2026.10"
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>状態</label>
-                  <select
-                    value={histStatus}
-                    onChange={(e) => setHistStatus(e.target.value as any)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
-                  >
-                    <option value="進行中">進行中</option>
-                    <option value="完了">完了</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>活動概要</label>
-                  <textarea
-                    value={histSummary}
-                    onChange={(e) => setHistSummary(e.target.value)}
-                    rows={3}
-                    placeholder="担当した業務や改善の要約"
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddHistoryModal(false)}
-                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8, cursor: 'pointer' }}
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    保存する
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -1187,36 +710,20 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     return (
       <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={onBackToPortal}
-            style={{
-              background: 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#171A21'
-            }}
-          >
-            <ArrowLeft size={16} />
-            <span>戻る</span>
-          </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#171A21', margin: 0 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
               利用者を切り替える
             </h2>
-            <span style={{ backgroundColor: '#FEE2E2', color: '#B92F3D', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4 }}>
+            <span style={{ backgroundColor: '#FEE2E2', color: '#B92F3D', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
               デモモード
             </span>
           </div>
         </div>
 
         {/* 現在の利用者 */}
-        <div
+        <div className="glass-panel"
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             borderRadius: 12,
             border: '1.5px solid #FF6B68',
             padding: '16px 20px',
@@ -1230,39 +737,39 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               width: 44,
               height: 44,
               borderRadius: '50%',
-              backgroundColor: '#EEF0F5',
+              backgroundColor: "var(--glass-inset)",
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontWeight: 800,
+              fontWeight: 700,
               fontSize: 16
             }}
           >
             {currentUser.name.charAt(0)}
           </div>
           <div>
-            <strong style={{ fontSize: 16, color: '#171A21', display: 'block' }}>
+            <strong style={{ fontSize: 16, color: "var(--glass-ink)", display: 'block' }}>
               {currentUser.name}
             </strong>
-            <span style={{ fontSize: 12, color: '#596273' }}>
+            <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>
               {currentUser.building}棟 {currentUser.unit}
             </span>
           </div>
         </div>
 
         {/* 寮生一覧から切替 */}
-        <div
+        <div className="glass-panel"
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: "var(--glass-panel)",
             borderRadius: 12,
-            border: '1px solid #D9DEE7',
+            border: "1px solid var(--glass-border)",
             padding: '16px 20px',
             display: 'flex',
             flexDirection: 'column',
             gap: 12
           }}
         >
-          <h4 style={{ fontSize: 13, fontWeight: 800, color: '#596273', margin: 0 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--glass-muted)", margin: 0 }}>
             別の寮生に切り替える
           </h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1276,7 +783,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   alignItems: 'center',
                   padding: '10px 12px',
                   borderRadius: 8,
-                  backgroundColor: r.id === currentUser.id ? '#FFF1F2' : '#F7F8FA',
+                  backgroundColor: r.id === currentUser.id ? '#FFF1F2' : "var(--glass-inset)",
                   cursor: 'pointer'
                 }}
               >
@@ -1286,28 +793,28 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                       width: 32,
                       height: 32,
                       borderRadius: '50%',
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: "var(--glass-panel)",
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: 12,
-                      fontWeight: 800
+                      fontWeight: 700
                     }}
                   >
                     {r.name.charAt(0)}
                   </div>
-                  <strong style={{ fontSize: 14, color: '#171A21' }}>{r.name}</strong>
+                  <strong style={{ fontSize: 14, color: "var(--glass-ink)" }}>{r.name}</strong>
                 </div>
-                <span style={{ fontSize: 12, color: '#596273' }}>{r.building}棟 {r.unit}</span>
+                <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>{r.building}棟 {r.unit}</span>
               </div>
             ))}
           </div>
 
           <div style={{ paddingTop: 12, borderTop: '1px solid #F7F8FA', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: '#596273' }}>
+            <span style={{ fontSize: 11, color: "var(--glass-muted)" }}>
               本番では本人認証が必要です。
             </span>
-            <button
+            <button className="glass-button"
               type="button"
               onClick={() => setShowRegisterUserModal(true)}
               style={{
@@ -1325,7 +832,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
         {/* S32: 利用者登録モーダル */}
         {showRegisterUserModal && (
-          <div
+          <div role="dialog" aria-modal="true" className="app-modal"
             style={{
               position: 'fixed',
               inset: 0,
@@ -1337,11 +844,11 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               zIndex: 60
             }}
           >
-            <div
+            <div className="glass-panel"
               style={{
-                backgroundColor: '#FFFFFF',
+                backgroundColor: "var(--glass-panel)",
                 borderRadius: 12,
-                border: '1px solid #D9DEE7',
+                border: "1px solid var(--glass-border)",
                 maxWidth: 480,
                 width: '100%',
                 padding: '24px 20px',
@@ -1351,10 +858,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                   利用者を登録
                 </h3>
-                <span style={{ backgroundColor: '#FEE2E2', color: '#B92F3D', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4 }}>
+                <span style={{ backgroundColor: '#FEE2E2', color: '#B92F3D', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
                   デモモード
                 </span>
               </div>
@@ -1380,7 +887,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     onChange={(e) => setRegName(e.target.value)}
                     placeholder="寮生E"
                     required
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                   />
                 </div>
 
@@ -1390,7 +897,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     <select
                       value={regBuilding}
                       onChange={(e) => setRegBuilding(e.target.value as any)}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", backgroundColor: "var(--glass-panel)", fontSize: 14 }}
                     >
                       <option value="rosemary">ローズマリー</option>
                       <option value="basil">バジル</option>
@@ -1406,7 +913,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                       onChange={(e) => setRegUnit(e.target.value)}
                       placeholder="105"
                       required
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', fontSize: 14 }}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", fontSize: 14 }}
                     />
                   </div>
                 </div>
@@ -1417,25 +924,25 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     type="text"
                     value="一般寮生"
                     disabled
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#F7F8FA', color: '#596273', fontSize: 14 }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", backgroundColor: "var(--glass-inset)", color: "var(--glass-muted)", fontSize: 14 }}
                   />
                 </div>
 
-                <span style={{ fontSize: 11, color: '#596273', display: 'block' }}>
+                <span style={{ fontSize: 11, color: "var(--glass-muted)", display: 'block' }}>
                   本番では認証と所属確認を行います
                 </span>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                  <button
+                  <button className="glass-button"
                     type="button"
                     onClick={() => setShowRegisterUserModal(false)}
-                    style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                    style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", padding: '10px 16px', borderRadius: 8 }}
                   >
                     キャンセル
                   </button>
-                  <button
+                  <button className="glass-button"
                     type="submit"
-                    style={{ backgroundColor: '#171A21', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                    style={{ backgroundColor: "var(--glass-primary)", color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
                   >
                     登録してはじめる
                   </button>
@@ -1455,56 +962,40 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
     <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* 上部ヘッダー */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button
-          type="button"
-          onClick={onBackToPortal}
-          style={{
-            background: 'transparent',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 14,
-            fontWeight: 700,
-            color: '#171A21'
-          }}
-        >
-          <ArrowLeft size={16} />
-          <span>保管する</span>
-        </button>
-        <h2 style={{ fontSize: 18, fontWeight: 800, color: '#171A21', margin: 0 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
           寮生名簿
         </h2>
       </div>
 
       {/* タブ切り替え 部屋割り / 一覧  */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <button
+        <button className="glass-button"
           type="button"
           onClick={() => setRosterTab('units')}
           style={{
-            backgroundColor: rosterTab === 'units' ? '#171A21' : '#FFFFFF',
-            color: rosterTab === 'units' ? '#FFFFFF' : '#171A21',
-            border: rosterTab === 'units' ? '1px solid #171A21' : '1px solid #D9DEE7',
+            backgroundColor: rosterTab === 'units' ? "var(--glass-primary)" : "var(--glass-panel)",
+            color: rosterTab === 'units' ? '#FFFFFF' : "var(--glass-ink)",
+            border: rosterTab === 'units' ? '1px solid #171A21' : "1px solid var(--glass-border)",
             borderRadius: 8,
             padding: '10px',
             fontSize: 14,
-            fontWeight: 800,
+            fontWeight: 700,
             cursor: 'pointer'
           }}
         >
           部屋割り
         </button>
-        <button
+        <button className="glass-button"
           type="button"
           onClick={() => setRosterTab('list')}
           style={{
-            backgroundColor: rosterTab === 'list' ? '#171A21' : '#FFFFFF',
-            color: rosterTab === 'list' ? '#FFFFFF' : '#171A21',
-            border: rosterTab === 'list' ? '1px solid #171A21' : '1px solid #D9DEE7',
+            backgroundColor: rosterTab === 'list' ? "var(--glass-primary)" : "var(--glass-panel)",
+            color: rosterTab === 'list' ? '#FFFFFF' : "var(--glass-ink)",
+            border: rosterTab === 'list' ? '1px solid #171A21' : "1px solid var(--glass-border)",
             borderRadius: 8,
             padding: '10px',
             fontSize: 14,
-            fontWeight: 800,
+            fontWeight: 700,
             cursor: 'pointer'
           }}
         >
@@ -1521,8 +1012,8 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             flex: 1,
             padding: '8px 12px',
             borderRadius: 8,
-            border: '1px solid #D9DEE7',
-            backgroundColor: '#FFFFFF',
+            border: "1px solid var(--glass-border)",
+            backgroundColor: "var(--glass-panel)",
             fontSize: 14,
             fontWeight: 700
           }}
@@ -1538,7 +1029,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             {([1, 2, 3, 4] as const).map((fl) => {
               const active = selectedFloor === fl;
               return (
-                <button
+                <button className="glass-button"
                   key={fl}
                   type="button"
                   onClick={() => setSelectedFloor(fl)}
@@ -1547,9 +1038,9 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                     borderRadius: 8,
                     fontSize: 13,
                     fontWeight: 700,
-                    backgroundColor: active ? '#171A21' : '#FFFFFF',
-                    color: active ? '#FFFFFF' : '#171A21',
-                    border: '1px solid #D9DEE7',
+                    backgroundColor: active ? "var(--glass-primary)" : "var(--glass-panel)",
+                    color: active ? '#FFFFFF' : "var(--glass-ink)",
+                    border: "1px solid var(--glass-border)",
                     minHeight: 38
                   }}
                 >
@@ -1572,12 +1063,12 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             const capacity = selectedFloor === 1 && (unitNumber === '103' || unitNumber === '104') ? 1 : 5;
 
             return (
-              <div
+              <div className="glass-panel"
                 key={unitNumber}
                 style={{
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: "var(--glass-panel)",
                   borderRadius: 12,
-                  border: '1px solid #D9DEE7',
+                  border: "1px solid var(--glass-border)",
                   padding: '12px 10px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1585,8 +1076,8 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong style={{ fontSize: 16, color: '#171A21' }}>{unitNumber}</strong>
-                  <span style={{ fontSize: 12, color: '#596273', fontWeight: 600 }}>
+                  <strong style={{ fontSize: 16, color: "var(--glass-ink)" }}>{unitNumber}</strong>
+                  <span style={{ fontSize: 12, color: "var(--glass-muted)", fontWeight: 600 }}>
                     {occupants.length} / {capacity}
                   </span>
                 </div>
@@ -1601,10 +1092,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                         style={{
                           padding: '5px 7px',
                           borderRadius: 6,
-                          backgroundColor: '#F7F8FA',
+                          backgroundColor: "var(--glass-inset)",
                           fontSize: 12.5,
                           fontWeight: 600,
-                          color: '#171A21',
+                          color: "var(--glass-ink)",
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
@@ -1625,7 +1116,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              border: '1px solid #CBD5E1'
+                              border: "1px solid var(--glass-border)"
                             }}
                           >
                             {occ.avatar ? (
@@ -1635,7 +1126,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                               />
                             ) : (
-                              <span style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--glass-muted)" }}>
                                 {occ.name ? occ.name.charAt(0) : '寮'}
                               </span>
                             )}
@@ -1650,7 +1141,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                             style={{
                               color: '#ea580c',
                               fontSize: 11,
-                              fontWeight: 800,
+                              fontWeight: 700,
                               letterSpacing: '0.02em',
                               flexShrink: 0
                             }}
@@ -1671,7 +1162,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
       {/* S26: 寮生一覧 */}
       {rosterTab === 'list' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', border: '1px solid #D9DEE7', borderRadius: 8, padding: '10px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, backgroundColor: "var(--glass-panel)", border: "1px solid var(--glass-border)", borderRadius: 8, padding: '10px 14px' }}>
             <Search size={18} color="#596273" />
             <input
               type="text"
@@ -1688,13 +1179,13 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               .map((r) => {
                 const roleInfo = getRoleBadgeInfo(r.role);
                 return (
-                  <div
+                  <div className="glass-panel"
                     key={r.id}
                     onClick={() => onSelectResident(r)}
                     style={{
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: "var(--glass-panel)",
                       borderRadius: 10,
-                      border: '1px solid #D9DEE7',
+                      border: "1px solid var(--glass-border)",
                       padding: '12px 16px',
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1720,13 +1211,13 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                             width: 36,
                             height: 36,
                             borderRadius: '50%',
-                            backgroundColor: '#EEF0F5',
+                            backgroundColor: "var(--glass-inset)",
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontWeight: 800,
+                            fontWeight: 700,
                             fontSize: 13,
-                            color: '#171A21'
+                            color: "var(--glass-ink)"
                           }}
                         >
                           {r.name.charAt(0)}
@@ -1734,7 +1225,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                       )}
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <strong style={{ fontSize: 14, color: '#171A21' }}>
+                          <strong style={{ fontSize: 14, color: "var(--glass-ink)" }}>
                             {r.name}
                           </strong>
                           {/* 役職表示: 背景なく文字のみ */}
@@ -1743,7 +1234,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                               style={{
                                 color: '#ea580c',
                                 fontSize: 11,
-                                fontWeight: 800,
+                                fontWeight: 700,
                                 letterSpacing: '0.02em',
                                 flexShrink: 0
                               }}
@@ -1752,7 +1243,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                             </span>
                           )}
                         </div>
-                        <span style={{ fontSize: 12, color: '#596273' }}>
+                        <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>
                           {r.building}棟 {r.unit}
                         </span>
                       </div>
@@ -1767,18 +1258,19 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
       {/* 寮生を追加するボタン (S27モーダル起動) */}
       <div style={{ paddingTop: 10 }}>
-        <button
+        <button className="glass-button"
           type="button"
+          hidden={!allowAddResident}
           onClick={() => setIsAddingResident(true)}
           style={{
             width: '100%',
-            backgroundColor: '#B92F3D',
+            backgroundColor: "var(--glass-primary)",
             color: '#FFFFFF',
             padding: '14px',
             borderRadius: 8,
             fontSize: 14,
-            fontWeight: 800,
-            display: 'flex',
+            fontWeight: 700,
+            display: allowAddResident ? 'flex' : 'none',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 6
@@ -1791,7 +1283,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
 
       {/* S27: 寮生登録モーダル */}
       {isAddingResident && (
-        <div
+        <div role="dialog" aria-modal="true" className="app-modal"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1803,11 +1295,11 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             zIndex: 60
           }}
         >
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: "var(--glass-panel)",
               borderRadius: 12,
-              border: '1px solid #D9DEE7',
+              border: "1px solid var(--glass-border)",
               maxWidth: 480,
               width: '100%',
               padding: '24px 20px',
@@ -1816,7 +1308,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               gap: 16
             }}
           >
-            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#171A21', margin: 0 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
               寮生を追加
             </h3>
 
@@ -1846,7 +1338,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   onChange={(e) => setNewResName(e.target.value)}
                   placeholder="寮生D"
                   required
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                 />
               </div>
 
@@ -1858,7 +1350,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   <select
                     value={newResBuilding}
                     onChange={(e) => setNewResBuilding(e.target.value as any)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                   >
                     <option value="rosemary">ローズマリー</option>
                     <option value="basil">バジル</option>
@@ -1873,7 +1365,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   <select
                     value={newResFloor}
                     onChange={(e) => setNewResFloor(Number(e.target.value) as any)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                   >
                     <option value={1}>1F</option>
                     <option value={2}>2F</option>
@@ -1892,7 +1384,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                   value={newResUnit}
                   onChange={(e) => setNewResUnit(e.target.value)}
                   placeholder="301"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7' }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)" }}
                 />
               </div>
 
@@ -1903,7 +1395,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                 <select
                   value={newResRole}
                   onChange={(e) => setNewResRole(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D9DEE7', backgroundColor: '#FFFFFF', fontSize: 14 }}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: "1px solid var(--glass-border)", backgroundColor: "var(--glass-panel)", fontSize: 14 }}
                 >
                   {DORM_ROLES_CONFIG.map((role) => (
                     <option key={role.key} value={role.key}>
@@ -1914,16 +1406,16 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-                <button
+                <button className="glass-button"
                   type="button"
                   onClick={() => setIsAddingResident(false)}
-                  style={{ backgroundColor: '#F7F8FA', border: '1px solid #D9DEE7', padding: '10px 16px', borderRadius: 8 }}
+                  style={{ backgroundColor: "var(--glass-inset)", border: "1px solid var(--glass-border)", padding: '10px 16px', borderRadius: 8 }}
                 >
                   キャンセル
                 </button>
-                <button
+                <button className="glass-button"
                   type="submit"
-                  style={{ backgroundColor: '#B92F3D', color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
+                  style={{ backgroundColor: "var(--glass-primary)", color: '#FFFFFF', padding: '10px 20px', borderRadius: 8, fontWeight: 700 }}
                 >
                   名簿に追加
                 </button>

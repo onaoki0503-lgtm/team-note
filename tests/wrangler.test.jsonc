@@ -1,0 +1,9 @@
+{
+  "name": "team-note-ai-local-test",
+  "main": "worker-entry.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "ratelimits": [{ "name": "AI_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 1000, "period": 60 } }],
+  "vars": { "ALLOWED_ORIGINS": "http://127.0.0.1:5174" },
+  "observability": { "enabled": false }
+}

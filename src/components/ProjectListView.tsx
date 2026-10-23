@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Search, Plus, Users, ChevronRight, Lock, Check, Calendar, FileText, Download } from 'lucide-react';
+import { useScreenState } from '../lib/navigation';
+import React from 'react';
+import { Search, Plus, Users, ChevronRight } from 'lucide-react';
 import type { ProjectRecord, CurrentUser } from '../lib/db';
 
 interface ProjectListViewProps {
@@ -15,9 +16,9 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
   onSelectProject,
   onOpenNewIdea
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'joined' | 'owned'>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useScreenState('project-search', '', false);
+  const [filterMode, setFilterMode] = useScreenState<'all' | 'joined' | 'owned'>('project-filter', 'all', false);
+  const [selectedCategory, setSelectedCategory] = useScreenState<string>('project-category', 'all', false);
 
   const filtered = projects.filter((pj) => {
     const q = searchQuery.toLowerCase().trim();
@@ -45,24 +46,22 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
       {/* 上部ヘッダー S05 進行中  */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#171A21', letterSpacing: -0.4 }}>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--glass-ink)", letterSpacing: -0.4 }}>
             進行中
           </h2>
-          <span style={{ fontSize: 13, color: '#596273' }}>
-            寮生が動かしているプロジェクトを探し、参加できます
-          </span>
+
         </div>
-        <button
+        <button className="glass-button"
           type="button"
           onClick={onOpenNewIdea}
           style={{
-            backgroundColor: '#B92F3D',
+            backgroundColor: "var(--glass-primary)",
             color: '#FFFFFF',
             border: 'none',
             padding: '10px 18px',
             borderRadius: 8,
             fontSize: 13,
-            fontWeight: 800,
+            fontWeight: 700,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -80,8 +79,8 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #D9DEE7',
+          backgroundColor: "var(--glass-panel)",
+          border: "1px solid var(--glass-border)",
           borderRadius: 8,
           padding: '10px 14px'
         }}
@@ -109,7 +108,7 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
           const labels = { all: 'すべて', joined: '参加中', owned: '自分の企画' };
           const active = filterMode === mode;
           return (
-            <button
+            <button className="glass-button"
               key={mode}
               type="button"
               onClick={() => setFilterMode(mode)}
@@ -118,9 +117,9 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
                 borderRadius: 20,
                 fontSize: 13,
                 fontWeight: active ? 800 : 600,
-                backgroundColor: active ? '#171A21' : '#FFFFFF',
-                color: active ? '#FFFFFF' : '#596273',
-                border: active ? '1px solid #171A21' : '1px solid #D9DEE7',
+                backgroundColor: active ? "var(--glass-primary)" : "var(--glass-panel)",
+                color: active ? '#FFFFFF' : "var(--glass-muted)",
+                border: active ? '1px solid #171A21' : "1px solid var(--glass-border)",
                 whiteSpace: 'nowrap',
                 minHeight: 36
               }}
@@ -134,18 +133,18 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
       {/* プロジェクトカード一覧 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {filtered.length === 0 ? (
-          <div
+          <div className="glass-panel"
             style={{
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #D9DEE7',
+              backgroundColor: "var(--glass-panel)",
+              border: "1px solid var(--glass-border)",
               borderRadius: 12,
               padding: '40px 20px',
               textAlign: 'center',
-              color: '#596273'
+              color: "var(--glass-muted)"
             }}
           >
             <p style={{ fontSize: 14, marginBottom: 12 }}>一致する企画が見つかりませんでした。</p>
-            <button
+            <button className="glass-button"
               type="button"
               onClick={() => {
                 setSearchQuery('');
@@ -153,8 +152,8 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
                 setSelectedCategory('all');
               }}
               style={{
-                backgroundColor: '#F7F8FA',
-                border: '1px solid #D9DEE7',
+                backgroundColor: "var(--glass-inset)",
+                border: "1px solid var(--glass-border)",
                 padding: '8px 16px',
                 borderRadius: 8,
                 fontSize: 13,
@@ -169,13 +168,13 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
             const isEvent = pj.projectType !== 'operation';
             const edgeColor = isEvent ? '#FF6B68' : '#12BDE8';
             return (
-              <div
+              <button type="button" className="glass-panel project-card"
                 key={pj.id}
                 onClick={() => onSelectProject(pj.id)}
                 style={{
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: "var(--glass-panel)",
                   borderRadius: 12,
-                  border: '1px solid #D9DEE7',
+                  border: "1px solid var(--glass-border)",
                   borderLeft: `5px solid ${edgeColor}`,
                   padding: '16px 18px',
                   cursor: 'pointer',
@@ -183,23 +182,27 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   boxShadow: '0 2px 6px rgba(23, 26, 33, 0.03)',
+                  textAlign: 'left',
+                  width: '100%',
                   transition: 'transform 0.15s ease'
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, paddingRight: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: '#171A21', margin: 0 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
                       {pj.title}
                     </h3>
                     <span
                       style={{
-                        backgroundColor: '#F7F8FA',
-                        color: '#596273',
-                        border: '1px solid #D9DEE7',
+                        backgroundColor: "var(--glass-inset)",
+                        color: "var(--glass-muted)",
+                        border: "1px solid var(--glass-border)",
                         fontSize: 11,
                         fontWeight: 700,
                         padding: '2px 8px',
-                        borderRadius: 4
+                        borderRadius: 7,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
                       }}
                     >
                       {pj.status === 'planning' ? '企画中' : pj.status === 'testing' ? '試行中' : '進行中'}
@@ -209,7 +212,7 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
                     <p
                       style={{
                         fontSize: 13,
-                        color: '#596273',
+                        color: "var(--glass-muted)",
                         margin: 0,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -219,7 +222,7 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
                       {pj.description}
                     </p>
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: '#596273' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: "var(--glass-muted)" }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       <Users size={13} />
                       {pj.members ? pj.members.length : 1} 人
@@ -227,8 +230,8 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
                     <span>発起人 {pj.owner}</span>
                   </div>
                 </div>
-                <ChevronRight size={18} color="#596273" />
-              </div>
+                <ChevronRight size={18} color="#596273" style={{ flexShrink: 0 }} />
+              </button>
             );
           })
         )}
