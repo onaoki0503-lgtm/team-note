@@ -3,11 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:team_note_mobile/forms/dorm_roles.dart';
 import '../models/models.dart';
+import '../providers/app_data_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/media_service.dart';
 import '../theme/tokens.dart';
 
+/// Full profile — mirrors web SharedProfile + RosterArchiveViews S28 fields
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -31,12 +34,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     final p = context.read<AuthProvider>().profile ?? MemberProfile.blank();
+    _syncControllers(p);
+  }
+
+  void _syncControllers(MemberProfile p) {
     _name = TextEditingController(text: p.name);
     _unit = TextEditingController(text: p.unit);
     _bio = TextEditingController(text: p.bio);
-    _role = p.role;
-    _building = p.building;
-    _floor = p.floor;
+    _role = dormRoles.any((r) => r.key == p.role) ? p.role : '一般寮生';
+    _building = MemberProfile.buildings.containsKey(p.building) ? p.building : 'rosemary';
+    _floor = p.floor.clamp(1, 4);
   }
 
   @override
@@ -51,17 +58,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _name.text = p.name;
     _unit.text = p.unit;
     _bio.text = p.bio;
-    _role = MemberProfile.roles.contains(p.role) ? p.role : '一般寮生';
+    _role = dormRoles.any((r) => r.key == p.role) ? p.role : '一般寮生';
     _building = MemberProfile.buildings.containsKey(p.building) ? p.building : 'rosemary';
     _floor = p.floor.clamp(1, 4);
     setState(() => _editing = true);
   }
 
   Future<void> _save(AuthProvider auth) async {
+    final roleCfg = dormRoles.firstWhere((r) => r.key == _role);
     final next = MemberProfile(
       id: auth.profile?.id ?? auth.user?.id ?? '',
       name: _name.text.trim(),
-      role: _role,
+      role: roleCfg.key,
       building: _building,
       floor: _floor,
       unit: _unit.text.trim(),
@@ -79,17 +87,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final data = context.watch<AppDataProvider>();
     final p = auth.profile;
+    final badge = roleBadgeInfo(p?.role);
+    final history = data.projects
+        .where((proj) => proj.ownerId == p?.id || proj.ownerName == p?.name)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('プロフィール'),
         actions: [
           if (p != null && !_editing)
-            TextButton(
-              onPressed: () => _startEdit(p),
-              child: const Text('編集'),
-            ),
+            TextButton(onPressed: () => _startEdit(p), child: const Text('プロフィールを編集')),
         ],
       ),
       body: p == null
@@ -100,10 +110,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: _editing ? _editForm(auth, p) : _view(p),
+                    child: _editing ? _editForm(auth, p) : _view(p, badge),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -111,21 +121,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('活動履歴', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        Text(
-                          'スタッフとして参加した企画はまだありません。',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                        const SizedBox(height: 4),
+                        const Text('スタッフ加入・担当の記録から自動表示',
+                            style: TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                        const SizedBox(height: 12),
+                        if (history.isEmpty)
+                          const Text('スタッフとして参加した企画はまだありません。',
+                              style: TextStyle(color: TnTokens.textMuted, fontSize: 13))
+                        else
+                          ...history.map(
+                            (item) => Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: TnTokens.bgTint.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 6),
+                                  Text('発起人 · ${item.status}',
+                                      style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                                  Text('${item.memberCount}人参加',
+                                      style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                                ],
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                Card(
+                  color: TnTokens.bgTint.withValues(alpha: 0.35),
+                  child: const ListTile(
+                    leading: Icon(Icons.visibility_off_outlined, size: 20),
+                    title: Text('関係者のみ閲覧できます', style: TextStyle(fontSize: 13, color: TnTokens.textMuted)),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 OutlinedButton(
-                  onPressed: auth.busy ? null : () async {
-                    await auth.signOut();
-                    if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
-                  },
+                  onPressed: auth.busy
+                      ? null
+                      : () async {
+                          await auth.signOut();
+                          if (context.mounted) {
+                            Navigator.of(context).popUntil((r) => r.isFirst);
+                          }
+                        },
                   child: const Text('ログアウト'),
                 ),
               ],
@@ -133,11 +180,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _view(MemberProfile p) {
+  Widget _view(MemberProfile p, ({String badge, bool isLeadership}) badge) {
+    final roleTitle = dormRoles.where((r) => r.key == p.role).map((r) => r.title).firstOrNull ?? p.role;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _avatar(p),
             const SizedBox(width: 14),
@@ -145,27 +194,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
                     children: [
-                      Flexible(
-                        child: Text(
-                          p.name,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      Text(p.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      if (badge.badge.isNotEmpty)
+                        Text(
+                          badge.badge,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: badge.isLeadership ? TnTokens.accentOrange : TnTokens.textMuted,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        p.role,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: p.role == '一般寮生' ? TnTokens.textMuted : TnTokens.accentOrange,
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(p.locationLine, style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                  Text('${p.buildingLabel}棟 ${p.unit}',
+                      style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                  const SizedBox(height: 4),
+                  Text(roleTitle, style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
                 ],
               ),
             ),
@@ -175,13 +224,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const Text('自己紹介', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: TnTokens.textMuted)),
         const SizedBox(height: 4),
         Text(
-          p.bio.isEmpty ? '自己紹介が未設定です。' : p.bio,
+          p.bio.isEmpty ? '自己紹介が未設定です。プロフィールを編集から設定できます。' : p.bio,
           style: TextStyle(
             fontSize: 13,
+            height: 1.6,
             color: p.bio.isEmpty ? TnTokens.textMuted : TnTokens.textMain,
             fontStyle: p.bio.isEmpty ? FontStyle.italic : FontStyle.normal,
-            height: 1.5,
           ),
+        ),
+        const Divider(height: 28),
+        Row(
+          children: [
+            const Text('役職の選択:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: TnTokens.textMuted)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(roleTitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            ),
+            const Text('✓ 現在の利用者', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF16A34A))),
+          ],
         ),
       ],
     );
@@ -189,25 +249,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _editForm(AuthProvider auth, MemberProfile p) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GestureDetector(
-          onTap: () async {
-            final pin = await _media.pickFromGallery() ?? await _media.takePhoto();
-            if (pin?.path != null) setState(() => _localAvatar = pin!.path);
-          },
-          child: Stack(
-            children: [
-              _avatar(p, local: _localAvatar),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: TnTokens.accentOrange, shape: BoxShape.circle),
-                  child: const Icon(Icons.photo_camera, size: 14, color: Colors.white),
+        Center(
+          child: GestureDetector(
+            onTap: () async {
+              final pin = await _media.pickFromGallery() ?? await _media.takePhoto();
+              if (pin?.path != null) setState(() => _localAvatar = pin!.path);
+            },
+            child: Stack(
+              children: [
+                _avatar(p, local: _localAvatar),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: TnTokens.accentOrange, shape: BoxShape.circle),
+                    child: const Icon(Icons.photo_camera, size: 14, color: Colors.white),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -216,8 +279,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         DropdownButtonFormField<String>(
           initialValue: _role,
           decoration: const InputDecoration(labelText: '役職'),
-          items: [for (final r in MemberProfile.roles) DropdownMenuItem(value: r, child: Text(r))],
+          items: [
+            for (final r in dormRoles)
+              DropdownMenuItem(value: r.key, child: Text(r.title)),
+          ],
           onChanged: (v) => setState(() => _role = v ?? '一般寮生'),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          dormRoles.firstWhere((r) => r.key == _role).description,
+          style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
         ),
         const SizedBox(height: 10),
         Row(
@@ -245,11 +316,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        TextField(controller: _unit, decoration: const InputDecoration(labelText: '部屋番号')),
+        TextField(controller: _unit, decoration: const InputDecoration(labelText: '部屋番号', hintText: '301-A')),
         const SizedBox(height: 10),
         TextField(
           controller: _bio,
-          maxLines: 3,
+          maxLines: 4,
           maxLength: 500,
           decoration: const InputDecoration(labelText: '自己紹介'),
         ),

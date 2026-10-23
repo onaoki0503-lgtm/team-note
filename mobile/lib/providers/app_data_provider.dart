@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -117,6 +119,32 @@ class AppDataProvider extends ChangeNotifier {
   }
 
   Future<void> createProject(String title, String summary) async {
+    await createProjectFullTitle(title, summary);
+  }
+
+  /// Full 企画書 — stores complete form JSON in summary for cloud/demo.
+  Future<void> createProjectFull(
+    dynamic form, {
+    List<AttachmentPin> attachments = const [],
+  }) async {
+    final map = form is Map<String, dynamic> ? form : (form as dynamic).toJson() as Map<String, dynamic>;
+    final title = '${map['title'] ?? ''}'.trim();
+    final summary = [
+      if ('${map['objective'] ?? ''}'.trim().isNotEmpty) '${map['objective']}'.trim(),
+      if ('${map['proposalOverview'] ?? ''}'.trim().isNotEmpty) '${map['proposalOverview']}'.trim(),
+    ].join('\n');
+    final payload = {
+      ...map,
+      if (attachments.isNotEmpty) 'attachments': attachments.map((a) => a.toJson()).toList(),
+    };
+    await createProjectFullTitle(title, summary.isEmpty ? '—' : summary, proposalJson: payload);
+  }
+
+  Future<void> createProjectFullTitle(
+    String title,
+    String summary, {
+    Map<String, dynamic>? proposalJson,
+  }) async {
     if (Environment.demoMode) {
       projects = [
         ProjectItem(
@@ -131,7 +159,10 @@ class AppDataProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    projects = await _api.createProject(title, summary);
+    projects = await _api.createProject(
+      title,
+      proposalJson != null ? 'PROPOSAL_JSON:${jsonEncode(proposalJson)}' : summary,
+    );
     notifyListeners();
   }
 

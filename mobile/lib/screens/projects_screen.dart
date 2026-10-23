@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_data_provider.dart';
 import '../theme/tokens.dart';
+import 'project_detail_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key});
@@ -78,7 +79,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       '${p.ownerName.isNotEmpty ? ' · ${p.ownerName}' : ''}',
                     ),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () {},
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ProjectDetailScreen(project: p),
+                      ),
+                    ),
                   ),
                 ),
               ),
