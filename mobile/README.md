@@ -1,44 +1,32 @@
-# チームノート Mobile (Flutter)
+# チームノート Mobile
 
-iOS / Android client for Team Note. Streamlined UI (less copy), Supabase auth + data, camera / file / location on reports and proposals.
+Native Flutter (iOS / Android). Supabase Auth + data. Not a WebView of the Vite app.
 
-**Separate from TeamKaikei** — patterns inspired by that app, but this repo’s own code and bundle IDs.
+## Setup
 
-## Stack
-
-- Flutter 3.8+
-- Supabase Auth + Postgres (same `tn_*` / RPC surface as the web app when configured)
-- Shared look: `../shared/design-tokens.json` → `lib/theme/tokens.dart`
-
-## Quick start
+1. Apply SQL (restaurant Supabase SQL Editor, in order):
+   - `../supabase/teamnote_realtime.sql` (if not already)
+   - `../supabase/teamnote_extend_v2.sql`
+2. Auth providers in Supabase: Email, Google, Apple. Redirect: `teamnote://login-callback`
+3. Env:
 
 ```bash
-cd mobile
-cp .env.example assets/config/.env.local   # optional; fill SUPABASE_*
+cp .env.example assets/config/.env.local
+# fill SUPABASE_URL + SUPABASE_ANON_KEY (same as web VITE_TEAMNOTE_*)
 flutter pub get
-flutter run                                # pick iOS sim / Android / device
+flutter run
 ```
 
-Without Supabase env, the app opens in **demo mode** (local ideas / seeded projects).
+## Auth flow (same as web)
 
-Dart-define alternative:
+Login / signup → if not in `tn_members` → join with invite + profile → ready.
 
-```bash
-flutter run --dart-define=SUPABASE_URL=https://xxx.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=eyJ...
-```
+Google / Apple use Supabase `signInWithIdToken`. Enable providers + Apple capability in Xcode (entitlements included).
 
 ## Tabs
 
-1. **アイデア** — post / like (cloud RPC when configured)
-2. **進行中** — project list + create
-3. **はたらく** — work report + photo / file / location pins
-4. **保管する** — roster / inventory / docs (shell links for next phase)
+Material `NavigationBar`: アイデア · 進行中 · はたらく · 保管する
 
 ## TestFlight
 
-See [TESTFLIGHT.md](TESTFLIGHT.md).
-
-## Owner review
-
-Point reviewers at demo mode first, then a build with real `SUPABASE_*` once Auth redirect `teamnote://login-callback` is added in the Supabase project.
+See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each upload.

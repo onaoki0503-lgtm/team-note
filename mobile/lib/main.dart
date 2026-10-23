@@ -67,7 +67,7 @@ class _TeamNoteAppState extends State<TeamNoteApp> {
             ],
             routerConfig: _router,
             builder: (context, child) {
-              if (!_auth.initialized) {
+              if (_auth.gate == AuthGate.loading) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 );

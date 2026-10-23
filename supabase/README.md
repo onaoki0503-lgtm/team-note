@@ -1,13 +1,26 @@
 # Supabase定義
 
 > **最終更新日**: 2026-10-23
-> **更新者**: AI (Codex)
 
-## フォルダ構成
+## 適用順
 
-- `schema.sql` — 旧試作のスキーマ。共有restaurantへ実行しない。
-- `seed.sql` — 旧試作の初期データ。共有restaurantへ実行しない。
-- `teamnote_realtime.sql` — 今回適用済みの追加専用スキーマ・所属RLS・RPC・Realtime対象。
-- `README.md` — 運用案内。
+1. `teamnote_realtime.sql` — 初回（members / ideas / RLS / board RPCs）
+2. `teamnote_extend_v2.sql` — プロフィール拡張（bio・avatar）＋企画・報告・備品・資料
 
-既存restaurantのテーブル・Auth設定・課金を変更せず、tn_テーブルとteamnote_privateを追加。実参加コード・秘密キーはソースへ記録しない。CLIのmigration履歴とは別の管理画面適用用SQL。権限検証は../tests/teamnote-cloud-rls.sqlで全体をROLLBACKする。本人ログイン後の通し確認は未完了。
+`schema.sql` / `seed.sql` は旧試作。共有restaurantへ実行しない。
+
+## Auth（モバイル）
+
+Supabase Dashboard → Authentication → Providers:
+
+- Email（既存）
+- Google
+- Apple
+
+Redirect / deep link: `teamnote://login-callback`
+
+Storage buckets created by v2: `tn-avatars` (public), `tn-files` (private).
+
+## 権限検証
+
+`../tests/teamnote-cloud-rls.sql`（ROLLBACK）。v2テーブル用の追加試験は未作成。

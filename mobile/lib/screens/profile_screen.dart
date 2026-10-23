@@ -1,14 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../models/models.dart';
 import '../providers/auth_provider.dart';
 import '../services/media_service.dart';
 import '../theme/tokens.dart';
-import '../widgets/app_header.dart';
-import '../widgets/tn_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,198 +16,283 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late final TextEditingController _name;
-  late final TextEditingController _bio;
-  late final TextEditingController _building;
-  late final TextEditingController _unit;
-  String _role = 'HL';
-  String? _localAvatarPath;
+  bool _editing = false;
   final _media = MediaService();
+  String? _localAvatar;
+
+  late TextEditingController _name;
+  late TextEditingController _unit;
+  late TextEditingController _bio;
+  late String _role;
+  late String _building;
+  late int _floor;
 
   @override
   void initState() {
     super.initState();
-    final p = context.read<AuthProvider>().profile;
+    final p = context.read<AuthProvider>().profile ?? MemberProfile.blank();
     _name = TextEditingController(text: p.name);
-    _bio = TextEditingController(text: p.bio);
-    _building = TextEditingController(text: p.building);
     _unit = TextEditingController(text: p.unit);
-    _role = p.role.isEmpty ? 'HL' : p.role;
+    _bio = TextEditingController(text: p.bio);
+    _role = p.role;
+    _building = p.building;
+    _floor = p.floor;
   }
 
   @override
   void dispose() {
     _name.dispose();
-    _bio.dispose();
-    _building.dispose();
     _unit.dispose();
+    _bio.dispose();
     super.dispose();
   }
 
-  Future<void> _pickAvatar() async {
-    final pin = await _media.takePhoto() ?? await _media.pickFromGallery();
-    if (pin?.path == null) return;
-    setState(() => _localAvatarPath = pin!.path);
+  void _startEdit(MemberProfile p) {
+    _name.text = p.name;
+    _unit.text = p.unit;
+    _bio.text = p.bio;
+    _role = MemberProfile.roles.contains(p.role) ? p.role : '一般寮生';
+    _building = MemberProfile.buildings.containsKey(p.building) ? p.building : 'rosemary';
+    _floor = p.floor.clamp(1, 4);
+    setState(() => _editing = true);
   }
 
-  Future<void> _save() async {
-    final auth = context.read<AuthProvider>();
-    final next = auth.profile
-      ..name = _name.text.trim()
-      ..bio = _bio.text.trim()
-      ..building = _building.text.trim()
-      ..unit = _unit.text.trim()
-      ..role = _role;
-    await auth.saveProfile(next);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('保存しました')),
+  Future<void> _save(AuthProvider auth) async {
+    final next = MemberProfile(
+      id: auth.profile?.id ?? auth.user?.id ?? '',
+      name: _name.text.trim(),
+      role: _role,
+      building: _building,
+      floor: _floor,
+      unit: _unit.text.trim(),
+      bio: _bio.text.trim(),
+      avatarUrl: auth.profile?.avatarUrl,
     );
+    await auth.saveProfile(next, localAvatarPath: _localAvatar);
+    if (!mounted) return;
+    setState(() {
+      _editing = false;
+      _localAvatar = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final p = auth.profile;
 
     return Scaffold(
-      body: Column(
-        children: [
-          const SafeArea(bottom: false, child: AppHeader(showBack: true)),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      appBar: AppBar(
+        title: const Text('プロフィール'),
+        actions: [
+          if (p != null && !_editing)
+            TextButton(
+              onPressed: () => _startEdit(p),
+              child: const Text('編集'),
+            ),
+        ],
+      ),
+      body: p == null
+          ? const Center(child: Text('未参加'))
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
-                Text('プロフィール', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 14),
-                TnCard(
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Stack(
-                            children: [
-                              CircleAvatar(
-                                radius: 36,
-                                backgroundColor: TnTokens.bgTint,
-                                backgroundImage: _localAvatarPath != null
-                                    ? FileImage(File(_localAvatarPath!))
-                                    : (auth.profile.avatarUrl != null
-                                        ? NetworkImage(auth.profile.avatarUrl!)
-                                        : null),
-                                child: _localAvatarPath == null &&
-                                        auth.profile.avatarUrl == null
-                                    ? Text(
-                                        _name.text.isNotEmpty
-                                            ? _name.text.characters.first
-                                            : '?',
-                                        style: const TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: InkWell(
-                                  onTap: _pickAvatar,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: TnTokens.accentOrange,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.photo_camera, size: 14, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                TextField(
-                                  controller: _name,
-                                  decoration: const InputDecoration(
-                                    isDense: true,
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    filled: false,
-                                    contentPadding: EdgeInsets.zero,
-                                    hintText: '名前',
-                                  ),
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                                Text(
-                                  '${_building.text} ${_unit.text}'.trim(),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _bio,
-                        maxLines: 2,
-                        decoration: const InputDecoration(hintText: '自己紹介'),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _role,
-                              items: const [
-                                DropdownMenuItem(value: 'HL', child: Text('HL')),
-                                DropdownMenuItem(value: 'スタッフ', child: Text('スタッフ')),
-                                DropdownMenuItem(value: '寮生', child: Text('寮生')),
-                              ],
-                              onChanged: (v) => setState(() => _role = v ?? 'HL'),
-                              decoration: const InputDecoration(labelText: '役職'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _building,
-                              decoration: const InputDecoration(labelText: '棟'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _unit,
-                        decoration: const InputDecoration(labelText: '部屋'),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: _save,
-                        icon: const Icon(Icons.check, size: 18),
-                        label: const Text('保存'),
-                      ),
-                    ],
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _editing ? _editForm(auth, p) : _view(p),
                   ),
                 ),
                 const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('活動履歴', style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        Text(
+                          'スタッフとして参加した企画はまだありません。',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 OutlinedButton(
-                  onPressed: () async {
+                  onPressed: auth.busy ? null : () async {
                     await auth.signOut();
-                    if (context.mounted) context.go('/login');
+                    if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
                   },
                   child: const Text('ログアウト'),
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _view(MemberProfile p) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _avatar(p),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          p.name,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        p.role,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: p.role == '一般寮生' ? TnTokens.textMuted : TnTokens.accentOrange,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(p.locationLine, style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 28),
+        const Text('自己紹介', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: TnTokens.textMuted)),
+        const SizedBox(height: 4),
+        Text(
+          p.bio.isEmpty ? '自己紹介が未設定です。' : p.bio,
+          style: TextStyle(
+            fontSize: 13,
+            color: p.bio.isEmpty ? TnTokens.textMuted : TnTokens.textMain,
+            fontStyle: p.bio.isEmpty ? FontStyle.italic : FontStyle.normal,
+            height: 1.5,
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  Widget _editForm(AuthProvider auth, MemberProfile p) {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () async {
+            final pin = await _media.pickFromGallery() ?? await _media.takePhoto();
+            if (pin?.path != null) setState(() => _localAvatar = pin!.path);
+          },
+          child: Stack(
+            children: [
+              _avatar(p, local: _localAvatar),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: TnTokens.accentOrange, shape: BoxShape.circle),
+                  child: const Icon(Icons.photo_camera, size: 14, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(controller: _name, decoration: const InputDecoration(labelText: '名前')),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          initialValue: _role,
+          decoration: const InputDecoration(labelText: '役職'),
+          items: [for (final r in MemberProfile.roles) DropdownMenuItem(value: r, child: Text(r))],
+          onChanged: (v) => setState(() => _role = v ?? '一般寮生'),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: _building,
+                decoration: const InputDecoration(labelText: '棟'),
+                items: [
+                  for (final e in MemberProfile.buildings.entries)
+                    DropdownMenuItem(value: e.key, child: Text(e.value)),
+                ],
+                onChanged: (v) => setState(() => _building = v ?? 'rosemary'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: DropdownButtonFormField<int>(
+                initialValue: _floor,
+                decoration: const InputDecoration(labelText: '階'),
+                items: [for (final f in [1, 2, 3, 4]) DropdownMenuItem(value: f, child: Text('$f階'))],
+                onChanged: (v) => setState(() => _floor = v ?? 1),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(controller: _unit, decoration: const InputDecoration(labelText: '部屋番号')),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _bio,
+          maxLines: 3,
+          maxLength: 500,
+          decoration: const InputDecoration(labelText: '自己紹介'),
+        ),
+        if (auth.error != null) Text(auth.error!, style: const TextStyle(color: TnTokens.errorText)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: auth.busy ? null : () => setState(() => _editing = false),
+                child: const Text('キャンセル'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton(
+                onPressed: auth.busy ? null : () => _save(auth),
+                child: Text(auth.busy ? '…' : '保存する'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _avatar(MemberProfile p, {String? local}) {
+    ImageProvider? image;
+    if (local != null) {
+      image = FileImage(File(local));
+    } else if (p.avatarUrl != null) {
+      image = NetworkImage(p.avatarUrl!);
+    }
+    return CircleAvatar(
+      radius: 36,
+      backgroundColor: TnTokens.bgTint,
+      backgroundImage: image,
+      child: image == null
+          ? Text(
+              p.name.isNotEmpty ? p.name.characters.first : '?',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            )
+          : null,
     );
   }
 }

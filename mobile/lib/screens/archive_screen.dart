@@ -1,53 +1,67 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/app_data_provider.dart';
 import '../theme/tokens.dart';
-import '../widgets/tn_card.dart';
 
 class ArchiveScreen extends StatelessWidget {
   const ArchiveScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      (Icons.people_outline, TnTokens.accentBlue, '寮生名簿', '名簿を管理'),
-      (Icons.inventory_2_outlined, TnTokens.accentGold, '備品在庫', '台帳・CSV'),
-      (Icons.folder_open_outlined, TnTokens.accentPurple, '年度別資料', '過去資料'),
-    ];
+    final data = context.watch<AppDataProvider>();
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        Text('保管する', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 16),
-        for (final item in items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: TnCard(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${item.$3} — 次フェーズで接続')),
-                );
-              },
-              child: Row(
-                children: [
-                  Icon(item.$1, color: item.$2, size: 28),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.$3, style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 2),
-                        Text(item.$4, style: Theme.of(context).textTheme.bodySmall),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, color: TnTokens.textMuted),
-                ],
-              ),
-            ),
-          ),
+        _tile(
+          context,
+          icon: Icons.people_outline,
+          color: TnTokens.accentBlue,
+          title: '寮生名簿',
+          subtitle: '${data.inventory.isEmpty ? 'メンバー' : '名簿'}を開く',
+          onTap: () => context.push('/profile'),
+        ),
+        _tile(
+          context,
+          icon: Icons.inventory_2_outlined,
+          color: TnTokens.accentGold,
+          title: '備品在庫',
+          subtitle: data.inventory.isEmpty ? '台帳' : '${data.inventory.length}件',
+          onTap: () => context.push('/inventory'),
+        ),
+        _tile(
+          context,
+          icon: Icons.folder_open_outlined,
+          color: TnTokens.accentPurple,
+          title: '年度別資料',
+          subtitle: data.archives.isEmpty ? '資料' : '${data.archives.length}件',
+          onTap: () => context.push('/archives'),
+        ),
       ],
+    );
+  }
+
+  Widget _tile(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        child: ListTile(
+          leading: Icon(icon, color: color, size: 28),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(subtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: onTap,
+        ),
+      ),
     );
   }
 }
