@@ -10,6 +10,7 @@
 - [開発方針](../開発方針_Hヴィレッジ実証と将来の共通基盤.md)
 - [公開済みの既存アプリ](https://onaoki0503-lgtm.github.io/team-note/)
 - [GitHub](https://github.com/onaoki0503-lgtm/team-note)
+- [最新版の操作デモ（ログイン不要）](https://onaoki0503-lgtm.github.io/team-note/?demo=1)
 
 ## 操作と画面
 
@@ -27,11 +28,11 @@ npm run build
 npm run lint
 ```
 
-React + TypeScript + Viteを使用。重い画面は遅延読込する。AIはCloudflare Workersの`/api/ai`を使用する。`npm run worker:dev`と`npm run dev`で起動し、`npm run test`で操作を検証する。詳しくは[改修確認記録](UIとWorkers_改修確認記録_20261018.md)と[Workerの案内](worker/README.md)を参照。既存のデータ層と接続設定は`src/lib/db.ts`、`src/lib/supabase.ts`を参照。今回のUI改良で本番の認証・団体間のデータ分離を完成させたものではない。ホーム投稿といいねは端末内保存。同一ブラウザ・同一URLの別タブには即時反映するが、別端末の寮生間共有は未実装。[同期の実装と残作業](アイデア画面の同期_仕様と確認記録_20261022.md)を参照。
+React + TypeScript + Viteを使用。AIは専用Cloudflare Worker、プロフィール／名簿とアイデア・いいねはSupabaseへ接続する。通常入口はメール認証と初回プロフィール登録が必要。操作デモ（?demo=1）は共有DBへ接続せず、既存の端末内保存で操作感を確認できる。企画・報告・備品は引き続き端末内保存。`npm run worker:dev`と`npm run dev`でローカル起動し、`npm run test`で操作を検証する。公開URLの確認は実AI呼び出しを含む`npm run test:public`を使う。実認証／共有DBの複数端末通し確認と実マイクの試験は未完了。
 
 ## 検証
 
-[改良確認記録](改良確認記録_20261015.md)に実画面の検証結果と制限を記録する。今回の変更はローカル改良版で、既存公開URLへの反映は別工程。
+[改良確認記録](改良確認記録_20261015.md)に実画面の検証結果と制限を記録する。2026-10-23に既存公開URLへ最新版を反映。[公開更新と確認結果](公開更新_確認記録_20261023.md)を参照。
 
 ## フォルダ構成
 
@@ -163,7 +164,7 @@ React + TypeScript + Viteを使用。重い画面は遅延読込する。AIはCl
 
 2026-10-23 / AI (Codex): エンジニアによる操作感レビュー用の共有URLを確認。既存のGitHub Pages（https://onaoki0503-lgtm.github.io/team-note/）は外部ブラウザで表示成功。ただし「アイデアをカタチに。」と5項目のナビがある旧公開版で、直近のLiquid Glass・フォーム・共有認証等は未反映。localhost:5173はこのPC専用で外部共有URLとして案内しない。今回公開・ソース変更なし。
 
-## 2026-10-23：最新版の公開更新（実行中）
+## 2026-10-23：最新版の公開更新（完了）
 
 代表の「先に最新版に更新」の指示により、既存GitHub Pagesのgh-pagesブランチを更新する。GitHubでソース管理、画面は既存Pages、AIは専用Cloudflare Worker、プロフィール／アイデア共有は既存Supabaseを継続。別基盤へ移行しない。
 
@@ -175,3 +176,6 @@ React + TypeScript + Viteを使用。重い画面は遅延読込する。AIはCl
 
 - `playwright.public.config.ts` — 既存公開URLの最終確認。`npm run test:public`で実行する。
 - 2026-10-23 / AI (Codex): 画面ソース1d3f0a5とPages配備2916211を反映、Pagesのbuiltとrelease.jsonのHTTP 200を確認。AI初回公開の実試験で一部言い換えを検出し、原文一致の候補だけ保持する修正を追加。公開後の操作検証を継続中。
+
+- `公開更新_確認記録_20261023.md` — 公開先・配備コミット・最終試験と未確認事項。
+- 2026-10-23 / AI (Codex): Pagesと専用Workerの最新版公開完了。実公開URLの最終4件、Worker18件、関連ブラウザ4件と共有／デモ4件が全件合格。実AIのHTTP 200と候補表示も確認。エンジニアにはログイン不要の操作デモURLを案内する。

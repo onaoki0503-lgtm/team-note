@@ -44,3 +44,5 @@ Cloudflare Workersの`POST /api/ai`が議題抽出・企画書生成を受け、
 代表の最新版公開指示により、team-note-aiを既存Cloudflareアカウントへ初回配備する。wrangler.jsoncにアカウントを明示しworkers_devをtrueへ、preview_urlsはfalse。許可Originへhttps://onaoki0503-lgtm.github.ioを追加。既存の他サービスは更新しない。クライアント側VITE_AI_WORKER_URLには配備結果のHTTPS URL＋/api/aiをビルド時に指定。公開後の接続結果は案件READMEへ記録する。上記「未公開」「workers_dev:false」は10月20日時点の履歴。
 
 2026-10-23 / AI (Codex): 専用Workerをhttps://team-note-ai.o-naoki0503.workers.devへ初回配備済み。公開Originのプリフライト204を確認。実モデルが一部の抜粋を言い換える場合は、その候補だけ除外し原文一致の候補を維持する修正を追加。架空の試験文で診断し、利用者の文章はログに保存していない。
+
+2026-10-23 / AI (Codex): 原文一致候補の保持修正をVersion 1624affc-9403-41f0-bc96-29e393744a9fへ反映。実公開画面の分類POST 200・候補表示、Worker18件を確認。今回新たな有料プランへの変更なし。

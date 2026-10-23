@@ -70,3 +70,5 @@ Workerの契約・失敗・入力制限・Origin・レート制限をNodeのテ�
 - `public.spec.ts` — 公開URLの共有ログイン・操作デモ3画面幅・4タブ・CSV・実AI接続の4試験。
 
 2026-10-23 / AI (Codex): `npm run test:public`は実際のPagesとWorkers AIを使う。実DBへ試験用のユーザーや投稿を作らず、デモの端末内保存だけを操作する。自由文の実AI分類を1回実行するため、通常のnpm run testには含めない。Workerの原文一致候補の保持試験も追加。
+
+2026-10-23 / AI (Codex): 最終public.spec.tsの4件が全件合格。実公開サイトで共有ログイン・デモ3サイズ・4タブ・投稿再訪・CSV・実Worker分類200を確認。Worker18件・公開差分の関連ブラウザ4件も全件合格。
