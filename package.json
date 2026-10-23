@@ -14,7 +14,8 @@
     "test:browser": "playwright test",
     "test": "npm run test:ideas && npm run test:worker && npm run test:browser && npm run test:cloud",
     "test:ideas": "node --experimental-strip-types --test tests/idea-board.test.ts",
-    "test:cloud": "playwright test --config playwright.cloud.config.ts"
+    "test:cloud": "playwright test --config playwright.cloud.config.ts",
+    "test:public": "playwright test --config playwright.public.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

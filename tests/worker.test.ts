@@ -30,3 +30,7 @@ test('分類の捏造・未知項目・重複項目・長すぎる抜粋を拒�
     const response = await worker.fetch(request({ task: 'distribute', text: `本文${'あ'.repeat(310)}` }), { ...baseEnv, AI: { async run() { return { response: JSON.stringify({ assignments }) }; } } }); assert.equal(response.status, 502);
   }
 });
+test('分類の一部が言い換えでも原文と一致する候補だけを保持し推論を繰り返さない', async () => {
+ let calls=0;const text='中庭で映画上映会を開いて、寮生同士の交流を増やしたい。';const assignments=[{field:'title',quote:'中庭で映画上映会'},{field:'objective',quote:'寮生同士の交流を増やしたい'},{field:'proposalOverview',quote:'中庭で映画上映会を開く'}];
+ const res=await worker.fetch(request({task:'distribute',text}),{...baseEnv,AI:{async run(){calls++;return {response:{assignments}};}}});assert.equal(res.status,200);assert.deepEqual((await res.json() as {data:unknown}).data,assignments.slice(0,2));assert.equal(calls,1);
+});

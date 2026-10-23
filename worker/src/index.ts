@@ -60,7 +60,15 @@ export default {
       });
       const raw = output && typeof output === 'object' && 'response' in output ? output.response : null;
       const parsed: unknown = typeof raw === 'string' ? JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, '')) : raw;
-      const data = task === 'distribute' && parsed && typeof parsed === 'object' && 'assignments' in parsed ? parsed.assignments : task === 'topics' && parsed && typeof parsed === 'object' && 'topics' in parsed ? parsed.topics : parsed;
+      let data = task === 'distribute' && parsed && typeof parsed === 'object' && 'assignments' in parsed ? parsed.assignments : task === 'topics' && parsed && typeof parsed === 'object' && 'topics' in parsed ? parsed.topics : parsed;
+      // Keep only verbatim excerpts. A single paraphrase must not discard other valid fields
+      // or trigger another inference. Invalid shapes, unknown fields and duplicates still fail.
+      if (task === 'distribute' && Array.isArray(data) && data.length <= PROPOSAL_FIELDS.length
+        && data.every(item => item && typeof item === 'object' && PROPOSAL_FIELDS.some(field => field.key === item.field) && typeof item.quote === 'string')
+        && new Set(data.map(item => item.field)).size === data.length) {
+        const source = body.text.trim();
+        data = data.filter(item => item.quote.trim().length > 0 && item.quote.length <= 300 && source.includes(item.quote));
+      }
       if (task === 'distribute' ? !isAssignments(data, body.text.trim()) : task === 'topics' ? !isTopics(data) : !isProposal(data)) return json({ error: 'invalid_ai_response' }, 502, origin);
       return json({ data }, 200, origin);
     } catch { return json({ error: 'ai_unavailable' }, 503, origin); }

@@ -172,3 +172,6 @@ React + TypeScript + Viteを使用。重い画面は遅延読込する。AIはCl
 - 操作デモはヘッダーに「操作デモ」と表示。保存はそのブラウザ内。共有版の認証やRLSは変更しない。
 - AI Workerはteam-note-aiのみ公開。PagesのOriginを許可し、10回/60秒/IPの制限を継続。APIキーのクライアント配信なし。
 - 公開前の共有／デモChrome4件、Worker17件、build・lintが成功。公開URLでの最終検証とコミット番号は完了後に追記。
+
+- `playwright.public.config.ts` — 既存公開URLの最終確認。`npm run test:public`で実行する。
+- 2026-10-23 / AI (Codex): 画面ソース1d3f0a5とPages配備2916211を反映、Pagesのbuiltとrelease.jsonのHTTP 200を確認。AI初回公開の実試験で一部言い換えを検出し、原文一致の候補だけ保持する修正を追加。公開後の操作検証を継続中。
