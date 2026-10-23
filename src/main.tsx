@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import '../shared/team-note-theme.css'
 import './index.css'
 import './glass.css'
 import App from './App.tsx'

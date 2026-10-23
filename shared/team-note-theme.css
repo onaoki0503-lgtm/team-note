@@ -1,0 +1,130 @@
+/**
+ * Team Note shared theme — import from the Vite app and mirror in Flutter
+ * (see mobile/lib/theme/tokens.dart). Source of truth: design-tokens.json.
+ */
+:root {
+  --tn-bg-main: #f7fafc;
+  --tn-bg-surface: #ffffff;
+  --tn-bg-tint: #e6effa;
+  --tn-text-main: #202734;
+  --tn-text-muted: #626e80;
+  --tn-border: rgba(170, 187, 208, 0.32);
+  --tn-primary: #285782;
+  --tn-on-primary: #ffffff;
+  --tn-accent-blue: #3b82f6;
+  --tn-accent-gold: #c9a227;
+  --tn-accent-purple: #7c6bcf;
+  --tn-accent-orange: #e67e22;
+  --tn-accent-green: #2f9e6b;
+  --tn-error-bg: #fff5f5;
+  --tn-error-text: #92364b;
+  --tn-error-border: #eed4d7;
+  --tn-nav-inactive: #687180;
+  --tn-nav-active: #244f78;
+
+  --tn-radius-sm: 12px;
+  --tn-radius-md: 16px;
+  --tn-radius-lg: 24px;
+  --tn-radius-xl: 30px;
+  --tn-radius-pill: 999px;
+
+  --tn-space-xs: 4px;
+  --tn-space-sm: 8px;
+  --tn-space-md: 12px;
+  --tn-space-lg: 16px;
+  --tn-space-xl: 20px;
+  --tn-space-xxl: 28px;
+
+  --tn-type-brand: 15px;
+  --tn-type-title: 22px;
+  --tn-type-body: 15px;
+  --tn-type-caption: 12px;
+  --tn-type-nav: 11px;
+
+  --tn-shadow-card: 0 12px 38px rgba(43, 64, 94, 0.07),
+    0 2px 6px rgba(43, 64, 94, 0.035);
+  --tn-shadow-nav: 0 3px 10px rgba(36, 73, 110, 0.08);
+
+  --tn-max-content: 440px;
+  --tn-nav-height: 64px;
+  --tn-toolbar-min-height: 72px;
+
+  /* Bridge to existing glass.css variable names */
+  --glass-primary: var(--tn-primary);
+  --glass-accent: var(--tn-primary);
+  --glass-on-primary: var(--tn-on-primary);
+  --glass-ink: var(--tn-text-main);
+  --glass-muted: var(--tn-text-muted);
+  --glass-border: var(--tn-border);
+  --glass-radius: var(--tn-radius-lg);
+  --glass-shadow: var(--tn-shadow-card);
+  --bg-main: var(--tn-bg-main);
+  --bg-surface: var(--tn-bg-surface);
+  --text-main: var(--tn-text-main);
+  --text-muted: var(--tn-text-muted);
+  --border-radius-card: var(--tn-radius-lg);
+}
+
+.tn-card {
+  background: var(--tn-bg-surface);
+  border: 1px solid var(--tn-border);
+  border-radius: var(--tn-radius-lg);
+  box-shadow: var(--tn-shadow-card);
+}
+
+.tn-btn-primary {
+  min-height: 46px;
+  padding: 11px 16px;
+  border-radius: 15px;
+  background: var(--tn-primary);
+  color: var(--tn-on-primary);
+  font-weight: 650;
+  font-size: 14px;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.tn-btn-secondary {
+  min-height: 46px;
+  padding: 11px 16px;
+  border-radius: 15px;
+  background: var(--tn-bg-surface);
+  color: var(--tn-primary);
+  border: 1px solid var(--tn-border);
+  box-shadow: var(--tn-shadow-card);
+  font-weight: 650;
+  font-size: 14px;
+}
+
+.tn-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: var(--tn-radius-pill);
+  font-size: var(--tn-type-caption);
+  font-weight: 600;
+  border: 1px solid var(--tn-border);
+  background: var(--tn-bg-surface);
+  color: var(--tn-text-muted);
+}
+
+.tn-chip.is-active {
+  background: var(--tn-primary);
+  color: var(--tn-on-primary);
+  border-color: var(--tn-primary);
+}
+
+.tn-title {
+  font-size: var(--tn-type-title);
+  font-weight: 750;
+  letter-spacing: -0.6px;
+  color: var(--tn-text-main);
+}
+
+.tn-muted {
+  font-size: var(--tn-type-caption);
+  color: var(--tn-text-muted);
+}

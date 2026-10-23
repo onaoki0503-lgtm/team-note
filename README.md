@@ -30,6 +30,10 @@ npm run lint
 
 React + TypeScript + Viteを使用。AIは専用Cloudflare Worker、プロフィール／名簿とアイデア・いいねはSupabaseへ接続する。通常入口はメール認証と初回プロフィール登録が必要。操作デモ（?demo=1）は共有DBへ接続せず、既存の端末内保存で操作感を確認できる。企画・報告・備品は引き続き端末内保存。`npm run worker:dev`と`npm run dev`でローカル起動し、`npm run test`で操作を検証する。公開URLの確認は実AI呼び出しを含む`npm run test:public`を使う。実認証／共有DBの複数端末通し確認と実マイクの試験は未完了。
 
+### Flutter（iOS / Android）
+
+利用者向けネイティブ案は `mobile/`（TeamKaikeiとは別プロジェクト）。共有トークンは `shared/design-tokens.json` と `shared/team-note-theme.css`。手順は [mobile/README.md](mobile/README.md)、TestFlightは [mobile/TESTFLIGHT.md](mobile/TESTFLIGHT.md)。
+
 ## 検証
 
 [改良確認記録](改良確認記録_20261015.md)に実画面の検証結果と制限を記録する。2026-10-23に既存公開URLへ最新版を反映。[公開更新と確認結果](公開更新_確認記録_20261023.md)を参照。

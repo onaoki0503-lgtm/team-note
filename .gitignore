@@ -31,3 +31,23 @@ dist-ssr
 .dev.vars
 .dev.vars.*
 !*.example
+
+# Flutter / mobile
+mobile/.dart_tool/
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/.pub-cache/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.podspec
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/ephemeral/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+mobile/assets/config/.env.local
+**/*.iml
+.idea/

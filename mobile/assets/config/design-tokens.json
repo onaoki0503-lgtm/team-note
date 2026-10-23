@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "team-note",
+  "version": "1.0.0",
+  "description": "Shared visual tokens for Team Note web (Vite) and mobile (Flutter). Keep values in sync across platforms.",
+  "color": {
+    "bgMain": "#F7FAFC",
+    "bgSurface": "#FFFFFF",
+    "bgTint": "#E6EFFA",
+    "textMain": "#202734",
+    "textMuted": "#626E80",
+    "border": "#AABBD052",
+    "primary": "#285782",
+    "onPrimary": "#FFFFFF",
+    "accentBlue": "#3B82F6",
+    "accentGold": "#C9A227",
+    "accentPurple": "#7C6BCF",
+    "accentOrange": "#E67E22",
+    "accentGreen": "#2F9E6B",
+    "errorBg": "#FFF5F5",
+    "errorText": "#92364B",
+    "errorBorder": "#EED4D7",
+    "navInactive": "#687180",
+    "navActive": "#244F78"
+  },
+  "radius": {
+    "sm": 12,
+    "md": 16,
+    "lg": 24,
+    "xl": 30,
+    "pill": 999
+  },
+  "space": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "xxl": 28
+  },
+  "type": {
+    "brand": 15,
+    "title": 22,
+    "body": 15,
+    "caption": 12,
+    "nav": 11
+  },
+  "shadow": {
+    "card": "0 12px 38px rgba(43,64,94,0.07), 0 2px 6px rgba(43,64,94,0.035)",
+    "nav": "0 3px 10px rgba(36,73,110,0.08)"
+  },
+  "layout": {
+    "maxContentWidth": 440,
+    "navHeight": 64,
+    "toolbarMinHeight": 72
+  }
+}
