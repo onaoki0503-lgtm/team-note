@@ -6,6 +6,8 @@ import { ScreenLoadingBoundary } from './components/ScreenLoading';
 import { useIdeaBoardSync } from './lib/useIdeaBoardSync';
 import { useSharedIdeas } from './lib/sharedIdeasContext';
 import { buildProposalSummary, createTeamnoteProject, listTeamnoteProjects } from './lib/teamnoteProjects';
+import { listTeamnoteReports, saveTeamnoteReport } from './lib/teamnoteReports';
+import { listTeamnoteArchives, type ArchiveDocItem } from './lib/teamnoteArchives';
 import { SharedProfile } from './components/SharedProfile';
 import { AppShell, type MainNavDestination } from './components/AppShell';
 import { VillageScene } from './components/VillageScene';
@@ -44,25 +46,30 @@ export default function App() {
   // S13〜S20 ステップの資料ビュー
   const [activeStepView, setActiveStepView] = useScreenState<{ stepId: string; stepTitle: string } | null>('step', null);
 
-  // S21〜S22 業務報告
-  const [reports, setReports] = useState<WorkReportItem[]>([
-    {
-      id: 'rep-1',
-      title: 'キッチンの清掃',
-      activityType: 'inherent',
-      content: 'キッチンの床と作業台を清掃しました。特に問題はありません。',
-      author: '寮生A',
-      date: '2026/06/15 14:30'
-    },
-    {
-      id: 'rep-2',
-      title: '設備の点検',
-      activityType: 'inherent',
-      content: '共用部の照明と空調を点検しました。異常はありません。',
-      author: '寮生A',
-      date: '2026/06/12 09:20'
-    }
-  ]);
+  // S21〜S22 業務報告（cloud: tn_list_reports; demo: local samples）
+  const [reports, setReports] = useState<WorkReportItem[]>(() =>
+    shared.enabled
+      ? []
+      : [
+          {
+            id: 'rep-1',
+            title: 'キッチンの清掃',
+            activityType: 'inherent',
+            content: 'キッチンの床と作業台を清掃しました。特に問題はありません。',
+            author: '寮生A',
+            date: '2026/06/15 14:30',
+          },
+          {
+            id: 'rep-2',
+            title: '設備の点検',
+            activityType: 'inherent',
+            content: '共用部の照明と空調を点検しました。異常はありません。',
+            author: '寮生A',
+            date: '2026/06/12 09:20',
+          },
+        ]
+  );
+  const [archives, setArchives] = useState<ArchiveDocItem[]>([]);
 
   // S23〜S30 保管ポータル
   // 'hub' (S23) | 'roster' (S25/S26/S27) | 'inventory' (S24) | 'archives' (S30) | 'profile' (S28) | 'switch_user' (S31)
@@ -88,6 +95,18 @@ export default function App() {
           } catch (err) {
             console.warn('Cloud projects load failed:', err);
             setProjects([]);
+          }
+          try {
+            setReports(await listTeamnoteReports(currentUser.name));
+          } catch (err) {
+            console.warn('Cloud reports load failed:', err);
+            setReports([]);
+          }
+          try {
+            setArchives(await listTeamnoteArchives());
+          } catch (err) {
+            console.warn('Cloud archives load failed:', err);
+            setArchives([]);
           }
         } else {
           const loadedProjects = await dbService.getProjects();
@@ -425,6 +444,29 @@ export default function App() {
       const now = new Date();
       dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
     }
+    const body = (actionResult || content).trim();
+    const locationLabel = entryUnit
+      ? `${entryUnit}${entryPurpose ? ` / ${entryPurpose}` : ''}`
+      : `${currentUser.building}棟`;
+
+    if (shared.enabled) {
+      try {
+        setReports(
+          await saveTeamnoteReport({
+            title,
+            activityType: activityType || 'inherent',
+            body,
+            date: dateStr,
+            authorName: currentUser.name,
+            locationLabel,
+          })
+        );
+      } catch (err) {
+        console.warn('Cloud save report failed:', err);
+      }
+      return;
+    }
+
     const newRep: WorkReportItem = {
       id: `rep-${Date.now()}`,
       title,
@@ -439,7 +481,7 @@ export default function App() {
     const saved = await dbService.addWorkReport({
       type: activityType === 'trouble' ? 'noise' : activityType === 'unit_entry' ? 'facility' : 'patrol',
       title,
-      location: entryUnit ? `${entryUnit}` : `${currentUser.building}棟`,
+      location: locationLabel,
       content: content.trim(),
       reportDate: dateStr, activityType, actionResult: actionResult || content, entryUnit, entryPurpose,
       status: '報告完了',
@@ -753,13 +795,17 @@ export default function App() {
         <WorkStorageViews
           mode="work"
           currentUser={currentUser}
-          reports={reports.filter(
-            (r) =>
-              r.author === currentUser.name ||
-              (r as any).authorId === currentUser.id ||
-              !r.author ||
-              r.author === '寮生A' // 初期サンプルの互換
-          )}
+          reports={
+            shared.enabled
+              ? reports
+              : reports.filter(
+                  (r) =>
+                    r.author === currentUser.name ||
+                    (r as { authorId?: string }).authorId === currentUser.id ||
+                    !r.author ||
+                    r.author === '寮生A'
+                )
+          }
           onSubmitReport={handleSubmitReport}
           onOpenRoster={() => {}}
           onOpenInventory={() => {}}
@@ -793,6 +839,7 @@ export default function App() {
               currentUser={currentUser}
               residents={residents}
               projects={projects}
+              archiveDocs={archives}
               selectedResident={selectedResident}
               onSelectResident={(res) => {
                 setSelectedResident(res);

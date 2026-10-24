@@ -4,7 +4,14 @@ import React, { useState, useRef } from 'react';
 import { Search, Plus, ChevronRight, Camera, Edit3 } from 'lucide-react';
 import { parseUnitNumber, type ResidentRecord, type CurrentUser, type ResidentRoleKey, type ProjectRecord, type ResidentProfileUpdates, DORM_ROLES_CONFIG, getRoleBadgeInfo } from '../lib/db';
 import { getActivityHistory } from '../lib/activityHistory';
+import type { ArchiveDocItem } from '../lib/teamnoteArchives';
+import { useSharedIdeas } from '../lib/sharedIdeasContext';
 import { processAndResizeImage, playBurnImpactSound } from '../utils/avatarEffect';
+
+const DEMO_ARCHIVES: ArchiveDocItem[] = [
+  { id: '1', title: '交流イベント企画書.pdf', category: '企画書', storagePath: '', sizeBytes: 0, updatedAt: '2026-01-01', year: '2026年度', desc: '交流イベントの実施内容や改善点をまとめた資料です。' },
+  { id: '2', title: '中庭イベントの振り返り', category: '議事録', storagePath: '', sizeBytes: 0, updatedAt: '2026-01-01', year: '2026年度', desc: '中庭での映画上映イベントの実施内容や改善点をまとめた資料です。' },
+];
 
 interface RosterArchiveViewsProps {
   viewType: 'roster' | 'inventory' | 'archives' | 'profile' | 'switch_user' | 'register_user';
@@ -12,6 +19,7 @@ interface RosterArchiveViewsProps {
   allowAddResident?: boolean;
   residents: ResidentRecord[];
   projects: ProjectRecord[];
+  archiveDocs?: ArchiveDocItem[];
   selectedResident: ResidentRecord | null;
   onSelectResident: (resident: ResidentRecord) => void;
   onAddResident: (data: any) => Promise<void>;
@@ -26,6 +34,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   currentUser,
   residents,
   projects,
+  archiveDocs,
   selectedResident,
   onSelectResident,
   onAddResident,
@@ -33,6 +42,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   onRegisterUser,
   onUpdateResident
 }) => {
+  const shared = useSharedIdeas();
   // S25/S26 部屋割り・一覧切り替え
   const [rosterTab, setRosterTab] = useScreenState<'units' | 'list'>(`roster:${currentUser.id}:rosterTab`, 'units', false);
   const [selectedBuilding, setSelectedBuilding] = useScreenState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>(`roster:${currentUser.id}:selectedBuilding`, 'rosemary', false);
@@ -48,7 +58,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   const [newResRole, setNewResRole] = useScreenState(`roster:${currentUser.id}:newResRole`, '一般寮生', false);
 
   // S30 年度別資料ステート
-  const [archiveYear, setArchiveYear] = useState('2026年度');
+  const [archiveYear, setArchiveYear] = useState('すべて');
   const [archiveSearch, setArchiveSearch] = useState('');
 
   // S31/S32 利用者登録ステート
@@ -138,10 +148,15 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   // S30: 年度別資料
   // ============================================================
   if (viewType === 'archives') {
-    const archiveDocs = [
-      { id: '1', title: '交流イベント企画書.pdf', year: '2026年度', type: '企画書', desc: '交流イベントの実施内容や改善点をまとめた資料です。' },
-      { id: '2', title: '中庭イベントの振り返り', year: '2026年度', type: '議事録', desc: '中庭での映画上映イベントの実施内容や改善点をまとめた資料です。' }
-    ];
+    const docs = shared.enabled ? (archiveDocs ?? []) : (archiveDocs && archiveDocs.length > 0 ? archiveDocs : DEMO_ARCHIVES);
+    const years = Array.from(new Set(docs.map((d) => d.year))).sort().reverse();
+    const yearOptions = years.length ? years : ['2026年度', '2025年度'];
+    const q = archiveSearch.trim().toLowerCase();
+    const filtered = docs.filter((doc) => {
+      const matchYear = !archiveYear || archiveYear === 'すべて' || doc.year === archiveYear;
+      const matchQ = !q || `${doc.title} ${doc.category} ${doc.desc}`.toLowerCase().includes(q);
+      return matchYear && matchQ;
+    });
 
     return (
       <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -157,8 +172,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             onChange={(e) => setArchiveYear(e.target.value)}
             style={{ padding: '10px 14px', borderRadius: 8, border: "1px solid var(--glass-border)", backgroundColor: "var(--glass-panel)", fontWeight: 700 }}
           >
-            <option value="2026年度">2026年度</option>
-            <option value="2025年度">2025年度</option>
+            <option value="すべて">すべて</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
           </select>
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, backgroundColor: "var(--glass-panel)", border: "1px solid var(--glass-border)", borderRadius: 8, padding: '10px 14px' }}>
             <Search size={18} color="#596273" />
@@ -173,7 +190,10 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {archiveDocs.map((doc) => (
+          {filtered.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--glass-muted)', margin: 0 }}>該当する資料はまだありません。</p>
+          )}
+          {filtered.map((doc) => (
             <div className="glass-panel"
               key={doc.id}
               style={{
@@ -188,7 +208,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <strong style={{ fontSize: 15, color: "var(--glass-ink)" }}>{doc.title}</strong>
-                <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>{doc.year} {doc.type}</span>
+                <span style={{ fontSize: 12, color: "var(--glass-muted)" }}>{doc.year} {doc.category}</span>
               </div>
               <p style={{ fontSize: 13, color: "var(--glass-muted)", margin: 0, lineHeight: 1.5 }}>
                 {doc.desc}
