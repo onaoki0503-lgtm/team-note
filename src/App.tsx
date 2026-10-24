@@ -5,6 +5,7 @@ import { useNavigation, useScreenState } from './lib/navigation';
 import { ScreenLoadingBoundary } from './components/ScreenLoading';
 import { useIdeaBoardSync } from './lib/useIdeaBoardSync';
 import { useSharedIdeas } from './lib/sharedIdeasContext';
+import { buildProposalSummary, createTeamnoteProject, listTeamnoteProjects } from './lib/teamnoteProjects';
 import { SharedProfile } from './components/SharedProfile';
 import { AppShell, type MainNavDestination } from './components/AppShell';
 import { VillageScene } from './components/VillageScene';
@@ -76,49 +77,59 @@ export default function App() {
   const currentUser = shared.profile || localUser;
 
   const initialUser = useRef(currentUser);
-  // 初回データ読み込み
+  // 初回データ読み込み — cloud: projects from tn_list_projects (same DB as mobile)
   useEffect(() => {
     const currentUser = initialUser.current;
     const init = async () => {
       try {
-        const loadedProjects = await dbService.getProjects();
-        if (loadedProjects && loadedProjects.length > 0) {
-          setProjects(loadedProjects);
-        }
-        const loadedResidents = await dbService.getResidents();
-        if (loadedResidents && loadedResidents.length > 0) {
-          setResidents(loadedResidents);
-          // ログインユーザー情報と名簿の最新アバター・役職を完全同期
-          const matched = loadedResidents.find(
-            (r) => r.id === currentUser.id || r.name === currentUser.name
-          );
-          if (matched && !shared.enabled) {
-            const syncedUser: CurrentUser = {
-              ...currentUser,
-              id: matched.id,
-              name: matched.name,
-              avatar: matched.avatar || currentUser.avatar,
-              role: matched.role || currentUser.role,
-              building: matched.building || currentUser.building,
-              unit: matched.unit || currentUser.unit
-            };
-            setCurrentUser(syncedUser);
-            dbService.setCurrentUser(syncedUser);
+        if (shared.enabled) {
+          try {
+            setProjects(await listTeamnoteProjects());
+          } catch (err) {
+            console.warn('Cloud projects load failed:', err);
+            setProjects([]);
+          }
+        } else {
+          const loadedProjects = await dbService.getProjects();
+          if (loadedProjects && loadedProjects.length > 0) {
+            setProjects(loadedProjects);
           }
         }
-        const loadedReports = await dbService.getWorkReports();
-        if (loadedReports && loadedReports.length > 0) {
-          setReports(
-            loadedReports.map((r) => ({
-              id: r.id,
-              title: r.title,
-              activityType: r.activityType || (r.type === 'cleaning' ? 'inherent' : r.type === 'facility' ? 'common' : 'inherent'),
-              content: r.content,
-              author: r.reporter,
-              date: r.reportDate || r.submittedAt,
-              actionResult: r.actionResult, entryUnit: r.entryUnit, entryPurpose: r.entryPurpose
-            }))
-          );
+        if (!shared.enabled) {
+          const loadedResidents = await dbService.getResidents();
+          if (loadedResidents && loadedResidents.length > 0) {
+            setResidents(loadedResidents);
+            const matched = loadedResidents.find(
+              (r) => r.id === currentUser.id || r.name === currentUser.name
+            );
+            if (matched) {
+              const syncedUser: CurrentUser = {
+                ...currentUser,
+                id: matched.id,
+                name: matched.name,
+                avatar: matched.avatar || currentUser.avatar,
+                role: matched.role || currentUser.role,
+                building: matched.building || currentUser.building,
+                unit: matched.unit || currentUser.unit
+              };
+              setCurrentUser(syncedUser);
+              dbService.setCurrentUser(syncedUser);
+            }
+          }
+          const loadedReports = await dbService.getWorkReports();
+          if (loadedReports && loadedReports.length > 0) {
+            setReports(
+              loadedReports.map((r) => ({
+                id: r.id,
+                title: r.title,
+                activityType: r.activityType || (r.type === 'cleaning' ? 'inherent' : r.type === 'facility' ? 'common' : 'inherent'),
+                content: r.content,
+                author: r.reporter,
+                date: r.reportDate || r.submittedAt,
+                actionResult: r.actionResult, entryUnit: r.entryUnit, entryPurpose: r.entryPurpose
+              }))
+            );
+          }
         }
       } catch (err) {
         console.warn('Init data notice:', err);
@@ -230,6 +241,46 @@ export default function App() {
     _nodes: { id: string; label: string; category: string }[]
   ) => {
     const isOp = draft.projectType === 'operation';
+    const proposalPayload = draft.proposalDocument
+      ? {
+          projectType: draft.projectType,
+          title: draft.proposalDocument.title || draft.title,
+          objective: draft.proposalDocument.objective || draft.content,
+          proposalOverview: draft.proposalDocument.proposalOverview || draft.content,
+          background: draft.proposalDocument.background || draft.content,
+          recipient: draft.proposalDocument.submittedTo,
+          submissionDate: draft.proposalDocument.submittedDate,
+          budget: draft.proposalDocument.totalCostEstimate,
+          category: isOp ? '施設・日常' : 'イベント',
+          ownerName: currentUser.name,
+          nextAction: isOp ? '課題を調べる' : '企画の内容を確認する',
+        }
+      : {
+          projectType: draft.projectType,
+          title: draft.title,
+          objective: draft.content,
+          proposalOverview: draft.content,
+          background: draft.content,
+          category: isOp ? '施設・日常' : 'イベント',
+          ownerName: currentUser.name,
+          nextAction: isOp ? '課題を調べる' : '企画の内容を確認する',
+        };
+
+    if (shared.enabled) {
+      try {
+        const list = await createTeamnoteProject(draft.title, buildProposalSummary(proposalPayload));
+        setProjects(list);
+        const created = list.find((p) => p.title === draft.title) || list[0];
+        setIdeaFlowMode('home');
+        setActiveStepView(null);
+        setSelectedProjectId(created?.id ?? null);
+        setActiveTab('progress');
+      } catch (err) {
+        console.warn('Cloud create project failed:', err);
+      }
+      return;
+    }
+
     const newProject: ProjectRecord = {
       id: `pj-${Date.now()}`,
       title: draft.title,
@@ -310,18 +361,43 @@ export default function App() {
     const saved = await dbService.addProject(newProject as any);
     setProjects(previous => [saved, ...previous]);
 
-    // 作成後はプロジェクト詳細へ遷移
     setIdeaFlowMode('home');
     setActiveStepView(null);
     setSelectedProjectId(saved.id);
     setActiveTab('progress');
   };
 
-  // 参加トグル
+  // 参加トグル（cloud は join RPC 未提供のためローカル表示のみ）
   const handleToggleJoin = async (projectId: string) => {
     const target = projects.find((p) => p.id === projectId);
     if (!target) return;
     const isJoined = target.members && target.members.some((m) => m.residentId === currentUser.id);
+
+    if (shared.enabled) {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== projectId) return p;
+          if (isJoined) {
+            return { ...p, members: (p.members || []).filter((m) => m.residentId !== currentUser.id) };
+          }
+          return {
+            ...p,
+            members: [
+              ...(p.members || []),
+              {
+                residentId: currentUser.id,
+                name: currentUser.name,
+                avatar: currentUser.avatar,
+                role: currentUser.role,
+                building: currentUser.building,
+                joinedAt: new Date().toISOString().slice(0, 10),
+              },
+            ],
+          };
+        })
+      );
+      return;
+    }
 
     if (isJoined) {
       const updated = await dbService.leaveProject(projectId, currentUser.id);
@@ -571,18 +647,22 @@ export default function App() {
               stepTitle={activeStepView.stepTitle}
               currentUser={currentUser}
               onSaveMinutes={async (note) => {
-                const currentNotes = selectedProject.meetingNotes || [];
-                const updatedNotes = [note, ...currentNotes];
+                const updatedNotes = [note, ...(selectedProject.meetingNotes || [])];
+                if (shared.enabled) {
+                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, meetingNotes: updatedNotes } : p)));
+                  return;
+                }
                 await dbService.updateProject(selectedProject.id, { meetingNotes: updatedNotes });
-                const updatedProjects = await dbService.getProjects();
-                setProjects(updatedProjects);
+                setProjects(await dbService.getProjects());
               }}
               onSaveEvaluation={async (ev) => {
-                const currentEvals = selectedProject.evaluations || [];
-                const updatedEvals = [ev, ...currentEvals];
+                const updatedEvals = [ev, ...(selectedProject.evaluations || [])];
+                if (shared.enabled) {
+                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, evaluations: updatedEvals } : p)));
+                  return;
+                }
                 await dbService.updateProject(selectedProject.id, { evaluations: updatedEvals });
-                const updatedProjects = await dbService.getProjects();
-                setProjects(updatedProjects);
+                setProjects(await dbService.getProjects());
               }}
             />
           ) : selectedProject ? (
@@ -604,20 +684,33 @@ export default function App() {
                   building: r.building,
                   joinedAt: new Date().toISOString()
                 };
-                const refreshed = await dbService.addStaffMemberToProject(selectedProject.id, newMember);
-                setProjects(refreshed);
+                if (shared.enabled) {
+                  setProjects((prev) =>
+                    prev.map((p) =>
+                      p.id === selectedProject.id ? { ...p, members: [...(p.members || []), newMember] } : p
+                    )
+                  );
+                  return;
+                }
+                setProjects(await dbService.addStaffMemberToProject(selectedProject.id, newMember));
               }}
               onAddGroup={async (name, leader, goal, deadline) => {
                 const newGrp = { id: `grp-${Date.now()}`, name, glName: leader, milestoneTitle: goal, milestoneDeadline: deadline };
                 const updated = [...(selectedProject.groups || []), newGrp];
+                if (shared.enabled) {
+                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, groups: updated } : p)));
+                  return;
+                }
                 await dbService.updateProject(selectedProject.id, { groups: updated });
-                const refreshed = await dbService.getProjects();
-                setProjects(refreshed);
+                setProjects(await dbService.getProjects());
               }}
               onUpdateProposal={async (doc) => {
+                if (shared.enabled) {
+                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, proposalDoc: doc } : p)));
+                  return;
+                }
                 await dbService.updateProject(selectedProject.id, { proposalDoc: doc });
-                const refreshed = await dbService.getProjects();
-                setProjects(refreshed);
+                setProjects(await dbService.getProjects());
               }}
               onAddStepItem={async (name, dateRange) => {
                 const currentSteps = selectedProject.workflowSteps || [];
@@ -630,9 +723,12 @@ export default function App() {
                   active: false
                 };
                 const updated = [...currentSteps, newStep];
+                if (shared.enabled) {
+                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, workflowSteps: updated } : p)));
+                  return;
+                }
                 await dbService.updateProject(selectedProject.id, { workflowSteps: updated });
-                const refreshed = await dbService.getProjects();
-                setProjects(refreshed);
+                setProjects(await dbService.getProjects());
               }}
               allResidents={residents}
             />

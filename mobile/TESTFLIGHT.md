@@ -1,39 +1,56 @@
 # TestFlight checklist (Team Note)
 
-Bundle ID (current scaffold): `com.teamnote.teamNoteMobile`  
-Display name: **チームノート**
+Bundle ID: `com.teamnote.teamNoteMobile`  
+Display name: **チームノート**  
+Apple signing Team ID: **`T885499W8E`**  
+(In Xcode, pick the team that shows this ID — e.g. `Name (T885499W8E)`. Not a personal team.)
 
-## One-time Apple setup
+---
 
-1. App Store Connect → new app (iOS) with the bundle ID above (or change ID in Xcode to match an existing App ID).
-2. Xcode → `ios/Runner.xcworkspace` → Signing & Capabilities → Team (Alan / owner).
-3. Bump version in `pubspec.yaml` (`0.1.0+1` → build number `+2`, `+3`, …) before each upload.
+## One-time setup (Naoki’s Mac)
 
-## Build & upload
+1. Install **Xcode** (Mac App Store) → open once → accept license  
+2. Install **Flutter** (if not already)  
+3. Install **Transporter** (Mac App Store)  
+4. Signing (once): open `mobile/ios/Runner.xcworkspace` in Xcode → **Signing & Capabilities** →  
+   - Team = the one with ID **`T885499W8E`**  
+   - Automatically manage signing = on  
+   - Quit Xcode  
+
+Sign in to Xcode / Transporter with the Apple ID invited to App Store Connect (**Developer** + Certificates access).
+
+---
+
+## Each TestFlight upload
+
+1. Bump build number in `pubspec.yaml` (e.g. `0.1.7+9` → `0.1.7+10`)  
+2. Build:
 
 ```bash
 cd mobile
 flutter pub get
-flutter build ipa --release \
-  --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-  --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+flutter build ipa --release
 ```
 
-Upload the IPA via **Transporter** or:
+3. **Transporter** (after the build, the IPA is sent into Transporter for you):
+   1. Open **Transporter** (sign in with the invited Apple ID if asked)
+   2. Confirm **チームノート** / the new build is listed
+   3. Click **Deliver**
+   4. Wait until upload succeeds (do not quit mid-upload)
+4. [App Store Connect](https://appstoreconnect.apple.com) → **Apps** → **チームノート** → **TestFlight**  
+   - Wait until the new build appears (often 10–30 minutes)  
+   - If asked about encryption: choose **No** (non-exempt encryption not used)  
+5. iPhone → open the **TestFlight** app → install / update **チームノート**
 
-```bash
-xcrun altool --upload-app --type ios -f build/ios/ipa/*.ipa \
-  --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
-```
+---
 
-## Internal testing
+## Smoke test
 
-1. App Store Connect → TestFlight → add Alan + owner as internal testers.
-2. Install TestFlight on devices, accept invite.
-3. Smoke: login (or demo) → 4 tabs → camera / file / location on はたらく → profile photo.
+Login → 4 tabs → camera / file / location on はたらく → profile photo.
 
 ## Notes
 
-- Encryption export compliance: `ITSAppUsesNonExemptEncryption = false` is set in Info.plist.
-- Auth deep link scheme: `teamnote://` (add matching Redirect URL in Supabase Auth).
-- Do not commit `.env.local` or anon keys into public forks if the repo visibility changes.
+- Encryption: `ITSAppUsesNonExemptEncryption = false` (already in Info.plist).  
+- Auth deep link: `teamnote://login-callback`  
+- Do not commit `.env.local` or secrets.  
+- Do not create apps, revoke, or delete certificates in the Apple portal. Only Automatic Signing for this app.  

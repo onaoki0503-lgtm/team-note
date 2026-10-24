@@ -205,7 +205,7 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({
                         flexShrink: 0
                       }}
                     >
-                      {pj.status === 'planning' ? '企画中' : pj.status === 'testing' ? '試行中' : '進行中'}
+                      {pj.status === 'planning' ? '企画中' : pj.status === 'testing' ? '試行中' : (pj.status || '進行中')}
                     </span>
                   </div>
                   {pj.description && (
