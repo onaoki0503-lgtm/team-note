@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../data/demo_roster.dart';
@@ -8,6 +7,7 @@ import '../models/models.dart';
 import '../providers/app_data_provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/tokens.dart';
+import 'profile_screen.dart';
 
 /// Matches web `parseUnitNumber` — extracts 101–404 from unit strings.
 String parseUnitNumber(String unitStr) {
@@ -71,7 +71,7 @@ class _RosterScreenState extends State<RosterScreen> {
     final mine = auth.profile != null &&
         (r.id == auth.profile!.id || r.name == auth.profile!.name);
     if (mine) {
-      context.push('/profile');
+      ProfileScreen.showAsSheet(context);
     } else {
       _showResident(context, r);
     }

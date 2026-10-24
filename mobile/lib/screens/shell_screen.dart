@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_data_provider.dart';
@@ -7,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../theme/tokens.dart';
 import 'archive_screen.dart';
 import 'ideas_screen.dart';
+import 'profile_screen.dart';
 import 'projects_screen.dart';
 import 'work_screen.dart';
 
@@ -92,7 +92,7 @@ class _ShellScreenState extends State<ShellScreen> {
         actions: [
           IconButton(
             tooltip: 'プロフィール',
-            onPressed: () => context.push('/profile'),
+            onPressed: () => ProfileScreen.showAsSheet(context),
             icon: CircleAvatar(
               radius: 16,
               backgroundColor: TnTokens.bgTint,

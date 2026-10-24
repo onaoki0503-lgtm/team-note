@@ -11,9 +11,32 @@ import '../providers/auth_provider.dart';
 import '../services/media_service.dart';
 import '../theme/tokens.dart';
 
-/// Full profile — mirrors web SharedProfile + RosterArchiveViews S28 fields
+/// Full profile — mirrors web SharedProfile + RosterArchiveViews S28 fields.
+/// Prefer [showAsSheet] from the shell / meibo so presentation matches other pull-up cards.
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.asSheet = false});
+
+  /// When true, omit Scaffold/AppBar and fit inside a modal bottom sheet.
+  final bool asSheet;
+
+  /// Same pull-up card chrome as meibo resident profiles.
+  static Future<void> showAsSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: TnTokens.bgMain,
+      builder: (ctx) {
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.70;
+        return SizedBox(
+          width: double.infinity,
+          height: maxH,
+          child: const ProfileScreen(asSheet: true),
+        );
+      },
+    );
+  }
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -92,6 +115,130 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final p = auth.profile;
     final badge = roleBadgeInfo(p?.role);
     final history = getActivityHistory(data.projects, p?.id ?? '');
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    final body = p == null
+        ? const Center(child: Text('未参加'))
+        : ListView(
+            padding: EdgeInsets.fromLTRB(16, widget.asSheet ? 0 : 8, 16, bottom + 20),
+            children: [
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _editing ? _editForm(auth, p) : _view(p, badge),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('活動履歴', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'スタッフ加入・担当の記録から自動表示',
+                        style: TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                      ),
+                      const SizedBox(height: 12),
+                      if (history.isEmpty)
+                        const Text(
+                          'スタッフとして参加した企画はまだありません。',
+                          style: TextStyle(color: TnTokens.textMuted, fontSize: 13),
+                        )
+                      else
+                        ...history.map(
+                          (item) => Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: TnTokens.bgTint.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.projectTitle,
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  item.groupName == null || item.groupName!.isEmpty
+                                      ? item.role
+                                      : '${item.role}・${item.groupName}',
+                                  style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${item.period} ・ ${item.status}',
+                                  style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                margin: EdgeInsets.zero,
+                color: TnTokens.bgTint.withValues(alpha: 0.35),
+                child: const ListTile(
+                  leading: Icon(Icons.visibility_off_outlined, size: 20),
+                  title: Text(
+                    '関係者のみ閲覧できます',
+                    style: TextStyle(fontSize: 13, color: TnTokens.textMuted),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton(
+                onPressed: auth.busy
+                    ? null
+                    : () async {
+                        await auth.signOut();
+                        if (context.mounted) {
+                          Navigator.of(context).popUntil((r) => r.isFirst);
+                        }
+                      },
+                child: const Text('ログアウト'),
+              ),
+            ],
+          );
+
+    if (widget.asSheet) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'プロフィール',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (p != null && !_editing)
+                  TextButton(
+                    onPressed: () => _startEdit(p),
+                    child: const Text('プロフィールを編集'),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(child: body),
+        ],
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -101,89 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             TextButton(onPressed: () => _startEdit(p), child: const Text('プロフィールを編集')),
         ],
       ),
-      body: p == null
-          ? const Center(child: Text('未参加'))
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: _editing ? _editForm(auth, p) : _view(p, badge),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('活動履歴', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 4),
-                        const Text('スタッフ加入・担当の記録から自動表示',
-                            style: TextStyle(fontSize: 12, color: TnTokens.textMuted)),
-                        const SizedBox(height: 12),
-                        if (history.isEmpty)
-                          const Text('スタッフとして参加した企画はまだありません。',
-                              style: TextStyle(color: TnTokens.textMuted, fontSize: 13))
-                        else
-                          ...history.map(
-                            (item) => Container(
-                              width: double.infinity,
-                              margin: const EdgeInsets.only(bottom: 10),
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: TnTokens.bgTint.withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(item.projectTitle,
-                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    item.groupName == null || item.groupName!.isEmpty
-                                        ? item.role
-                                        : '${item.role}・${item.groupName}',
-                                    style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${item.period} ・ ${item.status}',
-                                    style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  color: TnTokens.bgTint.withValues(alpha: 0.35),
-                  child: const ListTile(
-                    leading: Icon(Icons.visibility_off_outlined, size: 20),
-                    title: Text('関係者のみ閲覧できます', style: TextStyle(fontSize: 13, color: TnTokens.textMuted)),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                OutlinedButton(
-                  onPressed: auth.busy
-                      ? null
-                      : () async {
-                          await auth.signOut();
-                          if (context.mounted) {
-                            Navigator.of(context).popUntil((r) => r.isFirst);
-                          }
-                        },
-                  child: const Text('ログアウト'),
-                ),
-              ],
-            ),
+      body: body,
     );
   }
 
@@ -306,7 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Row(
           children: [
             Expanded(
-              child:                 DropdownButtonFormField<String>(
+              child: DropdownButtonFormField<String>(
                 initialValue: _building,
                 decoration: const InputDecoration(labelText: '棟（任意）'),
                 items: [
