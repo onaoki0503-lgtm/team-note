@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+
 class MemberProfile {
   MemberProfile({
     required this.id,
@@ -159,6 +163,61 @@ class ProjectItem {
   final int memberCount;
   final String ownerName;
   final String ownerId;
+
+  /// Parsed from `PROPOSAL_JSON:…` summary when present.
+  Map<String, dynamic>? get proposalDoc {
+    if (!summary.startsWith('PROPOSAL_JSON:')) return null;
+    try {
+      return jsonDecode(summary.substring('PROPOSAL_JSON:'.length)) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// event | operation — mirrors web ProjectDetailView / ProjectListView.
+  String get projectType {
+    final doc = proposalDoc;
+    if (doc != null && doc['projectType'] == 'event') return 'event';
+    return 'operation';
+  }
+
+  bool get isEvent => projectType == 'event';
+
+  Color get accentColor =>
+      isEvent ? const Color(0xFFFF6B68) : const Color(0xFF12BDE8);
+
+  String get bannerAsset => isEvent
+      ? 'assets/banners/courtyard_monochrome.png'
+      : 'assets/banners/commons_monochrome.png';
+
+  String get statusLabel {
+    switch (status) {
+      case 'planning':
+        return '企画中';
+      case 'testing':
+        return '試行中';
+      case '進行中':
+      case 'active':
+        return '進行中';
+      default:
+        return status.isEmpty ? '進行中' : status;
+    }
+  }
+
+  /// Short description for list / hero subtitle (not the raw PROPOSAL_JSON blob).
+  String get descriptionPreview {
+    final doc = proposalDoc;
+    if (doc != null) {
+      for (final key in ['objective', 'proposalOverview', 'background']) {
+        final v = '${doc[key] ?? ''}'.trim();
+        if (v.isNotEmpty) return v;
+      }
+      return '寮生同士のアイデアを形にするプロジェクトです';
+    }
+    final s = summary.trim();
+    if (s.isEmpty || s == '—') return '寮生同士のアイデアを形にするプロジェクトです';
+    return s;
+  }
 
   factory ProjectItem.fromJson(Map<String, dynamic> m) => ProjectItem(
         id: '${m['id']}',
