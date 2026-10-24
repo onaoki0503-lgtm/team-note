@@ -20,7 +20,10 @@ const outlines = [
   'M22 15Q32 0 56 6L151 10Q171 11 171 31L177 75Q178 96 151 99L133 99L143 117L115 100L28 105Q8 105 7 84L3 38Q1 19 22 15Z',
   'M43 5C83-7 160 2 173 39C186 78 149 106 110 100L87 118L88 101C49 112 6 92 4 65C-6 36 13 13 43 5Z'
 ];
+const tones = ['coral', 'blue', 'gold', 'green', 'violet', 'cyan'] as const;
+type BubbleTone = typeof tones[number];
 function hashId(id: string) { return [...id].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7); }
+function toneOf(id: string): BubbleTone { return tones[hashId(id) % tones.length]; }
 function variation(id: string): CSSProperties {
   const hash = hashId(id);
   return { '--drift': `${9 + hash % 5}s`, '--delay': `${-(hash % 110) / 10}s`, '--float-x-request': `${5 + hash % 3}`, '--float-y-request': `${6 + hash % 4}`, '--bubble-width': `${82 + hash % 10}%`, '--bubble-height': `${80 + (hash >> 4) % 10}%` } as CSSProperties;
@@ -35,7 +38,8 @@ const currentLayout = (): Layout => innerHeight <= 520 && innerWidth > innerHeig
 
 function Bubble({ idea, popping, onPopEnd, onOpen }: { idea: IdeaItem; popping: boolean; onPopEnd: () => void; onOpen: (trigger: HTMLButtonElement) => void }) {
   const shape = hashId(idea.id) % outlines.length;
-  return <article className={`idea-card idea-card--shape-${shape} ${idea.isNew ? 'idea-card--new' : ''} ${popping ? 'is-popping' : ''}`} data-idea-id={idea.id} data-pop-active={popping} data-shape={shape} style={variation(idea.id)} onPointerEnter={() => { if (popping) onPopEnd(); }} onFocusCapture={() => { if (popping) onPopEnd(); }} onAnimationEnd={event => { if (event.animationName === 'bubble-pop') onPopEnd(); }}>
+  const tone = toneOf(idea.id);
+  return <article className={`idea-card idea-card--shape-${shape} idea-card--tone-${tone} ${idea.isNew ? 'idea-card--new' : ''} ${popping ? 'is-popping' : ''}`} data-idea-id={idea.id} data-pop-active={popping} data-shape={shape} data-tone={tone} style={variation(idea.id)} onPointerEnter={() => { if (popping) onPopEnd(); }} onFocusCapture={() => { if (popping) onPopEnd(); }} onAnimationEnd={event => { if (event.animationName === 'bubble-pop') onPopEnd(); }}>
     <svg className="idea-bubble-outline" viewBox="0 0 180 120" preserveAspectRatio="none" aria-hidden="true"><path d={outlines[shape]} /></svg>
     <button type="button" className="glass-button idea-card-text" onClick={event => onOpen(event.currentTarget)} aria-label={idea.text} title={idea.text}><span className="idea-bubble-excerpt">{idea.text}</span><span className="idea-bubble-reactions" aria-hidden="true"><Heart size={10} />{idea.likes > 0 ? idea.likes : ''}</span></button>
   </article>;
@@ -43,15 +47,16 @@ function Bubble({ idea, popping, onPopEnd, onOpen }: { idea: IdeaItem; popping: 
 function IdeaPreview({ idea, userId, onClose, onOpen, onLike, onDelete }: { idea: IdeaItem; userId: string; onClose: () => void; onOpen: () => void; onLike: () => void; onDelete: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const tone = toneOf(idea.id);
   useEffect(() => { const dialog = ref.current!; dialog.showModal(); return () => dialog.close(); }, []);
   const finish = (action: () => void) => { ref.current?.close(); action(); };
   const liked = idea.likedUserIds?.includes(userId);
-  return <dialog ref={ref} className="idea-preview glass-panel" aria-label="アイデアの詳細" onCancel={event => { event.preventDefault(); finish(onClose); }}>
-    <div className="idea-preview-heading"><span>{idea.authorName || 'アイデア'}</span><button type="button" className="glass-icon-button" aria-label="アイデアの詳細を閉じる" onClick={() => finish(onClose)} autoFocus><X size={20} /></button></div>
+  return <dialog ref={ref} className={`idea-preview glass-panel idea-preview--tone-${tone}`} aria-label="アイデアの詳細" onCancel={event => { event.preventDefault(); finish(onClose); }}>
+    <div className="idea-preview-heading"><span className="idea-preview-author">{idea.authorName || 'アイデア'}</span><button type="button" className="glass-icon-button" aria-label="アイデアの詳細を閉じる" onClick={() => finish(onClose)} autoFocus><X size={20} /></button></div>
     <p className="idea-preview-text">{idea.text}</p>
     <div className="idea-preview-actions"><button type="button" className={`glass-button idea-heart ${liked ? 'is-liked' : ''}`} aria-label={`いいね ${idea.likes}件`} aria-pressed={!!liked} onClick={onLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} />{idea.likes}</button>
-      {idea.authorId === userId && <button type="button" className="glass-icon-button" aria-label="アイデアのメニュー" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><MoreHorizontal size={20} /></button>}
-      <button type="button" className="glass-primary" onClick={() => finish(onOpen)}>企画にする<ArrowRight size={16} /></button></div>
+      {idea.authorId === userId && <button type="button" className="glass-icon-button" aria-label="アイデアのメニュー" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><MoreHorizontal size={20} /></button>}</div>
+    <div className="idea-preview-cta"><p>このつぶやきをもとに企画書をつくります</p><button type="button" className="glass-primary idea-preview-make" onClick={() => finish(onOpen)}>企画にする<ArrowRight size={16} /></button></div>
     {menuOpen && <div className="idea-preview-delete"><span>このアイデアを削除しますか</span><button type="button" className="glass-secondary" onClick={() => finish(onDelete)}><Trash2 size={14} />削除する</button><button type="button" className="glass-secondary" onClick={() => setMenuOpen(false)}>閉じる</button></div>}
   </dialog>;
 }

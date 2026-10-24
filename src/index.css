@@ -277,12 +277,15 @@ button:disabled { cursor: default; }
 .idea-layer { position: relative; flex: 1; display: flex; flex-direction: column; z-index: 10; pointer-events: none; }
 .idea-board { position: relative; flex: 1; display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto minmax(168px, 1fr) auto; gap: 10px 18px; max-width: 1060px; margin: 8px auto 12px; }
 .idea-slot { min-width: 0; display: flex; align-items: center; justify-content: center; }
-.idea-card { --bubble-bg: #fff4ef; --bubble-border: #efb6a8; --bubble-ink: #8c4035; position: relative; width: 100%; max-width: 210px; padding: 9px 11px 5px; background: var(--bubble-bg); border: 1.5px solid var(--bubble-border); border-radius: 23px 25px 22px 8px; box-shadow: 0 8px 24px #25253d12, inset 0 1px 0 #ffffff; pointer-events: auto; rotate: var(--tilt); animation: card-arrive 420ms cubic-bezier(.2,.8,.2,1) both, card-float var(--drift) ease-in-out 450ms infinite; }
+.idea-card { --bubble-bg: #fff1ea; --bubble-border: #f0b089; --bubble-ink: #9a4e1f; position: relative; width: 100%; max-width: 210px; padding: 9px 11px 5px; background: var(--bubble-bg); border: 1.5px solid var(--bubble-border); border-radius: 23px 25px 22px 8px; box-shadow: 0 8px 24px #25253d12, inset 0 1px 0 #ffffff; pointer-events: auto; rotate: var(--tilt); animation: card-arrive 420ms cubic-bezier(.2,.8,.2,1) both, card-float var(--drift) ease-in-out 450ms infinite; }
 .idea-card::after { content: ''; position: absolute; bottom: -7px; left: 23px; width: 13px; height: 13px; background: var(--bubble-bg); border-bottom: 1.5px solid var(--bubble-border); border-right: 1.5px solid var(--bubble-border); transform: skew(-18deg) rotate(38deg); border-radius: 0 0 4px 0; }
-.idea-card--cyan { --bubble-bg: #edfafc; --bubble-border: #9bd8e2; --bubble-ink: #276270; border-radius: 25px 21px 9px 24px; }
-.idea-card--yellow { --bubble-bg: #fff9e9; --bubble-border: #e9cf8e; --bubble-ink: #785c20; border-radius: 22px 27px 23px 10px; }
-.idea-card--violet { --bubble-bg: #f6f0ff; --bubble-border: #d2b9f0; --bubble-ink: #6b4591; border-radius: 25px 19px 10px 24px; }
-.idea-card--cyan::after, .idea-card--violet::after { left: auto; right: 23px; }
+.idea-card--tone-coral, .idea-card--cyan { --bubble-bg: #fff1ea; --bubble-border: #f0b089; --bubble-ink: #9a4e1f; border-radius: 23px 25px 22px 8px; }
+.idea-card--tone-blue { --bubble-bg: #eef6ff; --bubble-border: #9fc0ea; --bubble-ink: #2a5688; border-radius: 25px 21px 9px 24px; }
+.idea-card--tone-gold, .idea-card--yellow { --bubble-bg: #fff8e8; --bubble-border: #e4c878; --bubble-ink: #785c20; border-radius: 22px 27px 23px 10px; }
+.idea-card--tone-green { --bubble-bg: #eefaf3; --bubble-border: #8dceb0; --bubble-ink: #1f6e4b; border-radius: 24px 22px 10px 24px; }
+.idea-card--tone-violet, .idea-card--violet { --bubble-bg: #f5f0ff; --bubble-border: #cbb6ec; --bubble-ink: #5f458f; border-radius: 25px 19px 10px 24px; }
+.idea-card--tone-cyan { --bubble-bg: #edfafc; --bubble-border: #9bd8e2; --bubble-ink: #276270; border-radius: 25px 21px 9px 24px; }
+.idea-card--tone-blue::after, .idea-card--tone-violet::after, .idea-card--tone-cyan::after, .idea-card--cyan::after, .idea-card--violet::after { left: auto; right: 23px; }
 .idea-card:hover, .idea-card:focus-within { animation-play-state: paused; z-index: 3; box-shadow: 0 10px 26px #25253d20; }
 .idea-card-top { display: flex; align-items: center; justify-content: space-between; min-height: 22px; }
 .idea-card-top > span { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 700; color: var(--bubble-ink); }

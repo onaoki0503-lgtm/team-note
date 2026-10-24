@@ -94,10 +94,12 @@ class _IdeasScreenState extends State<IdeasScreen> {
   Future<void> _openIdea(IdeaItem idea) async {
     final auth = context.read<AuthProvider>();
     final data = context.read<AppDataProvider>();
+    final tone = _bubbleTone(idea.id);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: tone.sheet,
       builder: (ctx) {
         return Padding(
           padding: EdgeInsets.only(
@@ -110,13 +112,25 @@ class _IdeasScreenState extends State<IdeasScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                idea.authorName.isEmpty ? 'アイデア' : idea.authorName,
-                style: Theme.of(ctx).textTheme.titleSmall?.copyWith(color: TnTokens.textMuted),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: tone.accent, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      idea.authorName.isEmpty ? 'アイデア' : idea.authorName,
+                      style: Theme.of(ctx).textTheme.titleSmall?.copyWith(color: tone.ink),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               Text(idea.body, style: const TextStyle(fontSize: 17, height: 1.45)),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   OutlinedButton.icon(
@@ -156,17 +170,26 @@ class _IdeasScreenState extends State<IdeasScreen> {
                       icon: const Icon(Icons.delete_outline, size: 18),
                       label: const Text('削除'),
                     ),
-                  const Spacer(),
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      final q = Uri.encodeQueryComponent(idea.body);
-                      context.push('/proposal?fromIdea=$q');
-                    },
-                    icon: const Icon(Icons.arrow_forward, size: 18),
-                    label: const Text('企画にする'),
-                  ),
                 ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'このつぶやきをもとに企画書をつくります',
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: TnTokens.textMuted),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: tone.accent,
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  final q = Uri.encodeQueryComponent(idea.body);
+                  context.push('/proposal?fromIdea=$q');
+                },
+                icon: const Icon(Icons.arrow_forward, size: 18),
+                label: const Text('企画にする'),
               ),
             ],
           ),
@@ -297,6 +320,32 @@ class _IdeasScreenState extends State<IdeasScreen> {
   }
 }
 
+class _BubbleTone {
+  const _BubbleTone({required this.fill, required this.border, required this.ink, required this.accent, required this.sheet, required this.radius});
+  final Color fill;
+  final Color border;
+  final Color ink;
+  final Color accent;
+  final Color sheet;
+  final BorderRadius radius;
+}
+
+_BubbleTone _bubbleTone(String id) {
+  var hash = 7;
+  for (final unit in id.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7fffffff;
+  }
+  const tones = <_BubbleTone>[
+    _BubbleTone(fill: Color(0xFFFFF1EA), border: Color(0xFFF0B089), ink: Color(0xFF9A4E1F), accent: TnTokens.accentOrange, sheet: Color(0xFFFFF4EE), radius: BorderRadius.only(topLeft: Radius.circular(22), topRight: Radius.circular(24), bottomRight: Radius.circular(22), bottomLeft: Radius.circular(8))),
+    _BubbleTone(fill: Color(0xFFEEF6FF), border: Color(0xFF9FC0EA), ink: Color(0xFF2A5688), accent: TnTokens.accentBlue, sheet: Color(0xFFEEF6FF), radius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(20), bottomRight: Radius.circular(8), bottomLeft: Radius.circular(22))),
+    _BubbleTone(fill: Color(0xFFFFF8E8), border: Color(0xFFE4C878), ink: Color(0xFF785C20), accent: TnTokens.accentGold, sheet: Color(0xFFFFF9EA), radius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(26), bottomRight: Radius.circular(22), bottomLeft: Radius.circular(10))),
+    _BubbleTone(fill: Color(0xFFEEFAF3), border: Color(0xFF8DCEB0), ink: Color(0xFF1F6E4B), accent: TnTokens.accentGreen, sheet: Color(0xFFEEFAF3), radius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(22), bottomRight: Radius.circular(10), bottomLeft: Radius.circular(24))),
+    _BubbleTone(fill: Color(0xFFF5F0FF), border: Color(0xFFCBB6EC), ink: Color(0xFF5F458F), accent: TnTokens.accentPurple, sheet: Color(0xFFF5F0FF), radius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(18), bottomRight: Radius.circular(10), bottomLeft: Radius.circular(24))),
+    _BubbleTone(fill: Color(0xFFEDFAFC), border: Color(0xFF9BD8E2), ink: Color(0xFF276270), accent: Color(0xFF2A8F9E), sheet: Color(0xFFEEFAFC), radius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(20), bottomRight: Radius.circular(8), bottomLeft: Radius.circular(22))),
+  ];
+  return tones[hash % tones.length];
+}
+
 class _IdeaChip extends StatelessWidget {
   const _IdeaChip({required this.idea, required this.onTap, required this.onLike});
 
@@ -306,11 +355,16 @@ class _IdeaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tone = _bubbleTone(idea.id);
     return Material(
-      color: TnTokens.bgTint,
-      borderRadius: BorderRadius.circular(18),
+      color: tone.fill,
+      shape: RoundedRectangleBorder(
+        borderRadius: tone.radius,
+        side: BorderSide(color: tone.border, width: 1.5),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: tone.radius,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 10, 8),
@@ -322,7 +376,7 @@ class _IdeaChip extends StatelessWidget {
                   idea.body,
                   maxLines: 5,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(height: 1.35, fontSize: 14),
+                  style: TextStyle(height: 1.35, fontSize: 14, color: tone.ink, fontWeight: FontWeight.w600),
                 ),
               ),
               Row(
@@ -332,7 +386,7 @@ class _IdeaChip extends StatelessWidget {
                       idea.authorName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tone.ink.withValues(alpha: 0.75)),
                     ),
                   ),
                   IconButton(
@@ -341,10 +395,10 @@ class _IdeaChip extends StatelessWidget {
                     icon: Icon(
                       idea.likedByMe ? Icons.favorite : Icons.favorite_border,
                       size: 18,
-                      color: idea.likedByMe ? TnTokens.accentOrange : TnTokens.textMuted,
+                      color: idea.likedByMe ? TnTokens.accentOrange : tone.ink.withValues(alpha: 0.7),
                     ),
                   ),
-                  Text('${idea.likes}', style: Theme.of(context).textTheme.bodySmall),
+                  Text('${idea.likes}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tone.ink)),
                 ],
               ),
             ],

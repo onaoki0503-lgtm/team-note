@@ -26,7 +26,14 @@ export function IdeaFlowViews({ currentUserId, initialText, onCreateProject }: P
   const speech = useSpeechInput();
   const request = useRef<AbortController | null>(null);
   const mounted = useRef(true);
+  const seeded = useRef('');
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; request.current?.abort(); }; }, []);
+  useEffect(() => {
+    const text = initialText.trim();
+    if (!text || seeded.current === text) return;
+    seeded.current = text;
+    setForm(current => ({ ...current, proposalOverview: text }));
+  }, [initialText, setForm]);
   const invalidate = () => { request.current?.abort(); request.current = null; setDistributing(false); setCandidates([]); setSelected([]); setError(''); setNotice(''); setMissing([]); };
   const update = (key: ProposalField, value: string) => { invalidate(); setForm(current => ({ ...current, [key]: value })); };
   const updateMemo = (value: string) => { invalidate(); setMemo(value); };
