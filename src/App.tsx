@@ -161,8 +161,10 @@ export default function App() {
     }
   ];
 
+  // Cloud mode: tab 1 ideas come only from tn_get_board (same DB as mobile).
+  // Demo bubbles are local-only when ?demo=1 or env is unset.
   const localIdeas = useIdeaBoardSync(INITIAL_BUBBLE_IDEAS, !shared.enabled);
-  const bubbleIdeas = shared.board?.ideas || localIdeas.ideas;
+  const bubbleIdeas = shared.enabled ? (shared.board?.ideas ?? []) : localIdeas.ideas;
   const updateIdeas = localIdeas.update;
   const ideaSyncError = shared.enabled ? shared.error : localIdeas.error;
 
