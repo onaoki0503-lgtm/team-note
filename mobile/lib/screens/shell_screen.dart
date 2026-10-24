@@ -90,24 +90,53 @@ class _ShellScreenState extends State<ShellScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'プロフィール',
-            onPressed: () => ProfileScreen.showAsSheet(context),
-            icon: CircleAvatar(
-              radius: 16,
-              backgroundColor: TnTokens.bgTint,
-              foregroundColor: TnTokens.primary,
-              backgroundImage: auth.profile?.avatarUrl != null
-                  ? NetworkImage(auth.profile!.avatarUrl!)
-                  : null,
-              child: auth.profile?.avatarUrl == null
-                  ? Text(
-                      (auth.profile?.name.isNotEmpty == true)
-                          ? auth.profile!.name.characters.first
-                          : '?',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                    )
-                  : null,
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Tooltip(
+              message: 'プロフィール',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => ProfileScreen.showAsSheet(context),
+                  child: Ink(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: TnTokens.bgTint,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x16284262),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                      image: auth.profile?.avatarUrl != null
+                          ? DecorationImage(
+                              image: NetworkImage(auth.profile!.avatarUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: auth.profile?.avatarUrl == null
+                        ? Center(
+                            child: Text(
+                              (auth.profile?.name.isNotEmpty == true)
+                                  ? auth.profile!.name.characters.first
+                                  : '?',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: TnTokens.primary,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
