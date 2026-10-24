@@ -22,16 +22,14 @@ class TeamNoteApi {
   String get community => Environment.communityId;
 
   Future<Map<String, dynamic>?> getBoard() async {
-    final c = _c;
-    if (c == null) return null;
+    final c = _requireClient();
     final row = await c.rpc('tn_get_board', params: {'p_community': community});
     if (row is Map) return Map<String, dynamic>.from(row);
     return null;
   }
 
   Future<Map<String, dynamic>?> join(String invite, MemberProfile profile) async {
-    final c = _c;
-    if (c == null) throw StateError('Supabase未設定');
+    final c = _requireClient();
     final row = await c.rpc('tn_join_community', params: {
       'p_invite': invite,
       'p_profile': profile.toProfileJson(),
@@ -41,8 +39,7 @@ class TeamNoteApi {
   }
 
   Future<Map<String, dynamic>?> updateProfile(MemberProfile profile) async {
-    final c = _c;
-    if (c == null) return null;
+    final c = _requireClient();
     final row = await c.rpc('tn_update_profile', params: {
       'p_community': community,
       'p_profile': profile.toProfileJson(),
@@ -51,9 +48,14 @@ class TeamNoteApi {
     return null;
   }
 
-  Future<void> postIdea(String text) async {
+  SupabaseClient _requireClient() {
     final c = _c;
-    if (c == null) return;
+    if (c == null) throw StateError('Supabase未設定');
+    return c;
+  }
+
+  Future<void> postIdea(String text) async {
+    final c = _requireClient();
     await c.rpc('tn_post_idea', params: {
       'p_community': community,
       'p_id': _uuid.v4(),
@@ -62,8 +64,7 @@ class TeamNoteApi {
   }
 
   Future<void> setLike(String ideaId, bool liked) async {
-    final c = _c;
-    if (c == null) return;
+    final c = _requireClient();
     await c.rpc('tn_set_like', params: {
       'p_community': community,
       'p_id': ideaId,
@@ -71,16 +72,22 @@ class TeamNoteApi {
     });
   }
 
+  Future<void> deleteIdea(String ideaId) async {
+    final c = _requireClient();
+    await c.rpc('tn_delete_idea', params: {
+      'p_community': community,
+      'p_id': ideaId,
+    });
+  }
+
   Future<List<ProjectItem>> listProjects() async {
-    final c = _c;
-    if (c == null) return [];
+    final c = _requireClient();
     final row = await c.rpc('tn_list_projects', params: {'p_community': community});
     return _asList(row).map(ProjectItem.fromJson).toList();
   }
 
   Future<List<ProjectItem>> createProject(String title, String summary) async {
-    final c = _c;
-    if (c == null) return [];
+    final c = _requireClient();
     final row = await c.rpc('tn_create_project', params: {
       'p_community': community,
       'p_title': title,
@@ -90,8 +97,7 @@ class TeamNoteApi {
   }
 
   Future<List<Map<String, dynamic>>> listReports() async {
-    final c = _c;
-    if (c == null) return [];
+    final c = _requireClient();
     final row = await c.rpc('tn_list_reports', params: {'p_community': community});
     return _asList(row);
   }
@@ -106,8 +112,7 @@ class TeamNoteApi {
     double? lng,
     String? locationLabel,
   }) async {
-    final c = _c;
-    if (c == null) return;
+    final c = _requireClient();
     await c.rpc('tn_save_report', params: {
       'p_community': community,
       'p_title': title,
@@ -122,22 +127,19 @@ class TeamNoteApi {
   }
 
   Future<List<InventoryItem>> listInventory() async {
-    final c = _c;
-    if (c == null) return [];
+    final c = _requireClient();
     final row = await c.rpc('tn_list_inventory', params: {'p_community': community});
     return _asList(row).map(InventoryItem.fromJson).toList();
   }
 
   Future<List<ArchiveDoc>> listArchives() async {
-    final c = _c;
-    if (c == null) return [];
+    final c = _requireClient();
     final row = await c.rpc('tn_list_archives', params: {'p_community': community});
     return _asList(row).map(ArchiveDoc.fromJson).toList();
   }
 
   Future<String?> uploadAvatar(String localPath, String userId) async {
-    final c = _c;
-    if (c == null) return null;
+    final c = _requireClient();
     final bytes = await File(localPath).readAsBytes();
     final path = '$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
     await c.storage.from('tn-avatars').uploadBinary(

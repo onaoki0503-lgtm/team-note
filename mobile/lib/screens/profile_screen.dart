@@ -274,11 +274,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        TextField(controller: _name, decoration: const InputDecoration(labelText: '名前')),
+        TextField(
+          controller: _name,
+          decoration: const InputDecoration(labelText: '名前（任意）', hintText: '空ならメール名を使います'),
+        ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
           initialValue: _role,
-          decoration: const InputDecoration(labelText: '役職'),
+          decoration: const InputDecoration(labelText: '役職（任意）'),
           items: [
             for (final r in dormRoles)
               DropdownMenuItem(value: r.key, child: Text(r.title)),
@@ -294,9 +297,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Row(
           children: [
             Expanded(
-              child: DropdownButtonFormField<String>(
+              child:                 DropdownButtonFormField<String>(
                 initialValue: _building,
-                decoration: const InputDecoration(labelText: '棟'),
+                decoration: const InputDecoration(labelText: '棟（任意）'),
                 items: [
                   for (final e in MemberProfile.buildings.entries)
                     DropdownMenuItem(value: e.key, child: Text(e.value)),
@@ -308,7 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(
               child: DropdownButtonFormField<int>(
                 initialValue: _floor,
-                decoration: const InputDecoration(labelText: '階'),
+                decoration: const InputDecoration(labelText: '階（任意）'),
                 items: [for (final f in [1, 2, 3, 4]) DropdownMenuItem(value: f, child: Text('$f階'))],
                 onChanged: (v) => setState(() => _floor = v ?? 1),
               ),
@@ -316,13 +319,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        TextField(controller: _unit, decoration: const InputDecoration(labelText: '部屋番号', hintText: '301-A')),
+        TextField(
+          controller: _unit,
+          decoration: const InputDecoration(labelText: '部屋番号（任意）', hintText: '301-A'),
+        ),
         const SizedBox(height: 10),
         TextField(
           controller: _bio,
           maxLines: 4,
           maxLength: 500,
-          decoration: const InputDecoration(labelText: '自己紹介'),
+          decoration: const InputDecoration(labelText: '自己紹介（任意）'),
         ),
         if (auth.error != null) Text(auth.error!, style: const TextStyle(color: TnTokens.errorText)),
         const SizedBox(height: 12),

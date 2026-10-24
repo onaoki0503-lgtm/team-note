@@ -20,8 +20,8 @@ class ArchiveScreen extends StatelessWidget {
           icon: Icons.people_outline,
           color: TnTokens.accentBlue,
           title: '寮生名簿',
-          subtitle: '${data.inventory.isEmpty ? 'メンバー' : '名簿'}を開く',
-          onTap: () => context.push('/profile'),
+          subtitle: data.members.isEmpty ? '棟・部屋の一覧' : '${data.members.length}名が参加中',
+          onTap: () => context.push('/roster'),
         ),
         _tile(
           context,

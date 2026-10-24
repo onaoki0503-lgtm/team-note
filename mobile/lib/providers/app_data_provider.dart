@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:uuid/uuid.dart';
 
 import '../config/environment.dart';
 import '../models/models.dart';
@@ -12,9 +11,9 @@ class AppDataProvider extends ChangeNotifier {
   AppDataProvider({TeamNoteApi? api}) : _api = api ?? TeamNoteApi();
 
   final TeamNoteApi _api;
-  final _uuid = const Uuid();
 
   List<IdeaItem> ideas = [];
+  List<MemberProfile> members = [];
   List<ProjectItem> projects = [];
   List<InventoryItem> inventory = [];
   List<ArchiveDoc> archives = [];
@@ -40,17 +39,15 @@ class AppDataProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      if (Environment.demoMode) {
-        _seedDemo();
-      } else {
-        await Future.wait([
-          refreshIdeas(auth),
-          refreshProjects(),
-          refreshInventory(),
-          refreshArchives(),
-          refreshReports(),
-        ]);
-      }
+      _requireCloud();
+      await Future.wait([
+        refreshIdeas(auth),
+        refreshMembers(auth),
+        refreshProjects(),
+        refreshInventory(),
+        refreshArchives(),
+        refreshReports(),
+      ]);
     } catch (e) {
       error = '$e';
     } finally {
@@ -59,15 +56,45 @@ class AppDataProvider extends ChangeNotifier {
     }
   }
 
+  void _requireCloud() {
+    if (!Environment.isConfigured || Environment.demoMode) {
+      throw StateError('クラウド未接続です。ログインしてから操作してください。');
+    }
+  }
+
   Future<void> refreshIdeas(AuthProvider auth) async {
-    if (Environment.demoMode) return;
+    _requireCloud();
     final board = await _api.getBoard();
     if (board == null) return;
+    _applyBoardIdeas(board, auth);
+    notifyListeners();
+  }
+
+  Future<void> refreshMembers(AuthProvider auth) async {
+    _requireCloud();
+    final board = await _api.getBoard();
+    if (board == null) return;
+    _applyBoardMembers(board);
+    notifyListeners();
+  }
+
+  void _applyBoardMembers(Map<String, dynamic> board) {
+    final raw = board['members'];
+    if (raw is! List) {
+      members = [];
+      return;
+    }
+    members = [
+      for (final e in raw)
+        if (e is Map) MemberProfile.fromJson(Map<String, dynamic>.from(e)),
+    ];
+  }
+
+  void _applyBoardIdeas(Map<String, dynamic> board, AuthProvider auth) {
     final uid = '${board['userId'] ?? auth.user?.id}';
     final raw = board['ideas'];
     if (raw is! List) {
       ideas = [];
-      notifyListeners();
       return;
     }
     ideas = [
@@ -79,41 +106,36 @@ class AppDataProvider extends ChangeNotifier {
             likes: (e['likes'] as num?)?.toInt() ?? 0,
             likedByMe: (e['likedUserIds'] is List) &&
                 (e['likedUserIds'] as List).any((id) => '$id' == uid),
+            authorId: '${e['authorId'] ?? ''}',
             authorName: '${e['authorName'] ?? ''}',
             createdAt: DateTime.tryParse('${e['createdAt'] ?? ''}') ?? DateTime.now(),
           ),
     ];
-    notifyListeners();
   }
 
   Future<void> postIdea(String text, AuthProvider auth) async {
-    if (Environment.demoMode) {
-      ideas = [
-        IdeaItem(id: _uuid.v4(), body: text.trim()),
-        ...ideas,
-      ].take(12).toList();
-      notifyListeners();
-      return;
-    }
-    await _api.postIdea(text);
+    _requireCloud();
+    final err = validateIdeaText(text);
+    if (err != null) throw StateError(err);
+    await _api.postIdea(text.trim());
     await refreshIdeas(auth);
   }
 
   Future<void> toggleLike(IdeaItem item, AuthProvider auth) async {
+    _requireCloud();
     final next = !item.likedByMe;
-    if (Environment.demoMode) {
-      item.likedByMe = next;
-      item.likes += next ? 1 : -1;
-      if (item.likes < 0) item.likes = 0;
-      notifyListeners();
-      return;
-    }
     await _api.setLike(item.id, next);
     await refreshIdeas(auth);
   }
 
+  Future<void> deleteIdea(IdeaItem item, AuthProvider auth) async {
+    _requireCloud();
+    await _api.deleteIdea(item.id);
+    await refreshIdeas(auth);
+  }
+
   Future<void> refreshProjects() async {
-    if (Environment.demoMode) return;
+    _requireCloud();
     projects = await _api.listProjects();
     notifyListeners();
   }
@@ -122,7 +144,7 @@ class AppDataProvider extends ChangeNotifier {
     await createProjectFullTitle(title, summary);
   }
 
-  /// Full 企画書 — stores complete form JSON in summary for cloud/demo.
+  /// Full 企画書 — stores complete form JSON in cloud summary.
   Future<void> createProjectFull(
     dynamic form, {
     List<AttachmentPin> attachments = const [],
@@ -145,20 +167,7 @@ class AppDataProvider extends ChangeNotifier {
     String summary, {
     Map<String, dynamic>? proposalJson,
   }) async {
-    if (Environment.demoMode) {
-      projects = [
-        ProjectItem(
-          id: _uuid.v4(),
-          title: title,
-          summary: summary,
-          status: '進行中',
-          ownerName: '自分',
-        ),
-        ...projects,
-      ];
-      notifyListeners();
-      return;
-    }
+    _requireCloud();
     projects = await _api.createProject(
       title,
       proposalJson != null ? 'PROPOSAL_JSON:${jsonEncode(proposalJson)}' : summary,
@@ -167,7 +176,7 @@ class AppDataProvider extends ChangeNotifier {
   }
 
   Future<void> refreshReports() async {
-    if (Environment.demoMode) return;
+    _requireCloud();
     reports = await _api.listReports();
     notifyListeners();
   }
@@ -179,6 +188,7 @@ class AppDataProvider extends ChangeNotifier {
     required DateTime date,
     List<AttachmentPin> attachments = const [],
   }) async {
+    _requireCloud();
     double? lat;
     double? lng;
     String? locLabel;
@@ -190,20 +200,6 @@ class AppDataProvider extends ChangeNotifier {
         lng = a.lng;
         locLabel = a.label;
       }
-    }
-    if (Environment.demoMode) {
-      reports = [
-        {
-          'id': _uuid.v4(),
-          'title': title,
-          'category': category,
-          'body': body,
-          'reportDate': date.toIso8601String(),
-        },
-        ...reports,
-      ];
-      notifyListeners();
-      return;
     }
     await _api.saveReport(
       title: title,
@@ -219,13 +215,13 @@ class AppDataProvider extends ChangeNotifier {
   }
 
   Future<void> refreshInventory() async {
-    if (Environment.demoMode) return;
+    _requireCloud();
     inventory = await _api.listInventory();
     notifyListeners();
   }
 
   Future<void> refreshArchives() async {
-    if (Environment.demoMode) return;
+    _requireCloud();
     archives = await _api.listArchives();
     notifyListeners();
   }
@@ -233,20 +229,5 @@ class AppDataProvider extends ChangeNotifier {
   void setProjectFilter(String value) {
     projectFilter = value;
     notifyListeners();
-  }
-
-  void _seedDemo() {
-    if (projects.isEmpty) {
-      projects = const [
-        ProjectItem(
-          id: '1',
-          title: '共有キッチン 布巾の衛生改善',
-          summary: '布巾の運用ルールと交換頻度を見直す',
-          status: '進行中',
-          memberCount: 3,
-          ownerName: '岡本 直樹',
-        ),
-      ];
-    }
   }
 }

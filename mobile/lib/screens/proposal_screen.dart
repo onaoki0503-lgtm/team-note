@@ -15,7 +15,10 @@ import '../widgets/attach_bar.dart';
 
 /// Full 企画書作成 — same fields as web IdeaFlowViews / proposalForm.ts
 class ProposalScreen extends StatefulWidget {
-  const ProposalScreen({super.key});
+  const ProposalScreen({super.key, this.seedFromIdea});
+
+  /// Prefill 実施内容 when opened via 「企画にする」 from an idea.
+  final String? seedFromIdea;
 
   @override
   State<ProposalScreen> createState() => _ProposalScreenState();
@@ -44,6 +47,12 @@ class _ProposalScreenState extends State<ProposalScreen> {
   @override
   void initState() {
     super.initState();
+    final seed = widget.seedFromIdea?.trim();
+    if (seed != null && seed.isNotEmpty) {
+      _form = ProposalForm();
+      _form['proposalOverview'] = seed;
+      _form['title'] = seed.length > 40 ? '${seed.substring(0, 40)}…' : seed;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadDraft());
   }
 
@@ -55,6 +64,8 @@ class _ProposalScreenState extends State<ProposalScreen> {
   }
 
   Future<void> _loadDraft() async {
+    // Don't overwrite an idea seed with an older local draft.
+    if ((widget.seedFromIdea ?? '').trim().isNotEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_draftKey);
     if (raw == null) return;

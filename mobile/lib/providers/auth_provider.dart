@@ -31,18 +31,12 @@ class AuthProvider extends ChangeNotifier {
     gate = AuthGate.loading;
     notifyListeners();
 
+    // Real app only — never auto-enter as a fake "demo" user.
     if (!Environment.isConfigured) {
-      demoSession = true;
-      profile = MemberProfile(
-        id: 'demo',
-        name: 'デモ利用者',
-        role: 'HL',
-        building: 'rosemary',
-        floor: 3,
-        unit: '301-A',
-        bio: '',
-      );
-      gate = AuthGate.ready;
+      demoSession = false;
+      gate = AuthGate.error;
+      error =
+          '接続設定がありません。SUPABASE_URL / SUPABASE_ANON_KEY を入れてビルドし直してください。';
       notifyListeners();
       return;
     }
@@ -177,22 +171,36 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> joinCommunity(String invite, MemberProfile draft) async {
     await _run(() async {
-      final board = await _api.join(invite, draft);
+      if (invite.trim().isEmpty) {
+        throw StateError('参加コードを入力してください。');
+      }
+      final emailHint = user?.email?.split('@').first;
+      final normalized = draft.normalizedCopy(fallbackName: emailHint);
+      final board = await _api.join(invite.trim(), normalized);
       await _applyBoard(board);
     });
   }
 
   Future<void> saveProfile(MemberProfile next, {String? localAvatarPath}) async {
     await _run(() async {
+      final emailHint = user?.email?.split('@').first;
+      var normalized = next.normalizedCopy(fallbackName: emailHint);
       if (localAvatarPath != null && user != null) {
         final url = await _api.uploadAvatar(localAvatarPath, user!.id);
-        if (url != null) next.avatarUrl = url;
+        if (url != null) {
+          normalized = MemberProfile(
+            id: normalized.id,
+            name: normalized.name,
+            role: normalized.role,
+            building: normalized.building,
+            floor: normalized.floor,
+            unit: normalized.unit,
+            bio: normalized.bio,
+            avatarUrl: url,
+          );
+        }
       }
-      if (Environment.demoMode) {
-        profile = next;
-        return;
-      }
-      final board = await _api.updateProfile(next);
+      final board = await _api.updateProfile(normalized);
       await _applyBoard(board);
     });
   }
@@ -206,18 +214,8 @@ class AuthProvider extends ChangeNotifier {
     }
     user = null;
     profile = null;
-    demoSession = Environment.demoMode;
-    gate = Environment.demoMode ? AuthGate.ready : AuthGate.login;
-    if (demoSession) {
-      profile = MemberProfile(
-        id: 'demo',
-        name: 'デモ利用者',
-        role: 'HL',
-        building: 'rosemary',
-        floor: 3,
-        unit: '301-A',
-      );
-    }
+    demoSession = false;
+    gate = AuthGate.login;
     notifyListeners();
   }
 
@@ -251,11 +249,27 @@ class AuthProvider extends ChangeNotifier {
     } on AuthException catch (e) {
       error = e.message;
     } catch (e) {
-      error = '$e';
+      error = _friendlyError('$e');
     } finally {
       busy = false;
       notifyListeners();
     }
+  }
+
+  String _friendlyError(String raw) {
+    final m = raw.toLowerCase();
+    if (m.contains('invalid_profile') || m.contains('22023')) {
+      return '名前・役職・棟・階・部屋番号を確認してください。';
+    }
+    if (m.contains('invalid_invite')) {
+      return '参加コードを確認してください。';
+    }
+    if (m.contains('access_denied') || m.contains('42501')) {
+      return 'この操作の権限がありません。';
+    }
+    if (raw.startsWith('Bad state: ')) return raw.substring(11);
+    if (raw.startsWith('StateError: ')) return raw.substring(12);
+    return raw;
   }
 
   String _randomNonce([int length = 32]) {

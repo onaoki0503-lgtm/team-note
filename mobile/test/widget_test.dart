@@ -10,16 +10,32 @@ void main() {
   test('profile json matches web join shape', () {
     final p = MemberProfile(
       id: 'x',
-      name: '太郎',
+      name: ' 太郎 ',
       role: 'HL',
       building: 'rosemary',
       floor: 3,
-      unit: '301-A',
+      unit: ' 301-A ',
       bio: 'hello',
     );
     final j = p.toProfileJson();
+    expect(j['name'], '太郎');
     expect(j['building'], 'rosemary');
-    expect(j['floor'], '3');
+    expect(j['floor'], 3);
+    expect(j['unit'], '301-A');
     expect(j['bio'], 'hello');
+  });
+
+  test('empty profile fields get safe defaults', () {
+    final p = MemberProfile(
+      id: 'x',
+      name: '',
+      role: 'HL',
+      building: 'rosemary',
+      floor: 3,
+      unit: '',
+    );
+    final j = p.normalizedCopy(fallbackName: 'alan').toProfileJson();
+    expect(j['name'], 'alan');
+    expect(j['unit'], '未設定');
   });
 }

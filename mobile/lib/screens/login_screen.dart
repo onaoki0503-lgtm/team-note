@@ -1,8 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../config/environment.dart';
 import '../providers/auth_provider.dart';
@@ -77,37 +74,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       }),
               child: Text(_signup ? 'ログインに戻る' : '初めての方はアカウントを作成'),
             ),
-            const SizedBox(height: 8),
-            const Row(
-              children: [
-                Expanded(child: Divider()),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('または', style: TextStyle(color: TnTokens.textMuted, fontSize: 12)),
-                ),
-                Expanded(child: Divider()),
-              ],
-            ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: auth.busy ? null : () => auth.signInWithGoogle(),
-              icon: const Icon(Icons.g_mobiledata, size: 28),
-              label: const Text('Googleで続ける'),
+            Text(
+              'メール確認後にログインし、初回は参加コードで寮に入ります。Google / Appleログインは後から追加します。',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: TnTokens.textMuted),
             ),
-            if (Platform.isIOS) ...[
-              const SizedBox(height: 10),
-              SignInWithAppleButton(
-                onPressed: auth.busy ? () {} : () => auth.signInWithApple(),
-                style: SignInWithAppleButtonStyle.black,
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ],
-            if (Environment.demoMode) ...[
+            if (!Environment.isConfigured) ...[
               const SizedBox(height: 24),
               Text(
-                'Supabase未設定のためデモのみ',
+                '接続設定がありません。ビルドに SUPABASE_URL / ANON_KEY が必要です。',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: TnTokens.errorText),
               ),
             ],
           ],

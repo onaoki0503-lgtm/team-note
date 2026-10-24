@@ -61,9 +61,9 @@ class Environment {
 
     if (kDebugMode) {
       debugPrint(
-        demoMode
-            ? 'Team Note: demo (set SUPABASE_URL / ANON_KEY)'
-            : 'Team Note: $supabaseUrl / ${Environment.communityId}',
+        isConfigured
+            ? 'Team Note cloud: $supabaseUrl / $communityId'
+            : 'Team Note: MISSING SUPABASE_URL / ANON_KEY — app will not enter',
       );
     }
   }

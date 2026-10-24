@@ -15,10 +15,11 @@ class JoinScreen extends StatefulWidget {
 class _JoinScreenState extends State<JoinScreen> {
   final _invite = TextEditingController();
   final _name = TextEditingController();
-  final _unit = TextEditingController();
+  bool _showExtras = false;
   String _role = '一般寮生';
   String _building = 'rosemary';
   int _floor = 1;
+  final _unit = TextEditingController();
 
   @override
   void dispose() {
@@ -31,10 +32,11 @@ class _JoinScreenState extends State<JoinScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final emailHint = auth.user?.email?.split('@').first ?? '';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('プロフィール登録'),
+        title: const Text('寮に参加'),
         actions: [
           TextButton(
             onPressed: auth.busy ? null : () => auth.signOut(),
@@ -45,60 +47,81 @@ class _JoinScreenState extends State<JoinScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const Text('参加コードと寮の情報を入力してください。', style: TextStyle(color: TnTokens.textMuted)),
-          const SizedBox(height: 16),
+          const Text(
+            '参加コードは、寮の担当者から受け取った招待用の合言葉です（Web版と同じ）。'
+            'メール登録後、初めて入るときに一度だけ使います。',
+            style: TextStyle(color: TnTokens.textMuted, height: 1.45),
+          ),
+          const SizedBox(height: 20),
           TextField(
             controller: _invite,
-            decoration: const InputDecoration(labelText: '参加コード'),
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: '参加コード',
+              hintText: '担当者から受け取ったコード',
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _name,
-            decoration: const InputDecoration(labelText: '名前'),
+            decoration: InputDecoration(
+              labelText: '表示名（任意）',
+              hintText: emailHint.isEmpty ? 'あとから変更できます' : emailHint,
+            ),
           ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _role,
-            decoration: const InputDecoration(labelText: '役職'),
-            items: [
-              for (final r in MemberProfile.roles)
-                DropdownMenuItem(value: r, child: Text(r)),
-            ],
-            onChanged: (v) => setState(() => _role = v ?? '一般寮生'),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => setState(() => _showExtras = !_showExtras),
+            child: Text(_showExtras ? '棟・部屋などの入力を隠す' : '棟・部屋なども入力する（任意）'),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _building,
-                  decoration: const InputDecoration(labelText: '棟'),
-                  items: [
-                    for (final e in MemberProfile.buildings.entries)
-                      DropdownMenuItem(value: e.key, child: Text(e.value)),
-                  ],
-                  onChanged: (v) => setState(() => _building = v ?? 'rosemary'),
+          if (_showExtras) ...[
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _role,
+              decoration: const InputDecoration(labelText: '役職（任意）'),
+              items: [
+                for (final r in MemberProfile.roles)
+                  DropdownMenuItem(value: r, child: Text(r)),
+              ],
+              onChanged: (v) => setState(() => _role = v ?? '一般寮生'),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _building,
+                    decoration: const InputDecoration(labelText: '棟（任意）'),
+                    items: [
+                      for (final e in MemberProfile.buildings.entries)
+                        DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    ],
+                    onChanged: (v) => setState(() => _building = v ?? 'rosemary'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  initialValue: _floor,
-                  decoration: const InputDecoration(labelText: '階'),
-                  items: [
-                    for (final f in [1, 2, 3, 4])
-                      DropdownMenuItem(value: f, child: Text('$f階')),
-                  ],
-                  onChanged: (v) => setState(() => _floor = v ?? 1),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    initialValue: _floor,
+                    decoration: const InputDecoration(labelText: '階（任意）'),
+                    items: [
+                      for (final f in [1, 2, 3, 4])
+                        DropdownMenuItem(value: f, child: Text('$f階')),
+                    ],
+                    onChanged: (v) => setState(() => _floor = v ?? 1),
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _unit,
+              decoration: const InputDecoration(
+                labelText: '部屋番号（任意）',
+                hintText: 'あとからプロフィールで設定できます',
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _unit,
-            decoration: const InputDecoration(labelText: '部屋番号', hintText: '301-A'),
-          ),
+            ),
+          ],
           if (auth.error != null) ...[
             const SizedBox(height: 12),
             Text(auth.error!, style: const TextStyle(color: TnTokens.errorText)),
@@ -118,7 +141,7 @@ class _JoinScreenState extends State<JoinScreen> {
                     );
                     await auth.joinCommunity(_invite.text.trim(), draft);
                   },
-            child: Text(auth.busy ? '確認中…' : '寮に参加する'),
+            child: Text(auth.busy ? '確認中…' : '参加する'),
           ),
         ],
       ),

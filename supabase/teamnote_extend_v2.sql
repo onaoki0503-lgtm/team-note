@@ -114,18 +114,48 @@ do $$ begin
 end $$;
 
 -- Profile validation + join/update with bio/avatar
+-- Name / role / unit / dorm details are optional; empty values get defaults on write.
 create or replace function teamnote_private.validate_profile(p jsonb) returns void
 language plpgsql set search_path='' as $$
 begin
-  if jsonb_typeof(p)<>'object'
-    or char_length(btrim(coalesce(p->>'name',''))) not between 1 and 60
-    or char_length(btrim(coalesce(p->>'role',''))) not between 1 and 60
-    or coalesce(p->>'building','') not in ('rosemary','basil','turmeric','paprika')
-    or coalesce(p->>'floor','') not in ('1','2','3','4')
-    or char_length(btrim(coalesce(p->>'unit',''))) not between 1 and 60
-    or char_length(coalesce(p->>'bio','')) > 500
-  then raise exception 'teamnote_invalid_profile' using errcode='22023'; end if;
+  if jsonb_typeof(p)<>'object' then
+    raise exception 'teamnote_invalid_profile' using errcode='22023';
+  end if;
+  if char_length(coalesce(p->>'bio','')) > 500 then
+    raise exception 'teamnote_invalid_profile' using errcode='22023';
+  end if;
+  if coalesce(p->>'building','') <> ''
+    and p->>'building' not in ('rosemary','basil','turmeric','paprika') then
+    raise exception 'teamnote_invalid_profile' using errcode='22023';
+  end if;
+  if coalesce(p->>'floor','') <> ''
+    and p->>'floor' not in ('1','2','3','4') then
+    raise exception 'teamnote_invalid_profile' using errcode='22023';
+  end if;
 end$$;
+
+create or replace function teamnote_private.profile_name(p jsonb) returns text
+language sql immutable set search_path='' as $$
+  select left(coalesce(nullif(btrim(p->>'name'),''), '寮生'), 60)
+$$;
+create or replace function teamnote_private.profile_role(p jsonb) returns text
+language sql immutable set search_path='' as $$
+  select left(coalesce(nullif(btrim(p->>'role'),''), '一般寮生'), 60)
+$$;
+create or replace function teamnote_private.profile_building(p jsonb) returns text
+language sql immutable set search_path='' as $$
+  select case when coalesce(p->>'building','') in ('rosemary','basil','turmeric','paprika')
+    then p->>'building' else 'rosemary' end
+$$;
+create or replace function teamnote_private.profile_floor(p jsonb) returns smallint
+language sql immutable set search_path='' as $$
+  select case when coalesce(p->>'floor','') in ('1','2','3','4')
+    then (p->>'floor')::smallint else 1::smallint end
+$$;
+create or replace function teamnote_private.profile_unit(p jsonb) returns text
+language sql immutable set search_path='' as $$
+  select left(coalesce(nullif(btrim(p->>'unit'),''), '未設定'), 60)
+$$;
 
 create or replace function teamnote_private.get_board(c text) returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -189,8 +219,11 @@ begin
   insert into public.tn_members(community_id,user_id,display_name,role_label,building,floor,unit,bio,avatar_url)
   values (
     c, uid,
-    btrim(p_profile->>'name'), btrim(p_profile->>'role'),
-    p_profile->>'building', (p_profile->>'floor')::smallint, btrim(p_profile->>'unit'),
+    teamnote_private.profile_name(p_profile),
+    teamnote_private.profile_role(p_profile),
+    teamnote_private.profile_building(p_profile),
+    teamnote_private.profile_floor(p_profile),
+    teamnote_private.profile_unit(p_profile),
     coalesce(p_profile->>'bio',''), nullif(p_profile->>'avatar','')
   )
   on conflict (community_id,user_id) do nothing;
@@ -204,11 +237,11 @@ begin
   perform teamnote_private.lock_board(c);
   perform teamnote_private.validate_profile(p_profile);
   update public.tn_members set
-    display_name = btrim(p_profile->>'name'),
-    role_label = btrim(p_profile->>'role'),
-    building = p_profile->>'building',
-    floor = (p_profile->>'floor')::smallint,
-    unit = btrim(p_profile->>'unit'),
+    display_name = teamnote_private.profile_name(p_profile),
+    role_label = teamnote_private.profile_role(p_profile),
+    building = teamnote_private.profile_building(p_profile),
+    floor = teamnote_private.profile_floor(p_profile),
+    unit = teamnote_private.profile_unit(p_profile),
     bio = coalesce(p_profile->>'bio',''),
     avatar_url = case
       when p_profile ? 'avatar' then nullif(p_profile->>'avatar','')

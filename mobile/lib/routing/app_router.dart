@@ -8,6 +8,7 @@ import '../screens/join_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/proposal_screen.dart';
+import '../screens/roster_screen.dart';
 import '../screens/shell_screen.dart';
 
 GoRouter createRouter(AuthProvider auth) {
@@ -24,6 +25,7 @@ GoRouter createRouter(AuthProvider auth) {
         case AuthGate.join:
           return loc == '/join' ? null : '/join';
         case AuthGate.error:
+          // Show login with the error message (config / board failures).
           return loc == '/login' ? null : '/login';
         case AuthGate.ready:
           if (loc == '/login' || loc == '/join') return '/';
@@ -41,7 +43,13 @@ GoRouter createRouter(AuthProvider auth) {
         },
       ),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
-      GoRoute(path: '/proposal', builder: (_, _) => const ProposalScreen()),
+      GoRoute(path: '/roster', builder: (_, _) => const RosterScreen()),
+      GoRoute(
+        path: '/proposal',
+        builder: (_, state) => ProposalScreen(
+          seedFromIdea: state.uri.queryParameters['fromIdea'],
+        ),
+      ),
       GoRoute(path: '/inventory', builder: (_, _) => const InventoryScreen()),
       GoRoute(path: '/archives', builder: (_, _) => const ArchivesListScreen()),
     ],
