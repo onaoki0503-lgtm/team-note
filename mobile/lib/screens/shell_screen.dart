@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/environment.dart';
 import '../providers/app_data_provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/tokens.dart';
+import '../widgets/home_scene.dart';
 import 'archive_screen.dart';
 import 'ideas_screen.dart';
 import 'profile_screen.dart';
@@ -13,47 +15,31 @@ import 'work_screen.dart';
 
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key, this.initialTab = 0});
-
   final int initialTab;
-
   @override
   State<ShellScreen> createState() => _ShellScreenState();
 }
 
 class _ShellScreenState extends State<ShellScreen> {
   late int _index;
-
-  static const _destinations = [
-    NavigationDestination(
-      icon: Icon(Icons.lightbulb_outline),
-      selectedIcon: Icon(Icons.lightbulb),
-      label: 'アイデア',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.play_circle_outline),
-      selectedIcon: Icon(Icons.play_circle),
-      label: '進行中',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.work_outline),
-      selectedIcon: Icon(Icons.work),
-      label: 'はたらく',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.inventory_2_outlined),
-      selectedIcon: Icon(Icons.inventory_2),
-      label: '保管する',
-    ),
-  ];
-
+  bool _motionPaused = false;
   @override
   void initState() {
     super.initState();
     _index = widget.initialTab.clamp(0, 3);
+    _readMotion();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthProvider>();
-      context.read<AppDataProvider>().refreshAll(auth);
+      if (mounted) {
+        context.read<AppDataProvider>().refreshAll(
+          context.read<AuthProvider>(),
+        );
+      }
     });
+  }
+
+  Future<void> _readMotion() async {
+    final paused = await FaceLoginStore.readMotionPaused();
+    if (mounted) setState(() => _motionPaused = paused);
   }
 
   @override
@@ -67,91 +53,169 @@ class _ShellScreenState extends State<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final pages = const [
-      IdeasScreen(),
-      ProjectsScreen(),
-      WorkScreen(),
-      ArchiveScreen(),
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final avatar = auth.profile?.avatarUrl;
+    final pages = [
+      IdeasScreen(
+        motionPaused: _motionPaused,
+        active: _index == 0,
+        keyboardVisible: keyboard,
+      ),
+      const ProjectsScreen(),
+      const WorkScreen(),
+      const ArchiveScreen(),
     ];
-
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('チームノート'),
-            Text(
-              auth.profile?.locationLine ?? 'H-Village',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                color: TnTokens.textMuted,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: '設定',
-            onPressed: () => SettingsScreen.showAsSheet(context),
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Tooltip(
-              message: 'プロフィール',
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: () => ProfileScreen.showAsSheet(context),
-                  child: Ink(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: TnTokens.bgTint,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x16284262),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+      backgroundColor: const Color(0xFFFBFDFF),
+      body: GlassBackdrop(
+        animate: _index == 0 && !_motionPaused && !keyboard,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                child: GlassSurface(
+                  radius: 25,
+                  padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.white, Color(0xB8E5EEF8)],
+                          ),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(color: Colors.white),
                         ),
-                      ],
-                      image: auth.profile?.avatarUrl != null
-                          ? DecorationImage(
-                              image: NetworkImage(auth.profile!.avatarUrl!),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: auth.profile?.avatarUrl == null
-                        ? Center(
-                            child: Text(
-                              (auth.profile?.name.isNotEmpty == true)
-                                  ? auth.profile!.name.characters.first
-                                  : '?',
-                              style: const TextStyle(
-                                fontSize: 16,
+                        child: const Icon(
+                          Icons.lightbulb_outline,
+                          size: 24,
+                          color: TnTokens.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'チームノート',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: TnTokens.primary,
+                                letterSpacing: -.5,
                               ),
                             ),
-                          )
-                        : null,
+                            const SizedBox(height: 2),
+                            Text(
+                              Environment.orgLabel,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: TnTokens.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: '設定',
+                        onPressed: () async {
+                          await SettingsScreen.showAsSheet(context);
+                          await _readMotion();
+                        },
+                        icon: const Icon(
+                          Icons.settings_outlined,
+                          size: 20,
+                          color: TnTokens.textMuted,
+                        ),
+                      ),
+                      Semantics(
+                        button: true,
+                        label: 'プロフィール',
+                        child: ExcludeSemantics(
+                          child: Tooltip(
+                            message: 'プロフィール',
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () => ProfileScreen.showAsSheet(context),
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: TnTokens.bgTint,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: ClipOval(
+                                    child: avatar != null && avatar.isNotEmpty
+                                        ? Image.network(
+                                            avatar,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) =>
+                                                const Icon(
+                                                  Icons.person_outline,
+                                                  color: TnTokens.primary,
+                                                ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              auth.profile?.name.isNotEmpty ==
+                                                      true
+                                                  ? auth
+                                                        .profile!
+                                                        .name
+                                                        .characters
+                                                        .first
+                                                  : '?',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: TnTokens.primary,
+                                              ),
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
+              Expanded(
+                child: IndexedStack(
+                  index: _index,
+                  children: [
+                    for (var i = 0; i < pages.length; i++)
+                      TickerMode(enabled: _index == i, child: pages[i]),
+                  ],
+                ),
+              ),
+              if (!(_index == 0 && keyboard))
+                GlassBottomNav(
+                  index: _index,
+                  onSelected: (i) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    setState(() => _index = i);
+                  },
+                ),
+            ],
           ),
-        ],
-      ),
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: _destinations,
+        ),
       ),
     );
   }

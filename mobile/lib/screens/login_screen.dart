@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'https://developers.google.com/identity/images/g-logo.png',
                     height: 20,
                     width: 20,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 22),
+                    errorBuilder: (_, _, _) => const Icon(Icons.g_mobiledata, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Text(

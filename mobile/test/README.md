@@ -1,0 +1,15 @@
+# test
+
+> **最終更新日**: 2026-10-24
+> **更新者**: AI (Codex)
+
+## 概要
+
+Flutterの操作・配置検証。home_test.dartは5画面サイズ、12件の非重複、4秒ポップ、減動、投稿成功／失敗、詳細操作、キーボードとスケルトンを検証する。widget_test.dartは既存のデザイントークン・プロフィール正規化検証。
+
+## フォルダ構成
+
+- `home_test.dart`
+- `support/`
+- `widget_test.dart`
+- `README.md` — このフォルダの案内

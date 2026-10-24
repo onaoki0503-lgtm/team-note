@@ -9,6 +9,7 @@ import 'providers/app_data_provider.dart';
 import 'providers/auth_provider.dart';
 import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
+import 'widgets/home_scene.dart';
 
 Future<void> main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -70,12 +71,7 @@ class _TeamNoteAppState extends State<TeamNoteApp> {
             routerConfig: _router,
             builder: (context, child) {
               if (_auth.gate == AuthGate.loading) {
-                return const Scaffold(
-                  backgroundColor: Color(0xFFF7FAFC),
-                  body: Center(
-                    child: CircularProgressIndicator(color: Color(0xFF285782)),
-                  ),
-                );
+                return const HomeLoadingScaffold();
               }
               return child ?? const SizedBox.shrink();
             },
