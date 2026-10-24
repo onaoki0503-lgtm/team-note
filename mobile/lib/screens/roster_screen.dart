@@ -168,41 +168,263 @@ class _RosterScreenState extends State<RosterScreen> {
   }
 
   void _showResident(BuildContext context, MemberProfile r) {
-    final badge = roleBadgeInfo(r.role);
+    final data = context.read<AppDataProvider>();
+    final history = data.projects
+        .where((p) => p.ownerId == r.id || p.ownerName == r.name)
+        .toList();
+
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
+      backgroundColor: TnTokens.bgMain,
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(20, 8, 20, MediaQuery.paddingOf(ctx).bottom + 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 36,
-                backgroundColor: TnTokens.bgTint,
-                backgroundImage: r.avatarUrl != null ? NetworkImage(r.avatarUrl!) : null,
-                child: r.avatarUrl == null
-                    ? Text(r.name.characters.first, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700))
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              Text(r.name, style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-              if (badge.badge.isNotEmpty || r.role.isNotEmpty)
-                Text(
-                  badge.badge.isNotEmpty ? '${badge.badge} · ${r.role}' : r.role,
-                  style: const TextStyle(color: TnTokens.textMuted),
-                ),
-              const SizedBox(height: 8),
-              Text(r.locationLine, textAlign: TextAlign.center),
-              if (r.bio.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(r.bio, textAlign: TextAlign.center, style: const TextStyle(height: 1.4)),
-              ],
-            ],
-          ),
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.88;
+        return SizedBox(
+          width: double.infinity,
+          height: maxH,
+          child: _ResidentProfileSheet(resident: r, history: history),
         );
       },
+    );
+  }
+}
+
+/// Full-width resident sheet — mirrors web RosterArchiveViews S28 (read-only).
+class _ResidentProfileSheet extends StatelessWidget {
+  const _ResidentProfileSheet({required this.resident, required this.history});
+
+  final MemberProfile resident;
+  final List<ProjectItem> history;
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = roleBadgeInfo(resident.role);
+    final roleTitle =
+        dormRoles.where((role) => role.key == resident.role).map((role) => role.title).firstOrNull ??
+            (resident.role.isEmpty ? '一般寮生' : resident.role);
+    final roleDisplay = badge.badge.isNotEmpty ? badge.badge : roleTitle;
+    final bottom = MediaQuery.paddingOf(context).bottom;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            'プロフィール',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, bottom + 20),
+            children: [
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: badge.isLeadership
+                                    ? const Color(0xFFEA580C)
+                                    : Colors.black.withValues(alpha: 0.08),
+                                width: 2,
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 32,
+                              backgroundColor: TnTokens.bgTint,
+                              backgroundImage: resident.avatarUrl != null
+                                  ? NetworkImage(resident.avatarUrl!)
+                                  : null,
+                              child: resident.avatarUrl == null
+                                  ? Text(
+                                      resident.name.isNotEmpty
+                                          ? resident.name.characters.first
+                                          : '?',
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w700,
+                                        color: TnTokens.textMuted,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      resident.name.isEmpty ? '寮生' : resident.name,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      roleDisplay,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: badge.isLeadership
+                                            ? const Color(0xFFEA580C)
+                                            : TnTokens.textMuted,
+                                        letterSpacing: 0.02,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${resident.buildingLabel}棟 ${resident.unit}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: TnTokens.textMuted,
+                                  ),
+                                ),
+                                if (resident.floor >= 1)
+                                  Text(
+                                    '${resident.floor}階',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: TnTokens.textMuted,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '自己紹介',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: TnTokens.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        resident.bio.isEmpty ? '自己紹介が未設定です。' : resident.bio,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.6,
+                          color: resident.bio.isEmpty ? TnTokens.textMuted : TnTokens.textMain,
+                          fontStyle: resident.bio.isEmpty ? FontStyle.italic : FontStyle.normal,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Text(
+                            '役職',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: TnTokens.textMuted,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              roleTitle,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('活動履歴', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'スタッフ加入・担当の記録から自動表示',
+                        style: TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                      ),
+                      const SizedBox(height: 12),
+                      if (history.isEmpty)
+                        const Text(
+                          'スタッフとして参加した企画はまだありません。',
+                          style: TextStyle(color: TnTokens.textMuted, fontSize: 13),
+                        )
+                      else
+                        for (final item in history)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: TnTokens.bgTint.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '発起人 · ${item.statusLabel}',
+                                  style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                ),
+                                Text(
+                                  '${item.memberCount}人参加',
+                                  style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                margin: EdgeInsets.zero,
+                color: TnTokens.bgTint.withValues(alpha: 0.35),
+                child: const ListTile(
+                  leading: Icon(Icons.visibility_off_outlined, size: 20),
+                  title: Text(
+                    '関係者のみ閲覧できます',
+                    style: TextStyle(fontSize: 13, color: TnTokens.textMuted),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
