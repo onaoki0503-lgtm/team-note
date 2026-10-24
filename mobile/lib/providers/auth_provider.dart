@@ -305,27 +305,13 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
-  /// [clearSavedCredentials] true → full sign-out.
-  /// false + biometric enabled → soft lock (session stays, Face ID next).
-  Future<void> signOut({bool clearSavedCredentials = false}) async {
-    if (clearSavedCredentials) {
-      if (Environment.isConfigured) {
-        await Supabase.instance.client.auth.signOut();
-        try {
-          await GoogleSignIn().signOut();
-        } catch (_) {}
-      }
-      await _credentials.clearCredentials();
-      user = null;
-      profile = null;
-      demoSession = false;
-      biometricLocked = false;
-      gate = AuthGate.login;
-      notifyListeners();
-      return;
-    }
+  /// [fullSignOut] false + biometric enabled → soft lock (session stays).
+  /// true → leave Supabase session; Face ID preference is always kept
+  /// (only Settings can turn 顔認証 off).
+  Future<void> signOut({bool fullSignOut = false, bool clearSavedCredentials = false}) async {
+    final hardLogout = fullSignOut || clearSavedCredentials;
 
-    if (Environment.isConfigured && await _credentials.isEnabled()) {
+    if (!hardLogout && Environment.isConfigured && await _credentials.isEnabled()) {
       final email = user?.email ?? await _credentials.peekEmail();
       if (email != null && email.isNotEmpty) {
         await _credentials.enable(email: email);
@@ -343,6 +329,12 @@ class AuthProvider extends ChangeNotifier {
       try {
         await GoogleSignIn().signOut();
       } catch (_) {}
+    }
+    // Never clear tn_biometric_login_enabled here — Settings owns that toggle.
+    await _credentials.clearSecretsKeepPreference();
+    final email = user?.email ?? await _credentials.peekEmail();
+    if (email != null && email.isNotEmpty && await _credentials.isEnabled()) {
+      await _credentials.enable(email: email);
     }
     user = null;
     profile = null;

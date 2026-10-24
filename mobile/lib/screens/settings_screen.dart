@@ -112,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _biometricEnabled = true;
         _notice =
-            '$_methodLabel ログインをオンにしました。ログアウト時に「残してログアウト」を選ぶと、次回は $_methodLabel だけで開けます。';
+            '$_methodLabel ログインをオンにしました。この設定はログアウト後も残ります。「残してログアウト」なら次回は $_methodLabel だけで開けます。';
       });
     } finally {
       if (mounted) setState(() => _busy = false);

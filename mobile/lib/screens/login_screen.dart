@@ -307,7 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: (auth.busy || _attemptingBiometric)
                     ? null
                     : () async {
-                        await auth.signOut(clearSavedCredentials: true);
+                        await auth.signOut(fullSignOut: true);
                       },
                 child: const Text('別のアカウントでログイン'),
               ),

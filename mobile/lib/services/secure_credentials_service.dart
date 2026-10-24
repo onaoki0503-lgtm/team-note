@@ -85,10 +85,16 @@ class SecureCredentialsService {
     await _storage.delete(key: _legacyPasswordModeKey);
   }
 
+  /// Full wipe — only from Settings when the user removes biometric login.
   Future<void> clearCredentials() async {
     await _storage.delete(key: _emailKey);
     await _storage.delete(key: _passwordKey);
     await _storage.delete(key: _enabledKey);
     await _storage.delete(key: _legacyPasswordModeKey);
+  }
+
+  /// Logout helper: drop password vault only. Keep Face ID on/off preference.
+  Future<void> clearSecretsKeepPreference() async {
+    await clearPasswordOnly();
   }
 }

@@ -205,14 +205,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     : () async {
                         final bioOn = await auth.credentials.isEnabled();
                         if (!context.mounted) return;
-                        final clearSaved = await showDialog<bool>(
+                        final fullSignOut = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('ログアウト'),
                             content: Text(
                               bioOn
-                                  ? '「残してログアウト」だとセッションを保ったままロックします。次回は Face ID / 指紋だけで開けます。「削除してログアウト」は完全にサインアウトします。'
-                                  : 'ログアウトしますか？生体認証を設定していない場合は、次回メールや Google で入り直します。',
+                                  ? '「残してログアウト」はロックするだけです。次回は Face ID / 指紋だけで開けます。「サインアウト」はメールや Google の入れ直しが必要ですが、顔認証の設定は残ります。'
+                                  : 'ログアウトしますか？顔認証をオンにしていれば、その設定はこのまま端末に残ります。',
                               style: const TextStyle(height: 1.55),
                             ),
                             actions: [
@@ -227,13 +227,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               FilledButton(
                                 onPressed: () => Navigator.pop(ctx, true),
-                                child: Text(bioOn ? '削除してログアウト' : 'ログアウト'),
+                                child: Text(bioOn ? 'サインアウト' : 'ログアウト'),
                               ),
                             ],
                           ),
                         );
-                        if (clearSaved == null) return;
-                        await auth.signOut(clearSavedCredentials: clearSaved);
+                        if (fullSignOut == null) return;
+                        await auth.signOut(fullSignOut: fullSignOut);
                         if (context.mounted) {
                           Navigator.of(context).popUntil((r) => r.isFirst);
                         }

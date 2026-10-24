@@ -35,9 +35,9 @@ Google uses Supabase `signInWithIdToken`. Same confirmed email can use email or 
 
 See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each upload.
 
-## 生体認証ログイン（0.1.11+18）
+## 生体認証ログイン（0.1.12+19）
 
-カメラ顔認証を廃止。Face ID / 指紋はアプリのロック解除に使い、Supabaseセッションは端末に残す（パスワード再送しない）。Googleログインでも可。設定でオン／オフ。ログアウトは「残してログアウト」（ロック）か「削除してログアウト」（完全サインアウト）。
+Face ID / 指紋でアプリをロック解除（セッションは端末に残す）。設定のオン／オフはログアウト後も保持（設定画面でのみ解除）。「残してログアウト」はロック、「サインアウト」は再ログインが必要。
 
 **配布用は `flutter build ipa --release -t lib/main.dart`**。`flutter build ipa`の終了コードだけで書出し成功とせず、IPA生成と署名を確認する。FlutterのビルドだけでTransporterへの送信やTestFlight配信は行われない。
 
