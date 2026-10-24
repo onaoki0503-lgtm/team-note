@@ -71,6 +71,9 @@ export async function saveTeamnoteReport(input: {
   date: string;
   authorName: string;
   locationLabel?: string;
+  attachments?: Record<string, unknown>[];
+  lat?: number | null;
+  lng?: number | null;
 }): Promise<WorkReportItem[]> {
   if (!teamnoteClient) throw new Error('teamnote_not_configured');
   const isoDate = input.date.includes('/')
@@ -82,9 +85,9 @@ export async function saveTeamnoteReport(input: {
     p_category: ACTIVITY_TO_CATEGORY[input.activityType],
     p_body: input.body,
     p_date: isoDate,
-    p_attachments: [],
-    p_lat: null,
-    p_lng: null,
+    p_attachments: input.attachments || [],
+    p_lat: input.lat ?? null,
+    p_lng: input.lng ?? null,
     p_location_label: input.locationLabel || null,
   });
   if (error) throw error;

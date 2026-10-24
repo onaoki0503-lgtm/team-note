@@ -5,7 +5,16 @@ import { useNavigation, useScreenState } from './lib/navigation';
 import { ScreenLoadingBoundary } from './components/ScreenLoading';
 import { useIdeaBoardSync } from './lib/useIdeaBoardSync';
 import { useSharedIdeas } from './lib/sharedIdeasContext';
-import { buildProposalSummary, createTeamnoteProject, listTeamnoteProjects } from './lib/teamnoteProjects';
+import {
+  buildProposalSummary,
+  createTeamnoteProject,
+  joinTeamnoteProject,
+  leaveTeamnoteProject,
+  listTeamnoteProjects,
+  projectDetailsPayload,
+  updateTeamnoteProjectDetails,
+  updateTeamnoteProjectSummary,
+} from './lib/teamnoteProjects';
 import { listTeamnoteReports, saveTeamnoteReport } from './lib/teamnoteReports';
 import { listTeamnoteArchives, type ArchiveDocItem } from './lib/teamnoteArchives';
 import { SharedProfile } from './components/SharedProfile';
@@ -386,35 +395,33 @@ export default function App() {
     setActiveTab('progress');
   };
 
-  // 参加トグル（cloud は join RPC 未提供のためローカル表示のみ）
+  const persistCloudProject = async (next: ProjectRecord) => {
+    setProjects(await updateTeamnoteProjectDetails(next.id, projectDetailsPayload(next)));
+  };
+
+  // 参加トグル
   const handleToggleJoin = async (projectId: string) => {
     const target = projects.find((p) => p.id === projectId);
     if (!target) return;
     const isJoined = target.members && target.members.some((m) => m.residentId === currentUser.id);
 
     if (shared.enabled) {
-      setProjects((prev) =>
-        prev.map((p) => {
-          if (p.id !== projectId) return p;
-          if (isJoined) {
-            return { ...p, members: (p.members || []).filter((m) => m.residentId !== currentUser.id) };
-          }
-          return {
-            ...p,
-            members: [
-              ...(p.members || []),
-              {
-                residentId: currentUser.id,
-                name: currentUser.name,
-                avatar: currentUser.avatar,
-                role: currentUser.role,
-                building: currentUser.building,
-                joinedAt: new Date().toISOString().slice(0, 10),
-              },
-            ],
-          };
-        })
-      );
+      try {
+        let list = isJoined
+          ? await leaveTeamnoteProject(projectId)
+          : await joinTeamnoteProject(projectId, currentUser.role || 'スタッフ');
+        const latest = list.find((p) => p.id === projectId);
+        if (latest && isJoined) {
+          // Keep details.staffMembers in sync so leave sticks after remapping.
+          list = await updateTeamnoteProjectDetails(projectId, projectDetailsPayload({
+            ...latest,
+            members: (latest.members || []).filter((m) => m.residentId !== currentUser.id),
+          }));
+        }
+        setProjects(list);
+      } catch (err) {
+        console.warn('Cloud join/leave failed:', err);
+      }
       return;
     }
 
@@ -435,7 +442,13 @@ export default function App() {
     activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry',
     actionResult?: string,
     entryUnit?: string,
-    entryPurpose?: string
+    entryPurpose?: string,
+    extras?: {
+      attachments?: Record<string, unknown>[];
+      lat?: number | null;
+      lng?: number | null;
+      locationLabel?: string;
+    }
   ) => {
     let dateStr = '';
     if (customDate) {
@@ -445,9 +458,11 @@ export default function App() {
       dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
     }
     const body = (actionResult || content).trim();
-    const locationLabel = entryUnit
-      ? `${entryUnit}${entryPurpose ? ` / ${entryPurpose}` : ''}`
-      : `${currentUser.building}棟`;
+    const locationLabel =
+      extras?.locationLabel ||
+      (entryUnit
+        ? `${entryUnit}${entryPurpose ? ` / ${entryPurpose}` : ''}`
+        : `${currentUser.building}棟`);
 
     if (shared.enabled) {
       try {
@@ -459,6 +474,9 @@ export default function App() {
             date: dateStr,
             authorName: currentUser.name,
             locationLabel,
+            attachments: extras?.attachments || [],
+            lat: extras?.lat ?? null,
+            lng: extras?.lng ?? null,
           })
         );
       } catch (err) {
@@ -691,7 +709,11 @@ export default function App() {
               onSaveMinutes={async (note) => {
                 const updatedNotes = [note, ...(selectedProject.meetingNotes || [])];
                 if (shared.enabled) {
-                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, meetingNotes: updatedNotes } : p)));
+                  try {
+                    await persistCloudProject({ ...selectedProject, meetingNotes: updatedNotes });
+                  } catch (err) {
+                    console.warn('Cloud save minutes failed:', err);
+                  }
                   return;
                 }
                 await dbService.updateProject(selectedProject.id, { meetingNotes: updatedNotes });
@@ -700,7 +722,11 @@ export default function App() {
               onSaveEvaluation={async (ev) => {
                 const updatedEvals = [ev, ...(selectedProject.evaluations || [])];
                 if (shared.enabled) {
-                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, evaluations: updatedEvals } : p)));
+                  try {
+                    await persistCloudProject({ ...selectedProject, evaluations: updatedEvals });
+                  } catch (err) {
+                    console.warn('Cloud save evaluation failed:', err);
+                  }
                   return;
                 }
                 await dbService.updateProject(selectedProject.id, { evaluations: updatedEvals });
@@ -727,11 +753,17 @@ export default function App() {
                   joinedAt: new Date().toISOString()
                 };
                 if (shared.enabled) {
-                  setProjects((prev) =>
-                    prev.map((p) =>
-                      p.id === selectedProject.id ? { ...p, members: [...(p.members || []), newMember] } : p
-                    )
-                  );
+                  try {
+                    if (r.id === currentUser.id) {
+                      setProjects(await joinTeamnoteProject(selectedProject.id, role || 'スタッフ'));
+                      return;
+                    }
+                    const members = [...(selectedProject.members || [])];
+                    if (!members.some((m) => m.residentId === r.id)) members.push(newMember);
+                    await persistCloudProject({ ...selectedProject, members });
+                  } catch (err) {
+                    console.warn('Cloud add staff failed:', err);
+                  }
                   return;
                 }
                 setProjects(await dbService.addStaffMemberToProject(selectedProject.id, newMember));
@@ -740,7 +772,11 @@ export default function App() {
                 const newGrp = { id: `grp-${Date.now()}`, name, glName: leader, milestoneTitle: goal, milestoneDeadline: deadline };
                 const updated = [...(selectedProject.groups || []), newGrp];
                 if (shared.enabled) {
-                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, groups: updated } : p)));
+                  try {
+                    await persistCloudProject({ ...selectedProject, groups: updated });
+                  } catch (err) {
+                    console.warn('Cloud add group failed:', err);
+                  }
                   return;
                 }
                 await dbService.updateProject(selectedProject.id, { groups: updated });
@@ -748,7 +784,27 @@ export default function App() {
               }}
               onUpdateProposal={async (doc) => {
                 if (shared.enabled) {
-                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, proposalDoc: doc } : p)));
+                  try {
+                    const next = { ...selectedProject, proposalDoc: doc };
+                    const summary = buildProposalSummary({
+                      projectType: next.projectType || 'operation',
+                      title: doc.title || next.title,
+                      objective: doc.objective || doc.purpose,
+                      proposalOverview: doc.proposalOverview,
+                      background: doc.background,
+                      recipient: doc.recipient,
+                      submissionDate: doc.submissionDate,
+                      budget: doc.totalBudget,
+                      category: next.category,
+                      ownerName: next.owner,
+                      nextAction: next.nextAction,
+                      bannerImage: next.bannerImage,
+                    });
+                    await updateTeamnoteProjectSummary(next.id, summary, next.status);
+                    await persistCloudProject(next);
+                  } catch (err) {
+                    console.warn('Cloud update proposal failed:', err);
+                  }
                   return;
                 }
                 await dbService.updateProject(selectedProject.id, { proposalDoc: doc });
@@ -766,7 +822,11 @@ export default function App() {
                 };
                 const updated = [...currentSteps, newStep];
                 if (shared.enabled) {
-                  setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, workflowSteps: updated } : p)));
+                  try {
+                    await persistCloudProject({ ...selectedProject, workflowSteps: updated });
+                  } catch (err) {
+                    console.warn('Cloud add step failed:', err);
+                  }
                   return;
                 }
                 await dbService.updateProject(selectedProject.id, { workflowSteps: updated });
@@ -840,6 +900,7 @@ export default function App() {
               residents={residents}
               projects={projects}
               archiveDocs={archives}
+              onArchivesChange={setArchives}
               selectedResident={selectedResident}
               onSelectResident={(res) => {
                 setSelectedResident(res);

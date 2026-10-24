@@ -4,7 +4,8 @@ import React, { useState, useRef } from 'react';
 import { Search, Plus, ChevronRight, Camera, Edit3 } from 'lucide-react';
 import { parseUnitNumber, type ResidentRecord, type CurrentUser, type ResidentRoleKey, type ProjectRecord, type ResidentProfileUpdates, DORM_ROLES_CONFIG, getRoleBadgeInfo } from '../lib/db';
 import { getActivityHistory } from '../lib/activityHistory';
-import type { ArchiveDocItem } from '../lib/teamnoteArchives';
+import { addTeamnoteArchive, type ArchiveDocItem } from '../lib/teamnoteArchives';
+import { signedTeamnoteUrl, uploadTeamnoteFile } from '../lib/teamnoteFiles';
 import { useSharedIdeas } from '../lib/sharedIdeasContext';
 import { processAndResizeImage, playBurnImpactSound } from '../utils/avatarEffect';
 
@@ -20,6 +21,7 @@ interface RosterArchiveViewsProps {
   residents: ResidentRecord[];
   projects: ProjectRecord[];
   archiveDocs?: ArchiveDocItem[];
+  onArchivesChange?: (docs: ArchiveDocItem[]) => void;
   selectedResident: ResidentRecord | null;
   onSelectResident: (resident: ResidentRecord) => void;
   onAddResident: (data: any) => Promise<void>;
@@ -35,6 +37,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   residents,
   projects,
   archiveDocs,
+  onArchivesChange,
   selectedResident,
   onSelectResident,
   onAddResident,
@@ -43,6 +46,9 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
   onUpdateResident
 }) => {
   const shared = useSharedIdeas();
+  const archiveFileInput = useRef<HTMLInputElement>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveNotice, setArchiveNotice] = useState('');
   // S25/S26 部屋割り・一覧切り替え
   const [rosterTab, setRosterTab] = useScreenState<'units' | 'list'>(`roster:${currentUser.id}:rosterTab`, 'units', false);
   const [selectedBuilding, setSelectedBuilding] = useScreenState<'rosemary' | 'basil' | 'turmeric' | 'paprika'>(`roster:${currentUser.id}:selectedBuilding`, 'rosemary', false);
@@ -157,14 +163,58 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
       const matchQ = !q || `${doc.title} ${doc.category} ${doc.desc}`.toLowerCase().includes(q);
       return matchYear && matchQ;
     });
+    const openArchive = async (doc: ArchiveDocItem) => {
+      setArchiveNotice('');
+      try {
+        const url = await signedTeamnoteUrl(doc.storagePath);
+        if (!url) {
+          setArchiveNotice(doc.storagePath.startsWith('demo/')
+            ? 'デモ資料のため実ファイルはありません。'
+            : 'この資料はまだ開けません。');
+          return;
+        }
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch {
+        setArchiveNotice('資料を開けませんでした。');
+      }
+    };
+    const uploadArchive = async (file: File) => {
+      if (!shared.enabled) { setArchiveNotice('共有ログイン中のみアップロードできます。'); return; }
+      setArchiveBusy(true); setArchiveNotice('');
+      try {
+        const uploaded = await uploadTeamnoteFile(file, 'archives');
+        const next = await addTeamnoteArchive({
+          title: file.name.replace(/\.[^.]+$/, '') || file.name,
+          category: '資料',
+          path: uploaded.path,
+          sizeBytes: uploaded.size,
+        });
+        onArchivesChange?.(next);
+        setArchiveNotice('資料をアップロードしました。');
+      } catch {
+        setArchiveNotice('アップロードできませんでした。');
+      } finally {
+        setArchiveBusy(false);
+      }
+    };
 
     return (
       <div style={{ maxWidth: 540, margin: '0 auto', padding: '10px 8px', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
             年度別資料
           </h2>
+          {shared.enabled && (
+            <>
+              <button type="button" className="glass-button" disabled={archiveBusy} onClick={() => archiveFileInput.current?.click()}
+                style={{ background: 'var(--glass-primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontWeight: 700 }}>
+                {archiveBusy ? '送信中…' : 'アップロード'}
+              </button>
+              <input ref={archiveFileInput} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void uploadArchive(f); }} />
+            </>
+          )}
         </div>
+        {archiveNotice && <p style={{ margin: 0, fontSize: 13, color: 'var(--glass-muted)' }}>{archiveNotice}</p>}
 
         <div style={{ display: 'flex', gap: 10 }}>
           <select
@@ -216,6 +266,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
               <div style={{ display: 'flex', gap: 10, paddingTop: 6 }}>
                 <button className="glass-button"
                   type="button"
+                  onClick={() => void openArchive(doc)}
                   style={{
                     backgroundColor: "var(--glass-inset)",
                     border: "1px solid var(--glass-border)",
@@ -229,6 +280,7 @@ export const RosterArchiveViews: React.FC<RosterArchiveViewsProps> = ({
                 </button>
                 <button className="glass-button"
                   type="button"
+                  onClick={() => void openArchive(doc)}
                   style={{
                     backgroundColor: "var(--glass-primary)",
                     color: '#FFFFFF',

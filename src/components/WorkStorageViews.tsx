@@ -2,9 +2,11 @@ import { localToday as todayStr, useCalendarDay } from '../lib/useCalendarDay';
 import { VoiceWorkReport } from './VoiceWorkReport';
 import { spokenReportDate } from '../lib/workReportVoice';
 import { useScreenState } from '../lib/navigation';
-import React, { useState } from 'react';
-import { Send, Users, Package, Archive, ChevronRight, Calendar, Check, FileText, Printer, Copy, Mail, X, Lock } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Send, Users, Package, Archive, ChevronRight, Calendar, Check, FileText, Printer, Copy, Mail, X, Lock, Paperclip, MapPin, Camera } from 'lucide-react';
 import type { CurrentUser } from '../lib/db';
+import { useSharedIdeas } from '../lib/sharedIdeasContext';
+import { uploadTeamnoteFile } from '../lib/teamnoteFiles';
 
 export interface WorkReportItem {
   id: string;
@@ -19,6 +21,14 @@ export interface WorkReportItem {
   entryPurpose?: string; // 立ち入り目的 (ユニット立ち入り時)
 }
 
+export type ReportAttachmentPin = {
+  kind: 'camera' | 'file' | 'location';
+  label: string;
+  path?: string;
+  lat?: number;
+  lng?: number;
+};
+
 interface WorkStorageViewsProps {
   mode: 'work' | 'warehouse';
   currentUser: CurrentUser;
@@ -30,7 +40,13 @@ interface WorkStorageViewsProps {
     activityType: 'inherent' | 'cooperation' | 'common' | 'trouble' | 'unit_entry',
     actionResult?: string,
     entryUnit?: string,
-    entryPurpose?: string
+    entryPurpose?: string,
+    extras?: {
+      attachments?: Record<string, unknown>[];
+      lat?: number | null;
+      lng?: number | null;
+      locationLabel?: string;
+    }
   ) => Promise<void>;
   onOpenRoster: () => void;
   onOpenInventory: () => void;
@@ -47,6 +63,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   onOpenInventory,
   onOpenArchives
 }) => {
+  const shared = useSharedIdeas();
   // 今日の日付 (YYYY-MM-DD)
   const [reportDate, setReportDate] = useScreenState<string>(`work:${currentUser.id}:reportDate`, todayStr, false);
   const [reportTitle, setReportTitle] = useScreenState(`work:${currentUser.id}:reportTitle`, '', false);
@@ -57,6 +74,10 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   // ユニット立ち入り用フォームステート
   const [reportEntryUnit, setReportEntryUnit] = useScreenState(`work:${currentUser.id}:reportEntryUnit`, '', false);
   const [reportEntryPurpose, setReportEntryPurpose] = useScreenState(`work:${currentUser.id}:reportEntryPurpose`, '', false);
+  const [attachments, setAttachments] = useState<ReportAttachmentPin[]>([]);
+  const [pinBusy, setPinBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
 
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [dateNotice, setDateNotice] = useScreenState(`voice-report:${currentUser.id}:dateNotice`, '', false);
@@ -106,6 +127,41 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   const [filterPeriod, setFilterPeriod] = useState<'current_month' | 'all'>('current_month');
 
   const handleSubmit = (event: React.FormEvent) => { event.preventDefault(); requestReview(); };
+  const addFilePin = async (file: File, kind: 'camera' | 'file') => {
+    setPinBusy(true); setSaveError('');
+    try {
+      let path: string | undefined;
+      if (shared.enabled) {
+        const uploaded = await uploadTeamnoteFile(file, 'reports');
+        path = uploaded.path;
+      }
+      setAttachments((prev) => [...prev, { kind, label: file.name, path }]);
+    } catch {
+      setSaveError('添付ファイルを追加できませんでした。');
+    } finally {
+      setPinBusy(false);
+    }
+  };
+  const addLocationPin = () => {
+    if (!navigator.geolocation) { setSaveError('この端末では位置情報を取得できません。'); return; }
+    setPinBusy(true); setSaveError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setAttachments((prev) => [
+          ...prev,
+          {
+            kind: 'location',
+            label: `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          },
+        ]);
+        setPinBusy(false);
+      },
+      () => { setSaveError('位置情報の取得に失敗しました。'); setPinBusy(false); },
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  };
   const confirmReport = async () => {
     if (saving || voiceBusy) return;
     if (!reportTitle.trim() || !actionResult.trim() || !reportDate || dateNotice ||
@@ -114,9 +170,29 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
     }
     setSaving(true); setSaveError('');
     try {
-      await onSubmitReport(reportTitle.trim(), reportContent.trim() || actionResult.trim(), reportDate || todayStr(), activityType,
-        actionResult.trim(), reportEntryUnit.trim(), reportEntryPurpose.trim());
-      setReviewing(false); setReportTitle(''); setReportContent(''); setActionResult('');
+      const locationPin = attachments.find((a) => a.kind === 'location');
+      await onSubmitReport(
+        reportTitle.trim(),
+        reportContent.trim() || actionResult.trim(),
+        reportDate || todayStr(),
+        activityType,
+        actionResult.trim(),
+        reportEntryUnit.trim(),
+        reportEntryPurpose.trim(),
+        {
+          attachments: attachments.map((a) => ({
+            kind: a.kind,
+            label: a.label,
+            ...(a.path ? { path: a.path } : {}),
+            ...(a.lat != null ? { lat: a.lat } : {}),
+            ...(a.lng != null ? { lng: a.lng } : {}),
+          })),
+          lat: locationPin?.lat ?? null,
+          lng: locationPin?.lng ?? null,
+          locationLabel: locationPin?.label || undefined,
+        }
+      );
+      setReviewing(false); setReportTitle(''); setReportContent(''); setActionResult(''); setAttachments([]);
       setReportEntryUnit(''); setReportEntryPurpose(''); setReportDate(todayStr()); setDateNotice('');
       setTitleEdited(false); setSaveNotice('報告書を保存しました。今月の報告ログと月次レポートに反映しています。');
     } catch { setSaveError('保存できませんでした。入力内容は残しています。もう一度お試しください。'); }
@@ -407,10 +483,43 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 placeholder={activityType === 'trouble' ? 'トラブルの経緯・対応・結果' : activityType === 'unit_entry' ? '立ち入り時の状況・対応・結果' : 'いつ・どこで・何をした・結果・申し送り'} />
             </div>
 
+            {/* 添付・位置 */}
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--glass-ink)', marginBottom: 6 }}>
+                添付・位置情報
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button type="button" className="glass-button" disabled={pinBusy || voiceBusy} onClick={() => cameraInput.current?.click()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--glass-border)', background: 'var(--glass-inset)', fontSize: 12, fontWeight: 700 }}>
+                  <Camera size={14} />写真
+                </button>
+                <button type="button" className="glass-button" disabled={pinBusy || voiceBusy} onClick={() => fileInput.current?.click()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--glass-border)', background: 'var(--glass-inset)', fontSize: 12, fontWeight: 700 }}>
+                  <Paperclip size={14} />ファイル
+                </button>
+                <button type="button" className="glass-button" disabled={pinBusy || voiceBusy} onClick={addLocationPin}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--glass-border)', background: 'var(--glass-inset)', fontSize: 12, fontWeight: 700 }}>
+                  <MapPin size={14} />現在地
+                </button>
+              </div>
+              <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addFilePin(f, 'camera'); }} />
+              <input ref={fileInput} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addFilePin(f, 'file'); }} />
+              {attachments.length > 0 && (
+                <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {attachments.map((a, i) => (
+                    <li key={`${a.kind}-${a.label}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: 'var(--glass-muted)' }}>
+                      <span>{a.kind === 'location' ? '位置' : a.kind === 'camera' ? '写真' : 'ファイル'}: {a.label}</span>
+                      <button type="button" onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))} style={{ border: 'none', background: 'transparent', color: '#B92F3D', fontWeight: 700, cursor: 'pointer' }}>外す</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             {/* 提出ボタン */}
             <button className="glass-button"
               type="submit"
-              disabled={voiceBusy || !reportTitle.trim() || !actionResult.trim()}
+              disabled={voiceBusy || pinBusy || !reportTitle.trim() || !actionResult.trim()}
               style={{
                 width: '100%',
                 backgroundColor: reportTitle.trim() && actionResult.trim() ? "var(--glass-primary)" : '#D9DEE7',
