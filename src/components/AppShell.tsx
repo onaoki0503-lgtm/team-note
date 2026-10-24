@@ -1,12 +1,12 @@
 import { useState, type ReactNode, type CSSProperties } from 'react';
 import { community } from '../lib/community';
 import { teamnoteReviewMode } from '../lib/teamnoteCloud';
-import { Lightbulb, PlayCircle, Briefcase, Archive, ArrowLeft } from 'lucide-react';
+import { Lightbulb, PlayCircle, Briefcase, Archive, ArrowLeft, Settings } from 'lucide-react';
 import type { CurrentUser } from '../lib/db';
 export type MainNavDestination = 'change' | 'progress' | 'work' | 'warehouse' | 'profile';
-interface AppShellProps { activeTab: MainNavDestination; onTabChange: (tab: MainNavDestination) => void; currentUser: CurrentUser; onOpenUserMenu: () => void; onBack?: () => void; backTitle?: string; hideNav?: boolean; isMotionPaused: boolean; children: ReactNode; }
+interface AppShellProps { activeTab: MainNavDestination; onTabChange: (tab: MainNavDestination) => void; currentUser: CurrentUser; onOpenUserMenu: () => void; onOpenSettings: () => void; onBack?: () => void; backTitle?: string; hideNav?: boolean; isMotionPaused: boolean; children: ReactNode; }
 const destinations = [{ key: 'change', label: 'アイデア', icon: Lightbulb }, { key: 'progress', label: '進行中', icon: PlayCircle }, { key: 'work', label: 'はたらく', icon: Briefcase }, { key: 'warehouse', label: '保管する', icon: Archive }] as const;
-export function AppShell({ activeTab, onTabChange, currentUser, onOpenUserMenu, onBack, backTitle, hideNav = false, isMotionPaused: motionPaused, children }: AppShellProps) {
+export function AppShell({ activeTab, onTabChange, currentUser, onOpenUserMenu, onOpenSettings, onBack, backTitle, hideNav = false, isMotionPaused: motionPaused, children }: AppShellProps) {
   const [avatarFailed, setAvatarFailed] = useState('');
   const activeIndex = Math.max(0, destinations.findIndex(item => item.key === activeTab));
   return <div className={`app-shell ${motionPaused ? 'motion-reduce' : ''}`} data-motion-paused={motionPaused}>
@@ -17,6 +17,9 @@ export function AppShell({ activeTab, onTabChange, currentUser, onOpenUserMenu, 
         <div className="app-brand"><span className="brand-mark" aria-hidden="true"><Lightbulb size={21} strokeWidth={1.7} /></span><div><strong>チームノート</strong><span title={teamnoteReviewMode ? '操作デモ：入力はこの端末のみに保存されます' : undefined}>{community.name}{teamnoteReviewMode ? ' · 操作デモ' : ''}</span></div></div>
       </div>
       <div className="toolbar-actions">
+        <button type="button" className="glass-icon-button toolbar-settings" onClick={onOpenSettings} aria-label="設定">
+          <Settings size={22} strokeWidth={1.7} />
+        </button>
         <button type="button" className="glass-avatar" onClick={onOpenUserMenu} aria-label="利用者のプロフィール・切り替え">
           {currentUser.avatar && avatarFailed !== currentUser.avatar ? <img src={currentUser.avatar} alt="" onError={() => setAvatarFailed(currentUser.avatar || '')} /> : <span>{currentUser.name?.charAt(0) || '寮'}</span>}
         </button>

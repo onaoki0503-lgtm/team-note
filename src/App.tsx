@@ -24,6 +24,7 @@ import { StartIdeaButton } from './components/StartIdeaButton';
 import { IdeaBubbleLayer, type IdeaItem } from './components/IdeaBubble';
 import type { IdeaDraftData } from './components/IdeaFlowViews';
 import { ProjectListView } from './components/ProjectListView';
+import { readMotionPaused, writeMotionPaused } from './lib/appSettings';
 
 import type { WorkReportItem } from './components/WorkStorageViews';
 
@@ -32,6 +33,7 @@ const ProjectDetailView = lazy(() => import('./components/ProjectDetailView').th
 const StepWorkflowView = lazy(() => import('./components/StepWorkflowView').then(module => ({ default: module.StepWorkflowView })));
 const WorkStorageViews = lazy(() => import('./components/WorkStorageViews').then(module => ({ default: module.WorkStorageViews })));
 const RosterArchiveViews = lazy(() => import('./components/RosterArchiveViews').then(module => ({ default: module.RosterArchiveViews })));
+const SettingsView = lazy(() => import('./components/SettingsView').then(module => ({ default: module.SettingsView })));
 export default function App() {
   const shared = useSharedIdeas();
   const { back, canBack, route, set: setNavigation } = useNavigation();
@@ -39,9 +41,14 @@ export default function App() {
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   // 4つのメインナビゲーション: 'change' (イータを変える) | 'progress' (進行中) | 'work' (はたらく) | 'warehouse' (保管する)
   const [activeTab, setActiveTab] = useScreenState<MainNavDestination>('tab', 'change');
+  const [settingsOpen, setSettingsOpen] = useScreenState('settings', false);
 
   // アニメーション停止フラグ
-  const [isScenePaused, setIsScenePaused] = useState(() => { try { return localStorage.getItem('tn_motion_paused') === 'true'; } catch { return false; } });
+  const [isScenePaused, setIsScenePaused] = useState(() => readMotionPaused());
+  const setMotionPaused = (paused: boolean) => {
+    writeMotionPaused(paused);
+    setIsScenePaused(paused);
+  };
 
   // S01〜S04 アイデアフロー状態
   // 'home' | 'input' (S03) | 'proposal' (S04)
@@ -632,18 +639,27 @@ export default function App() {
         }
       }}
       currentUser={currentUser}
+      onOpenSettings={() => setSettingsOpen(true)}
       onOpenUserMenu={() => {
         // 右上アバターアイコンタップ: 自分のプロフィールを直接開く
+        setSettingsOpen(false);
         const myResident = getMyResidentRecord();
         setSelectedResident(myResident);
         setActiveTab('warehouse');
         setStorageView('profile');
       }}
-      onBack={canBack ? back : undefined}
+      onBack={settingsOpen ? () => setSettingsOpen(false) : canBack ? back : undefined}
       backTitle="戻る"
-      hideNav={activeTab === 'change' && ideaFlowMode === 'active'}
+      hideNav={settingsOpen || (activeTab === 'change' && ideaFlowMode === 'active')}
     >
       <ScreenLoadingBoundary screenKey={JSON.stringify(route)} loading={isInitialLoading} variant={activeTab === 'change' && ideaFlowMode === 'home' ? 'home' : activeTab === 'change' ? 'document' : 'list'}>
+      {settingsOpen ? (
+        <SettingsView
+          currentUser={currentUser}
+          motionPaused={isScenePaused}
+          onMotionPausedChange={setMotionPaused}
+        />
+      ) : (<>
       {/* ============================================================ */}
       {/* 1. アイデア (S01, S02, S03, S04) */}
       {/* ============================================================ */}
@@ -656,7 +672,7 @@ export default function App() {
                 type="courtyard"
                 isPaused={isScenePaused}
                 isInteractionPaused={isComposerFocused}
-                onTogglePause={() => setIsScenePaused((p) => !p)}
+                onTogglePause={() => setMotionPaused(!isScenePaused)}
               />
 
               <h1 className="sr-only">アイデア</h1>
@@ -916,6 +932,7 @@ export default function App() {
           )}
         </div>
       )}
+      </>)}
       </ScreenLoadingBoundary>
     </AppShell>
   );

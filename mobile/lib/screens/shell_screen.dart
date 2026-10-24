@@ -8,6 +8,7 @@ import 'archive_screen.dart';
 import 'ideas_screen.dart';
 import 'profile_screen.dart';
 import 'projects_screen.dart';
+import 'settings_screen.dart';
 import 'work_screen.dart';
 
 class ShellScreen extends StatefulWidget {
@@ -90,6 +91,11 @@ class _ShellScreenState extends State<ShellScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: '設定',
+            onPressed: () => SettingsScreen.showAsSheet(context),
+            icon: const Icon(Icons.settings_outlined),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: Tooltip(
