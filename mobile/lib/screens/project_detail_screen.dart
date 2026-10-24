@@ -86,60 +86,55 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+                    // Stretch so title/description get full card width. A tight
+                    // Row beside the join button was wrapping Japanese 1-char/line.
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    project.title,
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w700,
-                                      color: TnTokens.textMain,
-                                      height: 1.25,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    project.descriptionPreview,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: TnTokens.textMuted,
-                                      height: 1.55,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            FilledButton(
-                              onPressed: _busy
-                                  ? null
-                                  : () => _run(
-                                        () => data.toggleJoinProject(
-                                          project.id,
-                                          auth,
-                                        ),
+                        Text(
+                          project.title,
+                          softWrap: true,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: TnTokens.textMain,
+                            height: 1.25,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          project.descriptionPreview,
+                          softWrap: true,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: TnTokens.textMuted,
+                            height: 1.55,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: FilledButton(
+                            onPressed: _busy
+                                ? null
+                                : () => _run(
+                                      () => data.toggleJoinProject(
+                                        project.id,
+                                        auth,
                                       ),
-                              style: FilledButton.styleFrom(
-                                backgroundColor:
-                                    joined ? TnTokens.bgTint : TnTokens.primary,
-                                foregroundColor:
-                                    joined ? TnTokens.textMain : Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
+                                    ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor:
+                                  joined ? TnTokens.bgTint : TnTokens.primary,
+                              foregroundColor:
+                                  joined ? TnTokens.textMain : Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
                               ),
-                              child: Text(joined ? '参加中' : '参加する'),
                             ),
-                          ],
+                            child: Text(joined ? '参加中' : '参加する'),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Wrap(
@@ -267,44 +262,86 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     final name = TextEditingController();
     final leader = TextEditingController();
     final goal = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('班を追加'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: '班の名前（必須）'),
-              autofocus: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: TnTokens.bgMain,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 4,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '班を追加',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: '班の名前（必須）'),
+                  autofocus: true,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: leader,
+                  decoration: const InputDecoration(labelText: 'リーダー（任意）'),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: goal,
+                  decoration: const InputDecoration(labelText: '目標（任意）'),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) {
+                    if (name.text.trim().isNotEmpty) {
+                      Navigator.pop(ctx, true);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('班を追加する'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('キャンセル'),
+                ),
+              ],
             ),
-            TextField(
-              controller: leader,
-              decoration: const InputDecoration(labelText: 'リーダー（任意）'),
-            ),
-            TextField(
-              controller: goal,
-              decoration: const InputDecoration(labelText: '目標（任意）'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('追加')),
-        ],
-      ),
+          ),
+        );
+      },
     );
+    final groupName = name.text.trim();
+    final glName = leader.text.trim();
+    final milestone = goal.text.trim();
+    name.dispose();
+    leader.dispose();
+    goal.dispose();
     if (ok != true || !mounted) return;
-    if (name.text.trim().isEmpty) return;
+    if (groupName.isEmpty) return;
     await _run(
       () => context.read<AppDataProvider>().addGroup(
             project.id,
             ProjectGroup(
               id: 'grp-${DateTime.now().millisecondsSinceEpoch}',
-              name: name.text.trim(),
-              glName: leader.text.trim(),
-              milestoneTitle: goal.text.trim(),
+              name: groupName,
+              glName: glName,
+              milestoneTitle: milestone,
             ),
           ),
     );
