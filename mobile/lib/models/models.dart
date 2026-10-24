@@ -169,6 +169,18 @@ class ProjectMember {
   final String? eventRole;
   final String? groupName;
 
+  Map<String, dynamic> toJson() => {
+        'residentId': residentId,
+        'name': name,
+        'avatar': avatar,
+        'role': role,
+        'building': building,
+        'joinedAt': joinedAt,
+        if (leftAt.isNotEmpty) 'leftAt': leftAt,
+        if (eventRole != null) 'eventRole': eventRole,
+        if (groupName != null) 'groupName': groupName,
+      };
+
   factory ProjectMember.fromJson(Map<String, dynamic> m) {
     final name = '${m['name'] ?? ''}'.trim();
     final role = '${m['role'] ?? m['role_label'] ?? ''}'.trim();
@@ -188,6 +200,203 @@ class ProjectMember {
   }
 }
 
+class WorkflowStep {
+  const WorkflowStep({
+    required this.id,
+    required this.step,
+    required this.title,
+    this.date = '',
+    this.active = false,
+    this.done = false,
+  });
+
+  final String id;
+  final String step;
+  final String title;
+  final String date;
+  final bool active;
+  final bool done;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'step': step,
+        'title': title,
+        'date': date,
+        'active': active,
+        'done': done,
+      };
+
+  factory WorkflowStep.fromJson(Map<String, dynamic> m) => WorkflowStep(
+        id: '${m['id'] ?? ''}',
+        step: '${m['step'] ?? ''}',
+        title: '${m['title'] ?? ''}',
+        date: '${m['date'] ?? ''}',
+        active: m['active'] == true,
+        done: m['done'] == true,
+      );
+}
+
+class MeetingNote {
+  const MeetingNote({
+    this.id = '',
+    required this.title,
+    required this.date,
+    this.attendees = '',
+    this.summary = '',
+    this.decisions = const [],
+    this.nextTodos = const [],
+  });
+
+  final String id;
+  final String title;
+  final String date;
+  final String attendees;
+  final String summary;
+  final List<String> decisions;
+  final List<String> nextTodos;
+
+  Map<String, dynamic> toJson() => {
+        if (id.isNotEmpty) 'id': id,
+        'title': title,
+        'date': date,
+        'attendees': attendees,
+        'summary': summary,
+        'decisions': decisions,
+        'nextTodos': nextTodos,
+      };
+
+  factory MeetingNote.fromJson(Map<String, dynamic> m) {
+    List<String> asStringList(dynamic v) {
+      if (v is List) return [for (final e in v) '$e'];
+      if (v is String && v.trim().isNotEmpty) {
+        return v.split(RegExp(r'[,、\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      }
+      return const [];
+    }
+
+    final attendeesRaw = m['attendees'];
+    final attendees = attendeesRaw is List
+        ? attendeesRaw.map((e) => '$e').join(' ')
+        : '${attendeesRaw ?? ''}';
+
+    return MeetingNote(
+      id: '${m['id'] ?? ''}',
+      title: '${m['title'] ?? ''}',
+      date: '${m['date'] ?? ''}',
+      attendees: attendees,
+      summary: '${m['summary'] ?? ''}',
+      decisions: asStringList(m['decisions']),
+      nextTodos: asStringList(m['nextTodos']),
+    );
+  }
+}
+
+class LeaderEvaluation {
+  const LeaderEvaluation({
+    this.id = '',
+    this.targetName = '',
+    this.authorName = '',
+    this.facilitation = 0,
+    this.communication = 0,
+    this.safety = 0,
+    this.budget = 0,
+    this.verdict = '未評価',
+    this.good = '',
+    this.bad = '',
+    this.createdAt = '',
+  });
+
+  final String id;
+  final String targetName;
+  final String authorName;
+  final int facilitation;
+  final int communication;
+  final int safety;
+  final int budget;
+  final String verdict;
+  final String good;
+  final String bad;
+  final String createdAt;
+
+  Map<String, dynamic> toJson() => {
+        if (id.isNotEmpty) 'id': id,
+        'targetName': targetName,
+        'authorName': authorName,
+        'facilitation': facilitation,
+        'communication': communication,
+        'safety': safety,
+        'budget': budget,
+        'verdict': verdict,
+        'good': good,
+        'bad': bad,
+        'createdAt': createdAt,
+      };
+
+  factory LeaderEvaluation.fromJson(Map<String, dynamic> m) => LeaderEvaluation(
+        id: '${m['id'] ?? ''}',
+        targetName: '${m['targetName'] ?? m['target'] ?? ''}',
+        authorName: '${m['authorName'] ?? m['author'] ?? ''}',
+        facilitation: (m['facilitation'] as num?)?.toInt() ?? (m['scoreFacilitation'] as num?)?.toInt() ?? 0,
+        communication: (m['communication'] as num?)?.toInt() ?? (m['scoreCommunication'] as num?)?.toInt() ?? 0,
+        safety: (m['safety'] as num?)?.toInt() ?? (m['scoreSafety'] as num?)?.toInt() ?? 0,
+        budget: (m['budget'] as num?)?.toInt() ?? (m['scoreBudget'] as num?)?.toInt() ?? 0,
+        verdict: '${m['verdict'] ?? '未評価'}',
+        good: '${m['good'] ?? m['goodPoints'] ?? ''}',
+        bad: '${m['bad'] ?? m['improvePoints'] ?? ''}',
+        createdAt: '${m['createdAt'] ?? ''}',
+      );
+}
+
+class ProjectGroup {
+  const ProjectGroup({
+    required this.id,
+    required this.name,
+    this.glName = '',
+    this.milestoneTitle = '',
+    this.milestoneDeadline = '',
+  });
+
+  final String id;
+  final String name;
+  final String glName;
+  final String milestoneTitle;
+  final String milestoneDeadline;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'glName': glName,
+        'milestoneTitle': milestoneTitle,
+        if (milestoneDeadline.isNotEmpty) 'milestoneDeadline': milestoneDeadline,
+      };
+
+  factory ProjectGroup.fromJson(Map<String, dynamic> m) => ProjectGroup(
+        id: '${m['id'] ?? ''}',
+        name: '${m['name'] ?? ''}',
+        glName: '${m['glName'] ?? ''}',
+        milestoneTitle: '${m['milestoneTitle'] ?? ''}',
+        milestoneDeadline: '${m['milestoneDeadline'] ?? ''}',
+      );
+}
+
+List<WorkflowStep> defaultWorkflowSteps(String projectType) {
+  if (projectType == 'event') {
+    return const [
+      WorkflowStep(id: 'ev-1', step: '1', title: 'アイデア', date: 'やりたいことを考える', active: true),
+      WorkflowStep(id: 'ev-2', step: '2', title: '企画確認', date: '企画の内容を確認する'),
+      WorkflowStep(id: 'ev-3', step: '3', title: '準備', date: '会場や必要なものを準備する'),
+      WorkflowStep(id: 'ev-4', step: '4', title: '当日', date: 'イベントを実施する'),
+      WorkflowStep(id: 'ev-5', step: '5', title: '振り返り', date: '良かったことをまとめる'),
+    ];
+  }
+  return const [
+    WorkflowStep(id: 'op-1', step: '1', title: '課題を調べる', date: '現状を知り、課題を整理する', active: true),
+    WorkflowStep(id: 'op-2', step: '2', title: '試す', date: '小さく試してみる'),
+    WorkflowStep(id: 'op-3', step: '3', title: '運用を決める', date: 'みんなでルールをつくる'),
+    WorkflowStep(id: 'op-4', step: '4', title: '続ける', date: '継続して運用する'),
+  ];
+}
+
 class ProjectItem {
   const ProjectItem({
     required this.id,
@@ -199,6 +408,16 @@ class ProjectItem {
     this.ownerId = '',
     this.members = const [],
     this.pastMembers = const [],
+    this.category = '',
+    this.nextAction = '',
+    this.description = '',
+    this.progress = 40,
+    this.storedProjectType,
+    this.workflowSteps = const [],
+    this.meetingNotes = const [],
+    this.evaluations = const [],
+    this.groups = const [],
+    this.detailsProposalDoc,
   });
 
   final String id;
@@ -210,9 +429,19 @@ class ProjectItem {
   final String ownerId;
   final List<ProjectMember> members;
   final List<ProjectMember> pastMembers;
+  final String category;
+  final String nextAction;
+  final String description;
+  final int progress;
+  final String? storedProjectType;
+  final List<WorkflowStep> workflowSteps;
+  final List<MeetingNote> meetingNotes;
+  final List<LeaderEvaluation> evaluations;
+  final List<ProjectGroup> groups;
+  final Map<String, dynamic>? detailsProposalDoc;
 
   /// Parsed from `PROPOSAL_JSON:…` summary when present.
-  Map<String, dynamic>? get proposalDoc {
+  Map<String, dynamic>? get summaryProposalDoc {
     if (!summary.startsWith('PROPOSAL_JSON:')) return null;
     try {
       return jsonDecode(summary.substring('PROPOSAL_JSON:'.length)) as Map<String, dynamic>;
@@ -221,8 +450,14 @@ class ProjectItem {
     }
   }
 
+  /// Prefer details.proposalDoc (editable), else PROPOSAL_JSON summary.
+  Map<String, dynamic>? get proposalDoc => detailsProposalDoc ?? summaryProposalDoc;
+
   /// event | operation — mirrors web ProjectDetailView / ProjectListView.
   String get projectType {
+    if (storedProjectType == 'event' || storedProjectType == 'operation') {
+      return storedProjectType!;
+    }
     final doc = proposalDoc;
     if (doc != null && doc['projectType'] == 'event') return 'event';
     return 'operation';
@@ -251,8 +486,30 @@ class ProjectItem {
     }
   }
 
+  bool isJoinedBy(String? userId) {
+    if (userId == null || userId.isEmpty) return false;
+    return members.any((m) => m.residentId == userId);
+  }
+
+  bool isOwnedBy(String? userId) {
+    if (userId == null || userId.isEmpty) return false;
+    return ownerId == userId;
+  }
+
+  List<WorkflowStep> get effectiveWorkflowSteps =>
+      workflowSteps.isNotEmpty ? workflowSteps : defaultWorkflowSteps(projectType);
+
+  String get effectiveNextAction {
+    if (nextAction.trim().isNotEmpty) return nextAction.trim();
+    final doc = proposalDoc;
+    final fromDoc = '${doc?['nextAction'] ?? ''}'.trim();
+    if (fromDoc.isNotEmpty) return fromDoc;
+    return isEvent ? '会場の確認をする' : '試行結果を記録';
+  }
+
   /// Short description for list / hero subtitle (not the raw PROPOSAL_JSON blob).
   String get descriptionPreview {
+    if (description.trim().isNotEmpty) return description.trim();
     final doc = proposalDoc;
     if (doc != null) {
       for (final key in ['objective', 'proposalOverview', 'background']) {
@@ -262,8 +519,74 @@ class ProjectItem {
       return '寮生同士のアイデアを形にするプロジェクトです';
     }
     final s = summary.trim();
-    if (s.isEmpty || s == '—') return '寮生同士のアイデアを形にするプロジェクトです';
+    if (s.isEmpty || s == '—' || s.startsWith('PROPOSAL_JSON:')) {
+      return '寮生同士のアイデアを形にするプロジェクトです';
+    }
     return s;
+  }
+
+  /// Payload for `tn_update_project_details` — mirrors web `projectDetailsPayload`.
+  Map<String, dynamic> detailsPayload() => {
+        'projectType': projectType,
+        'category': category.isNotEmpty
+            ? category
+            : (isEvent ? 'イベント' : '施設・日常'),
+        'nextAction': effectiveNextAction,
+        'description': descriptionPreview == '寮生同士のアイデアを形にするプロジェクトです'
+            ? description
+            : descriptionPreview,
+        'progress': progress,
+        'workflowSteps': effectiveWorkflowSteps.map((s) => s.toJson()).toList(),
+        'meetingNotes': meetingNotes.map((n) => n.toJson()).toList(),
+        'evaluations': evaluations.map((e) => e.toJson()).toList(),
+        'groups': groups.map((g) => g.toJson()).toList(),
+        'proposalDoc': proposalDoc,
+        'staffMembers': members.map((m) => m.toJson()).toList(),
+      };
+
+  ProjectItem copyWith({
+    String? title,
+    String? summary,
+    String? status,
+    int? memberCount,
+    String? ownerName,
+    String? ownerId,
+    List<ProjectMember>? members,
+    List<ProjectMember>? pastMembers,
+    String? category,
+    String? nextAction,
+    String? description,
+    int? progress,
+    String? storedProjectType,
+    List<WorkflowStep>? workflowSteps,
+    List<MeetingNote>? meetingNotes,
+    List<LeaderEvaluation>? evaluations,
+    List<ProjectGroup>? groups,
+    Map<String, dynamic>? detailsProposalDoc,
+    bool clearDetailsProposal = false,
+  }) {
+    return ProjectItem(
+      id: id,
+      title: title ?? this.title,
+      summary: summary ?? this.summary,
+      status: status ?? this.status,
+      memberCount: memberCount ?? this.memberCount,
+      ownerName: ownerName ?? this.ownerName,
+      ownerId: ownerId ?? this.ownerId,
+      members: members ?? this.members,
+      pastMembers: pastMembers ?? this.pastMembers,
+      category: category ?? this.category,
+      nextAction: nextAction ?? this.nextAction,
+      description: description ?? this.description,
+      progress: progress ?? this.progress,
+      storedProjectType: storedProjectType ?? this.storedProjectType,
+      workflowSteps: workflowSteps ?? this.workflowSteps,
+      meetingNotes: meetingNotes ?? this.meetingNotes,
+      evaluations: evaluations ?? this.evaluations,
+      groups: groups ?? this.groups,
+      detailsProposalDoc:
+          clearDetailsProposal ? null : (detailsProposalDoc ?? this.detailsProposalDoc),
+    );
   }
 
   factory ProjectItem.fromJson(Map<String, dynamic> m) {
@@ -324,16 +647,52 @@ class ProjectItem {
       }
     }
 
+    List<T> parseList<T>(dynamic raw, T Function(Map<String, dynamic>) map) {
+      if (raw is! List) return const [];
+      return [
+        for (final e in raw)
+          if (e is Map) map(Map<String, dynamic>.from(e)),
+      ];
+    }
+
+    final summary = '${m['summary'] ?? ''}';
+    Map<String, dynamic>? summaryDoc;
+    if (summary.startsWith('PROPOSAL_JSON:')) {
+      try {
+        summaryDoc = jsonDecode(summary.substring('PROPOSAL_JSON:'.length)) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+
+    final detailsProposal = details['proposalDoc'] is Map
+        ? Map<String, dynamic>.from(details['proposalDoc'] as Map)
+        : null;
+
+    final storedType = '${details['projectType'] ?? summaryDoc?['projectType'] ?? ''}';
+    final nextFromDetails = '${details['nextAction'] ?? ''}'.trim();
+    final nextFromDoc = '${summaryDoc?['nextAction'] ?? ''}'.trim();
+    final descFromDetails = '${details['description'] ?? ''}'.trim();
+
     return ProjectItem(
       id: id,
       title: '${m['title'] ?? ''}',
-      summary: '${m['summary'] ?? ''}',
+      summary: summary,
       status: '${m['status'] ?? '進行中'}',
       memberCount: memberCount,
       ownerName: ownerName,
       ownerId: ownerId,
       members: members,
       pastMembers: past,
+      category: '${details['category'] ?? summaryDoc?['category'] ?? ''}',
+      nextAction: nextFromDetails.isNotEmpty ? nextFromDetails : nextFromDoc,
+      description: descFromDetails,
+      progress: (details['progress'] as num?)?.toInt() ??
+          ('${m['status']}' == '完了' ? 100 : 40),
+      storedProjectType: storedType == 'event' || storedType == 'operation' ? storedType : null,
+      workflowSteps: parseList(details['workflowSteps'], WorkflowStep.fromJson),
+      meetingNotes: parseList(details['meetingNotes'], MeetingNote.fromJson),
+      evaluations: parseList(details['evaluations'], LeaderEvaluation.fromJson),
+      groups: parseList(details['groups'], ProjectGroup.fromJson),
+      detailsProposalDoc: detailsProposal,
     );
   }
 }

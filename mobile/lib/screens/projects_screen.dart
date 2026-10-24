@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/models.dart';
 import '../providers/app_data_provider.dart';
+import '../providers/auth_provider.dart';
 import '../theme/tokens.dart';
 import 'project_detail_screen.dart';
 
@@ -26,12 +27,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   Widget build(BuildContext context) {
     final data = context.watch<AppDataProvider>();
+    final auth = context.watch<AuthProvider>();
     final q = _search.text.trim().toLowerCase();
-    final list = data.filteredProjects.where((p) {
+    final list = data.filteredProjectsFor(auth.user?.id).where((p) {
       if (q.isEmpty) return true;
       return p.title.toLowerCase().contains(q) ||
           p.descriptionPreview.toLowerCase().contains(q) ||
-          p.ownerName.toLowerCase().contains(q);
+          p.ownerName.toLowerCase().contains(q) ||
+          p.members.any((m) => m.name.toLowerCase().contains(q));
     }).toList();
 
     return RefreshIndicator(
@@ -66,9 +69,28 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
           const SizedBox(height: 14),
           if (list.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 48),
-              child: Center(child: Text('企画なし', style: TextStyle(color: TnTokens.textMuted))),
+            Padding(
+              padding: const EdgeInsets.only(top: 48),
+              child: Column(
+                children: [
+                  const Text(
+                    '一致する企画が見つかりませんでした。',
+                    style: TextStyle(color: TnTokens.textMuted),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (q.isNotEmpty || data.projectFilter != 'すべて') ...[
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () {
+                        _search.clear();
+                        data.setProjectFilter('すべて');
+                        setState(() {});
+                      },
+                      child: const Text('条件をクリア'),
+                    ),
+                  ],
+                ],
+              ),
             )
           else
             ...list.map(
@@ -78,7 +100,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   project: p,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => ProjectDetailScreen(project: p),
+                      builder: (_) => ProjectDetailScreen(projectId: p.id),
                     ),
                   ),
                 ),

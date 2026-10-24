@@ -22,12 +22,21 @@ class AppDataProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
 
-  List<ProjectItem> get filteredProjects {
+  ProjectItem? projectById(String id) {
+    for (final p in projects) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  List<ProjectItem> filteredProjectsFor(String? userId) {
     switch (projectFilter) {
       case '参加中':
-        return projects.where((p) => p.memberCount > 0).toList();
+        if (userId == null || userId.isEmpty) return const [];
+        return projects.where((p) => p.isJoinedBy(userId) || p.isOwnedBy(userId)).toList();
       case '自分の企画':
-        return projects;
+        if (userId == null || userId.isEmpty) return const [];
+        return projects.where((p) => p.isOwnedBy(userId)).toList();
       default:
         return projects;
     }
@@ -144,10 +153,11 @@ class AppDataProvider extends ChangeNotifier {
     await createProjectFullTitle(title, summary);
   }
 
-  /// Full 企画書 — stores complete form JSON in cloud summary.
+  /// Full 企画書 — stores complete form JSON in cloud summary + seeds details.
   Future<void> createProjectFull(
     dynamic form, {
     List<AttachmentPin> attachments = const [],
+    AuthProvider? auth,
   }) async {
     final map = form is Map<String, dynamic> ? form : (form as dynamic).toJson() as Map<String, dynamic>;
     final title = '${map['title'] ?? ''}'.trim();
@@ -159,20 +169,182 @@ class AppDataProvider extends ChangeNotifier {
       ...map,
       if (attachments.isNotEmpty) 'attachments': attachments.map((a) => a.toJson()).toList(),
     };
-    await createProjectFullTitle(title, summary.isEmpty ? '—' : summary, proposalJson: payload);
+    await createProjectFullTitle(
+      title,
+      summary.isEmpty ? '—' : summary,
+      proposalJson: payload,
+      auth: auth,
+    );
   }
 
   Future<void> createProjectFullTitle(
     String title,
     String summary, {
     Map<String, dynamic>? proposalJson,
+    AuthProvider? auth,
   }) async {
     _requireCloud();
+    final projectType = '${proposalJson?['projectType'] ?? 'operation'}' == 'event' ? 'event' : 'operation';
+    final nextAction = projectType == 'event' ? '企画の内容を確認する' : '課題を調べる';
+    final enriched = {
+      ...?proposalJson,
+      'projectType': projectType,
+      'nextAction': nextAction,
+      'category': projectType == 'event' ? 'イベント' : '施設・日常',
+      if (auth?.profile?.name != null) 'ownerName': auth!.profile!.name,
+    };
     projects = await _api.createProject(
       title,
-      proposalJson != null ? 'PROPOSAL_JSON:${jsonEncode(proposalJson)}' : summary,
+      enriched.isNotEmpty ? 'PROPOSAL_JSON:${jsonEncode(enriched)}' : summary,
     );
     notifyListeners();
+
+    // Seed workflow / proposalDoc into details (same shape as web persistCloudProject).
+    ProjectItem? created;
+    for (final p in projects) {
+      if (p.title == title) {
+        created = p;
+        break;
+      }
+    }
+    created ??= projects.isEmpty ? null : projects.first;
+    if (created != null) {
+      final seeded = created.copyWith(
+        storedProjectType: projectType,
+        nextAction: nextAction,
+        category: projectType == 'event' ? 'イベント' : '施設・日常',
+        description: '${enriched['objective'] ?? enriched['proposalOverview'] ?? ''}',
+        workflowSteps: defaultWorkflowSteps(projectType),
+        detailsProposalDoc: enriched,
+        members: created.members,
+      );
+      try {
+        projects = await _api.updateProjectDetails(created.id, seeded.detailsPayload());
+        notifyListeners();
+      } catch (_) {
+        // Create already succeeded; details seed is best-effort.
+      }
+    }
+  }
+
+  Future<void> toggleJoinProject(String projectId, AuthProvider auth) async {
+    _requireCloud();
+    final project = projectById(projectId);
+    if (project == null) throw StateError('企画が見つかりません');
+    final uid = auth.user?.id;
+    if (uid == null) throw StateError('未ログインです');
+    final role = auth.profile?.role.trim().isNotEmpty == true ? auth.profile!.role : 'スタッフ';
+    final joined = project.isJoinedBy(uid);
+
+    if (joined) {
+      var list = await _api.leaveProject(projectId);
+      ProjectItem? latest;
+      for (final p in list) {
+        if (p.id == projectId) {
+          latest = p;
+          break;
+        }
+      }
+      if (latest != null) {
+        final cleaned = latest.copyWith(
+          members: latest.members.where((m) => m.residentId != uid).toList(),
+        );
+        list = await _api.updateProjectDetails(projectId, cleaned.detailsPayload());
+      }
+      projects = list;
+    } else {
+      projects = await _api.joinProject(projectId, role: role);
+    }
+    notifyListeners();
+  }
+
+  Future<void> persistProjectDetails(ProjectItem next) async {
+    _requireCloud();
+    projects = await _api.updateProjectDetails(next.id, next.detailsPayload());
+    notifyListeners();
+  }
+
+  Future<void> addWorkflowStep(String projectId, String title, String dateRange) async {
+    final project = projectById(projectId);
+    if (project == null) throw StateError('企画が見つかりません');
+    final steps = [...project.effectiveWorkflowSteps];
+    steps.add(WorkflowStep(
+      id: 'st-${DateTime.now().millisecondsSinceEpoch}',
+      step: '${steps.length + 1}',
+      title: title.trim(),
+      date: dateRange.trim().isEmpty ? '実施予定' : dateRange.trim(),
+    ));
+    await persistProjectDetails(project.copyWith(workflowSteps: steps));
+  }
+
+  Future<void> addMeetingNote(String projectId, MeetingNote note) async {
+    final project = projectById(projectId);
+    if (project == null) throw StateError('企画が見つかりません');
+    await persistProjectDetails(
+      project.copyWith(meetingNotes: [note, ...project.meetingNotes]),
+    );
+  }
+
+  Future<void> addEvaluation(String projectId, LeaderEvaluation evaluation) async {
+    final project = projectById(projectId);
+    if (project == null) throw StateError('企画が見つかりません');
+    await persistProjectDetails(
+      project.copyWith(evaluations: [evaluation, ...project.evaluations]),
+    );
+  }
+
+  Future<void> addGroup(String projectId, ProjectGroup group) async {
+    final project = projectById(projectId);
+    if (project == null) throw StateError('企画が見つかりません');
+    await persistProjectDetails(
+      project.copyWith(groups: [...project.groups, group]),
+    );
+  }
+
+  Future<void> addStaffMember(String projectId, ProjectMember member, AuthProvider auth) async {
+    _requireCloud();
+    final project = projectById(projectId);
+    if (project == null) throw StateError('企画が見つかりません');
+    final uid = auth.user?.id;
+    if (uid != null && member.residentId == uid) {
+      if (!project.isJoinedBy(uid)) {
+        projects = await _api.joinProject(projectId, role: member.role);
+        notifyListeners();
+      }
+      return;
+    }
+    if (project.members.any((m) => m.residentId == member.residentId)) return;
+    await persistProjectDetails(
+      project.copyWith(members: [...project.members, member]),
+    );
+  }
+
+  Future<void> updateProposalDoc(String projectId, Map<String, dynamic> doc) async {
+    _requireCloud();
+    final project = projectById(projectId);
+    if (project == null) throw StateError('企画が見つかりません');
+    final next = project.copyWith(detailsProposalDoc: doc);
+    final summaryPayload = {
+      'projectType': next.projectType,
+      'title': '${doc['title'] ?? next.title}',
+      'objective': '${doc['objective'] ?? doc['purpose'] ?? ''}',
+      'proposalOverview': '${doc['proposalOverview'] ?? ''}',
+      'background': '${doc['background'] ?? ''}',
+      'recipient': '${doc['recipient'] ?? ''}',
+      'submissionDate': '${doc['submissionDate'] ?? ''}',
+      'budget': '${doc['totalBudget'] ?? doc['totalCostEstimate'] ?? ''}',
+      'category': next.category,
+      'ownerName': next.ownerName,
+      'nextAction': next.effectiveNextAction,
+    };
+    projects = await _api.updateProjectSummary(
+      projectId,
+      'PROPOSAL_JSON:${jsonEncode(summaryPayload)}',
+      status: next.status,
+    );
+    notifyListeners();
+    final refreshed = projectById(projectId) ?? next;
+    await persistProjectDetails(refreshed.copyWith(detailsProposalDoc: doc));
   }
 
   Future<void> refreshReports() async {

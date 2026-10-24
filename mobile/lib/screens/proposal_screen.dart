@@ -187,7 +187,11 @@ class _ProposalScreenState extends State<ProposalScreen> {
     }
     setState(() => _submitting = true);
     try {
-      await context.read<AppDataProvider>().createProjectFull(_form, attachments: _attachments);
+      await context.read<AppDataProvider>().createProjectFull(
+            _form,
+            attachments: _attachments,
+            auth: context.read<AuthProvider>(),
+          );
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_draftKey);
       if (!mounted) return;

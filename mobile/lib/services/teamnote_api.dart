@@ -96,6 +96,53 @@ class TeamNoteApi {
     return _asList(row).map(ProjectItem.fromJson).toList();
   }
 
+  Future<List<ProjectItem>> updateProjectDetails(
+    String projectId,
+    Map<String, dynamic> details,
+  ) async {
+    final c = _requireClient();
+    final row = await c.rpc('tn_update_project_details', params: {
+      'p_community': community,
+      'p_id': projectId,
+      'p_details': details,
+    });
+    return _asList(row).map(ProjectItem.fromJson).toList();
+  }
+
+  Future<List<ProjectItem>> updateProjectSummary(
+    String projectId,
+    String summary, {
+    String? status,
+  }) async {
+    final c = _requireClient();
+    final row = await c.rpc('tn_update_project_summary', params: {
+      'p_community': community,
+      'p_id': projectId,
+      'p_summary': summary,
+      'p_status': status,
+    });
+    return _asList(row).map(ProjectItem.fromJson).toList();
+  }
+
+  Future<List<ProjectItem>> joinProject(String projectId, {String role = 'スタッフ'}) async {
+    final c = _requireClient();
+    final row = await c.rpc('tn_join_project', params: {
+      'p_community': community,
+      'p_id': projectId,
+      'p_role': role,
+    });
+    return _asList(row).map(ProjectItem.fromJson).toList();
+  }
+
+  Future<List<ProjectItem>> leaveProject(String projectId) async {
+    final c = _requireClient();
+    final row = await c.rpc('tn_leave_project', params: {
+      'p_community': community,
+      'p_id': projectId,
+    });
+    return _asList(row).map(ProjectItem.fromJson).toList();
+  }
+
   Future<List<Map<String, dynamic>>> listReports() async {
     final c = _requireClient();
     final row = await c.rpc('tn_list_reports', params: {'p_community': community});
