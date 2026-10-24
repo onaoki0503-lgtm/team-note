@@ -114,9 +114,15 @@ class AuthProvider extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
+      // Masked user (no identities) means this email is already registered.
+      if (res.user != null && res.user!.identities != null && res.user!.identities!.isEmpty) {
+        error = 'このメールアドレスは既に登録されています。ログインするか、Googleで続けてください。';
+        gate = AuthGate.login;
+        return;
+      }
       user = res.user;
       if (res.session == null) {
-        error = '確認メールを開いた後、ログインしてください';
+        error = '確認メールを開いた後、ログインしてください。同じメールならGoogleでも入れます。';
         gate = AuthGate.login;
       } else {
         await _loadMembership();
@@ -126,10 +132,14 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> signInWithGoogle() async {
     await _run(() async {
+      if (!Environment.googleConfigured) {
+        throw StateError(
+          'Googleログインの設定がありません。GOOGLE_WEB_CLIENT_ID を入れてビルドし直してください。',
+        );
+      }
       final google = GoogleSignIn(
         clientId: Environment.googleIosClientId.isEmpty ? null : Environment.googleIosClientId,
-        serverClientId:
-            Environment.googleWebClientId.isEmpty ? null : Environment.googleWebClientId,
+        serverClientId: Environment.googleWebClientId,
       );
       final account = await google.signIn();
       if (account == null) return;
@@ -247,7 +257,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       await body();
     } on AuthException catch (e) {
-      error = e.message;
+      error = _friendlyError(e.message);
     } catch (e) {
       error = _friendlyError('$e');
     } finally {
@@ -266,6 +276,16 @@ class AuthProvider extends ChangeNotifier {
     }
     if (m.contains('access_denied') || m.contains('42501')) {
       return 'この操作の権限がありません。';
+    }
+    // Multi-provider: same email already has another identity, or linking blocked.
+    if (m.contains('identity is already linked') ||
+        m.contains('already been registered') ||
+        m.contains('user already registered') ||
+        m.contains('email address is already')) {
+      return 'このメールは既に登録されています。メールかGoogleのどちらかでログインしてください。';
+    }
+    if (m.contains('email not confirmed')) {
+      return '確認メールを開いてから、同じメールでGoogleログインできます。';
     }
     if (raw.startsWith('Bad state: ')) return raw.substring(11);
     if (raw.startsWith('StateError: ')) return raw.substring(12);

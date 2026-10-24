@@ -74,9 +74,45 @@ class _LoginScreenState extends State<LoginScreen> {
                       }),
               child: Text(_signup ? 'ログインに戻る' : '初めての方はアカウントを作成'),
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('または', style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+                ),
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: auth.busy ? null : () => auth.signInWithGoogle(),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.network(
+                    'https://developers.google.com/identity/images/g-logo.png',
+                    height: 20,
+                    width: 20,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Googleで続ける',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.grey.shade800),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             Text(
-              'メール確認後にログインし、初回は参加コードで寮に入ります。Google / Appleログインは後から追加します。',
+              '同じメールなら、メール登録後にGoogleでも入れます（確認メール完了後）。',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: TnTokens.textMuted),
             ),
             if (!Environment.isConfigured) ...[

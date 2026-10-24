@@ -17,6 +17,9 @@ class Environment {
       supabaseAnonKey.isNotEmpty &&
       !supabaseUrl.contains('placeholder');
 
+  /// Native Google Sign-In needs the Web client id as `serverClientId`.
+  static bool get googleConfigured => googleWebClientId.isNotEmpty;
+
   static bool get demoMode => !isConfigured;
 
   static Future<void> load() async {

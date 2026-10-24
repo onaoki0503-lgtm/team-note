@@ -9,15 +9,19 @@
 
 `schema.sql` / `seed.sql` は旧試作。共有restaurantへ実行しない。
 
-## Auth（モバイル）
+## Auth（web + モバイル）
+
+詳しくは `../docs/OWNER_AUTH_SETUP.md`。
 
 Supabase Dashboard → Authentication → Providers:
 
 - Email（既存）
-- Google
-- Apple
+- Google（有効化 + Web Client ID/Secret、Skip nonce checks ON）
+- Apple（任意）
 
-Redirect / deep link: `teamnote://login-callback`
+**Manual linking = OFF**（同じ確認済みメールで email ↔ Google を自動リンク）
+
+Redirect URLs: `teamnote://login-callback` + web origins
 
 Storage buckets created by v2: `tn-avatars` (public), `tn-files` (private).
 

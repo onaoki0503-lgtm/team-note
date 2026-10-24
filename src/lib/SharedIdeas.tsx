@@ -50,7 +50,15 @@ function CloudProvider({ children }: { children: ReactNode }) {
       // Auth callbacks must return before making another Auth-dependent request.
       const timer = setTimeout(() => { timers.delete(timer); load(s); }, 0); timers.add(timer);
     });
-    void client.auth.getSession().then(({ data, error }) => { if (error) { setError(cloudError(error)); setStatus('login'); } else if (!changed) load(data.session); });
+    void client.auth.getSession().then(({ data, error }) => {
+      if (error) { setError(cloudError(error)); setStatus('login'); }
+      else if (!changed) load(data.session);
+      // Drop OAuth ?code= / #access_token noise after PKCE exchange (keep #join=).
+      if (data.session && (location.search.includes('code=') || location.hash.includes('access_token'))) {
+        const join = new URLSearchParams(location.hash.slice(1)).get('join');
+        history.replaceState(null, '', location.pathname + (join ? `#join=${encodeURIComponent(join)}` : ''));
+      }
+    });
     return () => { alive.current = false; listener.subscription.unsubscribe(); timers.forEach(clearTimeout); };
   }, [client, refresh]);
   const uid = session?.user.id;

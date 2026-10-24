@@ -92,7 +92,17 @@
 					<string>teamnote</string>
 				</array>
 			</dict>
+			<dict>
+				<key>CFBundleURLName</key>
+				<string>Google Sign In</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.339245757967-ef3ft3qab5od093d25vb85a5podbpv1c</string>
+				</array>
+			</dict>
 		</array>
+		<key>GIDClientID</key>
+		<string>339245757967-ef3ft3qab5od093d25vb85a5podbpv1c.apps.googleusercontent.com</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<key>UIStatusBarHidden</key>
