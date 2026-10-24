@@ -180,7 +180,7 @@ class _RosterScreenState extends State<RosterScreen> {
       showDragHandle: true,
       backgroundColor: TnTokens.bgMain,
       builder: (ctx) {
-        final maxH = MediaQuery.sizeOf(ctx).height * 0.88;
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.70;
         return SizedBox(
           width: double.infinity,
           height: maxH,
