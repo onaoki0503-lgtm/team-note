@@ -203,26 +203,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: auth.busy
                     ? null
                     : () async {
+                        final bioOn = await auth.credentials.isEnabled();
+                        if (!context.mounted) return;
                         final clearSaved = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('ログアウト'),
-                            content: const Text(
-                              '保存したログイン情報を残すと、次回は Face ID / 指紋で素早く入れます。削除するとメールとパスワードの再入力が必要です。',
-                              style: TextStyle(height: 1.55),
+                            content: Text(
+                              bioOn
+                                  ? '「残してログアウト」だとセッションを保ったままロックします。次回は Face ID / 指紋だけで開けます。「削除してログアウト」は完全にサインアウトします。'
+                                  : 'ログアウトしますか？生体認証を設定していない場合は、次回メールや Google で入り直します。',
+                              style: const TextStyle(height: 1.55),
                             ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(ctx),
                                 child: const Text('キャンセル'),
                               ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('残してログアウト'),
-                              ),
+                              if (bioOn)
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('残してログアウト'),
+                                ),
                               FilledButton(
                                 onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('削除してログアウト'),
+                                child: Text(bioOn ? '削除してログアウト' : 'ログアウト'),
                               ),
                             ],
                           ),

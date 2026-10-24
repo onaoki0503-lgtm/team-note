@@ -34,7 +34,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _motionPaused = false;
   bool _biometricAvailable = false;
   bool _biometricEnabled = false;
-  bool _hasCredentials = false;
   bool _busy = false;
   String _methodLabel = '生体認証';
   String? _notice;
@@ -52,16 +51,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final available = await _biometrics.isAvailable();
     final label = await _biometrics.methodLabel();
     final enabled = await auth.credentials.isEnabled();
-    final hasPassword = await auth.credentials.hasStoredPassword();
-    final email = await auth.credentials.peekEmail();
 
     if (!mounted) return;
     setState(() {
       _motionPaused = motion;
       _biometricAvailable = available;
       _methodLabel = label;
-      _biometricEnabled = enabled && hasPassword;
-      _hasCredentials = hasPassword && (email?.isNotEmpty ?? false);
+      _biometricEnabled = enabled;
     });
   }
 
@@ -93,6 +89,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return;
       }
 
+      if (profileEmail.isEmpty) {
+        setState(() {
+          _error = 'ログイン中のメールアドレスがありません。';
+        });
+        return;
+      }
+
       final confirmed = await _biometrics.authenticate(
         reason: '$_methodLabel ログインを有効にするため本人確認をします',
       );
@@ -101,88 +104,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return;
       }
 
-      if (await auth.credentials.hasStoredPassword()) {
-        await auth.credentials.setEnabled(true);
-        if (!mounted) return;
-        setState(() {
-          _biometricEnabled = true;
-          _hasCredentials = true;
-          _notice = '$_methodLabel ログインをオンにしました。';
-        });
-        return;
-      }
+      // Soft-lock mode: keep the Supabase session; Face ID only unlocks the app.
+      // No face photo and no password vault required for Google or email accounts.
+      await auth.credentials.enable(email: profileEmail);
 
-      if (profileEmail.isEmpty) {
-        setState(() {
-          _error = '生体認証ログインはメールとパスワードで入ったアカウント向けです。一度メールでログインしてください。';
-        });
-        return;
-      }
-
-      final password = await _askPassword(profileEmail);
-      if (password == null) {
-        setState(() => _error = 'パスワードの入力をキャンセルしました。');
-        return;
-      }
-      if (password.isEmpty) {
-        setState(() => _error = 'パスワードを入力してください。');
-        return;
-      }
-
-      // Verify password against Supabase before storing.
-      await auth.signInEmail(profileEmail, password, saveCredentials: true);
       if (!mounted) return;
-      if (auth.error != null) {
-        setState(() => _error = auth.error);
-        return;
-      }
-
       setState(() {
         _biometricEnabled = true;
-        _hasCredentials = true;
-        _notice = '$_methodLabel ログインを登録しました。次回からログイン画面で使えます。';
+        _notice =
+            '$_methodLabel ログインをオンにしました。ログアウト時に「残してログアウト」を選ぶと、次回は $_methodLabel だけで開けます。';
       });
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<String?> _askPassword(String email) {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('パスワードを確認'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '$email のパスワードを入力すると、端末の安全な領域に保存し、$_methodLabel でログインできます。顔写真は撮りません。',
-              style: const TextStyle(fontSize: 13, height: 1.55, color: TnTokens.textMuted),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              obscureText: true,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'パスワード'),
-              onSubmitted: (value) => Navigator.of(context).pop(value),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('保存する'),
-          ),
-        ],
-      ),
-    ).whenComplete(controller.dispose);
   }
 
   Future<void> _clearCredentials() async {
@@ -191,8 +125,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     setState(() {
       _biometricEnabled = false;
-      _hasCredentials = false;
-      _notice = '保存したログイン情報を削除しました。';
+      _notice = '生体認証ログインの設定を削除しました。';
       _error = null;
     });
   }
@@ -237,7 +170,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.fingerprint,
             title: 'ログイン用の生体認証',
             subtitle:
-                '端末の $_methodLabel で本人確認し、保存したメールとパスワードでログインします。顔写真は撮りません。パスワードの代わりにはなりません。',
+                '端末の $_methodLabel でロックを解除します。顔写真は撮りません。Googleログインでも使えます。',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -250,19 +183,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text('$_methodLabel でログインを使う'),
-                    subtitle: Text(
-                      _hasCredentials
-                          ? 'ログイン情報がこの端末に保存されています'
-                          : 'オンにするとパスワードを一度確認して保存します',
-                      style: const TextStyle(fontSize: 12, height: 1.4),
+                    subtitle: const Text(
+                      'オンにすると、アプリを閉じたあとに本人確認が必要になります',
+                      style: TextStyle(fontSize: 12, height: 1.4),
                     ),
                     value: _biometricEnabled,
                     onChanged: _busy ? null : _toggleBiometric,
                   ),
-                  if (_hasCredentials)
+                  if (_biometricEnabled)
                     OutlinedButton(
                       onPressed: _busy ? null : _clearCredentials,
-                      child: const Text('保存したログイン情報を削除'),
+                      child: const Text('生体認証ログインを削除'),
                     ),
                 ],
               ],

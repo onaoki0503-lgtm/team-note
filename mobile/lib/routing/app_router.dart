@@ -21,6 +21,7 @@ GoRouter createRouter(AuthProvider auth) {
         case AuthGate.loading:
           return null;
         case AuthGate.login:
+        case AuthGate.locked:
           return loc == '/login' ? null : '/login';
         case AuthGate.join:
           return loc == '/join' ? null : '/join';

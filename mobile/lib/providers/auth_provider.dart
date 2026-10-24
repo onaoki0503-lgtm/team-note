@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -13,7 +14,7 @@ import '../services/app_prefs.dart';
 import '../services/secure_credentials_service.dart';
 import '../services/teamnote_api.dart';
 
-enum AuthGate { loading, login, join, ready, error }
+enum AuthGate { loading, login, locked, join, ready, error }
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({
@@ -24,6 +25,8 @@ class AuthProvider extends ChangeNotifier {
 
   final TeamNoteApi _api;
   final SecureCredentialsService _credentials;
+  StreamSubscription<AuthState>? _authSub;
+
   AuthGate gate = AuthGate.loading;
   bool busy = false;
   String? error;
@@ -31,16 +34,24 @@ class AuthProvider extends ChangeNotifier {
   MemberProfile? profile;
   bool demoSession = false;
 
+  /// When true, a valid Supabase session exists but Face ID must unlock the app.
+  bool biometricLocked = false;
+
   SecureCredentialsService get credentials => _credentials;
 
   bool get isSignedIn => demoSession || user != null;
   bool get isMember => profile != null;
 
+  bool get hasEmailPasswordIdentity {
+    final identities = user?.identities;
+    if (identities == null) return false;
+    return identities.any((i) => i.provider == 'email');
+  }
+
   Future<void> initialize() async {
     gate = AuthGate.loading;
     notifyListeners();
 
-    // Real app only — never auto-enter as a fake "demo" user.
     if (!Environment.isConfigured) {
       demoSession = false;
       gate = AuthGate.error;
@@ -54,11 +65,20 @@ class AuthProvider extends ChangeNotifier {
 
     final client = Supabase.instance.client;
     user = client.auth.currentUser;
-    client.auth.onAuthStateChange.listen((data) async {
+    await _authSub?.cancel();
+    _authSub = client.auth.onAuthStateChange.listen((data) async {
       user = data.session?.user;
       if (user == null) {
         profile = null;
-        gate = AuthGate.login;
+        biometricLocked = false;
+        if (gate != AuthGate.loading) {
+          gate = AuthGate.login;
+          notifyListeners();
+        }
+        return;
+      }
+      // Soft-lock: session is alive but UI must wait for Face ID.
+      if (biometricLocked || gate == AuthGate.locked) {
         notifyListeners();
         return;
       }
@@ -67,6 +87,9 @@ class AuthProvider extends ChangeNotifier {
 
     if (user == null) {
       gate = AuthGate.login;
+    } else if (await _credentials.isEnabled()) {
+      biometricLocked = true;
+      gate = AuthGate.locked;
     } else {
       await _loadMembership();
     }
@@ -94,12 +117,14 @@ class AuthProvider extends ChangeNotifier {
         }
       }
       profile = me;
+      biometricLocked = false;
       gate = me == null ? AuthGate.join : AuthGate.ready;
     } catch (e) {
       final msg = '$e';
       if (msg.contains('teamnote_access_denied') || msg.contains('42501')) {
         gate = AuthGate.join;
         profile = null;
+        biometricLocked = false;
       } else {
         gate = AuthGate.error;
         error = msg;
@@ -108,10 +133,45 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Face ID succeeded while a Supabase session is still on the device.
+  Future<void> unlockWithBiometric() async {
+    await _run(() async {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) {
+        throw StateError('セッションがありません。メールとパスワードでログインしてください。');
+      }
+      user = session.user;
+      biometricLocked = false;
+      final email = user?.email;
+      if (email != null && email.isNotEmpty) {
+        await _credentials.enable(email: email);
+      }
+      await _loadMembership();
+    });
+  }
+
+  /// Face ID succeeded and we must recreate the session with a stored password.
+  Future<void> signInWithStoredPassword() async {
+    await _run(() async {
+      final creds = await _credentials.getPasswordCredentials();
+      if (creds == null) {
+        throw StateError('保存されたパスワードがありません。手動でログインしてください。');
+      }
+      final res = await Supabase.instance.client.auth.signInWithPassword(
+        email: creds['email']!,
+        password: creds['password']!,
+      );
+      user = res.user;
+      biometricLocked = false;
+      await _credentials.enable(email: creds['email']!);
+      await _loadMembership();
+    });
+  }
+
   Future<void> signInEmail(
     String email,
     String password, {
-    bool saveCredentials = true,
+    bool enableBiometricAfter = false,
   }) async {
     await _run(() async {
       final trimmed = email.trim();
@@ -120,8 +180,9 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
       user = res.user;
-      if (saveCredentials && res.user != null) {
-        await _credentials.saveCredentials(trimmed, password);
+      biometricLocked = false;
+      if (enableBiometricAfter || await _credentials.isEnabled()) {
+        await _credentials.savePasswordCredentials(trimmed, password);
       }
       await _loadMembership();
     });
@@ -133,7 +194,6 @@ class AuthProvider extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
-      // Masked user (no identities) means this email is already registered.
       if (res.user != null && res.user!.identities != null && res.user!.identities!.isEmpty) {
         error = 'このメールアドレスは既に登録されています。ログインするか、Googleで続けてください。';
         gate = AuthGate.login;
@@ -144,6 +204,7 @@ class AuthProvider extends ChangeNotifier {
         error = '確認メールを開いた後、ログインしてください。同じメールならGoogleでも入れます。';
         gate = AuthGate.login;
       } else {
+        biometricLocked = false;
         await _loadMembership();
       }
     });
@@ -171,6 +232,11 @@ class AuthProvider extends ChangeNotifier {
         accessToken: auth.accessToken,
       );
       user = res.user;
+      biometricLocked = false;
+      final email = user?.email;
+      if (email != null && email.isNotEmpty && await _credentials.isEnabled()) {
+        await _credentials.enable(email: email);
+      }
       await _loadMembership();
     });
   }
@@ -194,6 +260,11 @@ class AuthProvider extends ChangeNotifier {
         nonce: rawNonce,
       );
       user = res.user;
+      biometricLocked = false;
+      final email = user?.email;
+      if (email != null && email.isNotEmpty && await _credentials.isEnabled()) {
+        await _credentials.enable(email: email);
+      }
       await _loadMembership();
     });
   }
@@ -234,19 +305,49 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  /// [clearSavedCredentials] true → full sign-out.
+  /// false + biometric enabled → soft lock (session stays, Face ID next).
   Future<void> signOut({bool clearSavedCredentials = false}) async {
+    if (clearSavedCredentials) {
+      if (Environment.isConfigured) {
+        await Supabase.instance.client.auth.signOut();
+        try {
+          await GoogleSignIn().signOut();
+        } catch (_) {}
+      }
+      await _credentials.clearCredentials();
+      user = null;
+      profile = null;
+      demoSession = false;
+      biometricLocked = false;
+      gate = AuthGate.login;
+      notifyListeners();
+      return;
+    }
+
+    if (Environment.isConfigured && await _credentials.isEnabled()) {
+      final email = user?.email ?? await _credentials.peekEmail();
+      if (email != null && email.isNotEmpty) {
+        await _credentials.enable(email: email);
+      }
+      // Keep Supabase session — only lock the UI behind Face ID.
+      profile = null;
+      biometricLocked = true;
+      gate = AuthGate.locked;
+      notifyListeners();
+      return;
+    }
+
     if (Environment.isConfigured) {
       await Supabase.instance.client.auth.signOut();
       try {
         await GoogleSignIn().signOut();
       } catch (_) {}
     }
-    if (clearSavedCredentials) {
-      await _credentials.clearCredentials();
-    }
     user = null;
     profile = null;
     demoSession = false;
+    biometricLocked = false;
     gate = AuthGate.login;
     notifyListeners();
   }
@@ -264,6 +365,7 @@ class AuthProvider extends ChangeNotifier {
       for (final m in members) {
         if (m is Map && '${m['id']}' == uid) {
           profile = MemberProfile.fromJson(Map<String, dynamic>.from(m));
+          biometricLocked = false;
           gate = AuthGate.ready;
           return;
         }
@@ -280,6 +382,9 @@ class AuthProvider extends ChangeNotifier {
       await body();
     } on AuthException catch (e) {
       error = _friendlyError(e.message);
+      if (e.message.toLowerCase().contains('invalid login')) {
+        await _credentials.clearPasswordOnly();
+      }
     } catch (e) {
       error = _friendlyError('$e');
     } finally {
@@ -290,6 +395,9 @@ class AuthProvider extends ChangeNotifier {
 
   String _friendlyError(String raw) {
     final m = raw.toLowerCase();
+    if (m.contains('invalid login') || m.contains('invalid_credentials')) {
+      return 'ログイン情報が正しくありません。パスワードを入力するか、生体認証を設定し直してください。';
+    }
     if (m.contains('invalid_profile') || m.contains('22023')) {
       return '名前・役職・棟・階・部屋番号を確認してください。';
     }
@@ -299,7 +407,6 @@ class AuthProvider extends ChangeNotifier {
     if (m.contains('access_denied') || m.contains('42501')) {
       return 'この操作の権限がありません。';
     }
-    // Multi-provider: same email already has another identity, or linking blocked.
     if (m.contains('identity is already linked') ||
         m.contains('already been registered') ||
         m.contains('user already registered') ||
