@@ -132,10 +132,12 @@ class _WorkScreenState extends State<WorkScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text('業務報告', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
@@ -151,8 +153,12 @@ class _WorkScreenState extends State<WorkScreen> {
                 ],
               ),
             ),
-            const Spacer(),
             FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
               onPressed: () => _showNishimatsuInfo(context),
               icon: const Icon(Icons.description_outlined, size: 18),
               label: const Text('西松地所レポート'),
@@ -162,6 +168,7 @@ class _WorkScreenState extends State<WorkScreen> {
         const SizedBox(height: 8),
         const Text(
           'いつ・どこで・何をした・どうなった・申し送りを、話すか入力してください。',
+          softWrap: true,
           style: TextStyle(fontSize: 13, color: TnTokens.textMuted, height: 1.45),
         ),
         if (_notice != null) ...[
@@ -175,11 +182,18 @@ class _WorkScreenState extends State<WorkScreen> {
         const SizedBox(height: 12),
         if (_reviewing) _reviewCard() else _formCard(),
         const SizedBox(height: 20),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.spaceBetween,
           children: [
             Text('今月の報告ログ', style: Theme.of(context).textTheme.titleMedium),
-            const Spacer(),
             SegmentedButton<bool>(
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               segments: const [
                 ButtonSegment(value: true, label: Text('今月')),
                 ButtonSegment(value: false, label: Text('全て')),
@@ -307,18 +321,25 @@ class _WorkScreenState extends State<WorkScreen> {
               const TextSpan(text: '必須', style: TextStyle(color: Color(0xFFB92F3D), fontSize: 11)),
             ])),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                const Expanded(
-                  child: Text('いつ・どこで・何をした・結果・申し送り',
-                      style: TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+            // Stack hint + mic vertically so Japanese stays horizontal (narrow Row
+            // was wrapping 「どうなった」 etc. one character per line).
+            const Text(
+              'いつ・どこで・何をした・どうなった・申し送り',
+              softWrap: true,
+              style: TextStyle(fontSize: 12, color: TnTokens.textMuted, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 40),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: _toggleVoice,
-                  icon: Icon(_listening ? Icons.stop : Icons.mic, size: 18),
-                  label: Text(_listening ? '音声入力を止める' : '音声入力'),
-                ),
-              ],
+                onPressed: _toggleVoice,
+                icon: Icon(_listening ? Icons.stop : Icons.mic, size: 18),
+                label: Text(_listening ? '音声入力を止める' : '音声入力'),
+              ),
             ),
             const SizedBox(height: 8),
             TextField(

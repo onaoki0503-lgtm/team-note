@@ -166,7 +166,7 @@ class _HeroBanner extends StatelessWidget {
               child: Image.asset(
                 asset,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: TnTokens.bgTint),
+                errorBuilder: (context, error, stackTrace) => Container(color: TnTokens.bgTint),
               ),
             ),
             // Slight darken like web brightness(85%)
