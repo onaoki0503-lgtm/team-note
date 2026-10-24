@@ -145,6 +145,49 @@ String? validateIdeaText(String raw) {
   return null;
 }
 
+/// Staff row on a project — mirrors web `ProjectMemberRecord`.
+class ProjectMember {
+  const ProjectMember({
+    required this.residentId,
+    required this.name,
+    this.avatar = '',
+    this.role = 'スタッフ',
+    this.building = '',
+    this.joinedAt = '',
+    this.leftAt = '',
+    this.eventRole,
+    this.groupName,
+  });
+
+  final String residentId;
+  final String name;
+  final String avatar;
+  final String role;
+  final String building;
+  final String joinedAt;
+  final String leftAt;
+  final String? eventRole;
+  final String? groupName;
+
+  factory ProjectMember.fromJson(Map<String, dynamic> m) {
+    final name = '${m['name'] ?? ''}'.trim();
+    final role = '${m['role'] ?? m['role_label'] ?? ''}'.trim();
+    final eventRole = '${m['eventRole'] ?? ''}'.trim();
+    final groupName = '${m['groupName'] ?? ''}'.trim();
+    return ProjectMember(
+      residentId: '${m['residentId'] ?? m['user_id'] ?? ''}',
+      name: name.isEmpty ? 'メンバー' : name,
+      avatar: '${m['avatar'] ?? m['avatarUrl'] ?? ''}',
+      role: role.isEmpty ? 'スタッフ' : role,
+      building: '${m['building'] ?? ''}',
+      joinedAt: '${m['joinedAt'] ?? m['joined_at'] ?? ''}',
+      leftAt: '${m['leftAt'] ?? m['left_at'] ?? ''}',
+      eventRole: eventRole.isEmpty ? null : eventRole,
+      groupName: groupName.isEmpty ? null : groupName,
+    );
+  }
+}
+
 class ProjectItem {
   const ProjectItem({
     required this.id,
@@ -154,6 +197,8 @@ class ProjectItem {
     this.memberCount = 1,
     this.ownerName = '',
     this.ownerId = '',
+    this.members = const [],
+    this.pastMembers = const [],
   });
 
   final String id;
@@ -163,6 +208,8 @@ class ProjectItem {
   final int memberCount;
   final String ownerName;
   final String ownerId;
+  final List<ProjectMember> members;
+  final List<ProjectMember> pastMembers;
 
   /// Parsed from `PROPOSAL_JSON:…` summary when present.
   Map<String, dynamic>? get proposalDoc {
@@ -219,15 +266,76 @@ class ProjectItem {
     return s;
   }
 
-  factory ProjectItem.fromJson(Map<String, dynamic> m) => ProjectItem(
-        id: '${m['id']}',
-        title: '${m['title'] ?? ''}',
-        summary: '${m['summary'] ?? ''}',
-        status: '${m['status'] ?? '進行中'}',
-        memberCount: (m['memberCount'] as num?)?.toInt() ?? 1,
-        ownerName: '${m['ownerName'] ?? ''}',
-        ownerId: '${m['ownerId'] ?? ''}',
-      );
+  factory ProjectItem.fromJson(Map<String, dynamic> m) {
+    final id = '${m['id']}';
+    final ownerId = '${m['ownerId'] ?? ''}';
+    final ownerName = '${m['ownerName'] ?? ''}';
+    final memberCount = (m['memberCount'] as num?)?.toInt() ?? 1;
+    final updatedAt = '${m['updatedAt'] ?? ''}';
+    final details = m['details'] is Map
+        ? Map<String, dynamic>.from(m['details'] as Map)
+        : <String, dynamic>{};
+
+    ProjectMember? parseMember(dynamic e) {
+      if (e is! Map) return null;
+      final mem = ProjectMember.fromJson(Map<String, dynamic>.from(e));
+      return mem.residentId.isEmpty ? null : mem;
+    }
+
+    final byId = <String, ProjectMember>{};
+    final rawMembers = m['members'];
+    if (rawMembers is List) {
+      for (final e in rawMembers) {
+        final mem = parseMember(e);
+        if (mem != null) byId[mem.residentId] = mem;
+      }
+    }
+    final staff = details['staffMembers'];
+    if (staff is List) {
+      for (final e in staff) {
+        final mem = parseMember(e);
+        if (mem != null) byId[mem.residentId] = mem;
+      }
+    }
+
+    var members = byId.values.toList();
+    // Match web `mapMembers`: synthesize owner slots when API has no rows yet.
+    if (members.isEmpty) {
+      final count = memberCount < 1 ? 1 : memberCount;
+      final joinFallback =
+          updatedAt.length >= 10 ? updatedAt.substring(0, 10) : DateTime.now().toIso8601String().substring(0, 10);
+      members = [
+        for (var i = 0; i < count; i++)
+          ProjectMember(
+            residentId: i == 0 && ownerId.isNotEmpty ? ownerId : 'member-$id-$i',
+            name: i == 0 ? (ownerName.isEmpty ? 'メンバー' : ownerName) : 'メンバー${i + 1}',
+            role: i == 0 ? '発起人' : 'メンバー',
+            joinedAt: joinFallback,
+          ),
+      ];
+    }
+
+    final past = <ProjectMember>[];
+    final rawPast = m['pastMembers'] ?? details['pastMembers'];
+    if (rawPast is List) {
+      for (final e in rawPast) {
+        final mem = parseMember(e);
+        if (mem != null) past.add(mem);
+      }
+    }
+
+    return ProjectItem(
+      id: id,
+      title: '${m['title'] ?? ''}',
+      summary: '${m['summary'] ?? ''}',
+      status: '${m['status'] ?? '進行中'}',
+      memberCount: memberCount,
+      ownerName: ownerName,
+      ownerId: ownerId,
+      members: members,
+      pastMembers: past,
+    );
+  }
 }
 
 class WorkReportItem {

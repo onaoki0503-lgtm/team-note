@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:team_note_mobile/forms/dorm_roles.dart';
+import '../data/activity_history.dart';
 import '../models/models.dart';
 import '../providers/app_data_provider.dart';
 import '../providers/auth_provider.dart';
@@ -90,9 +91,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final data = context.watch<AppDataProvider>();
     final p = auth.profile;
     final badge = roleBadgeInfo(p?.role);
-    final history = data.projects
-        .where((proj) => proj.ownerId == p?.id || proj.ownerName == p?.name)
-        .toList();
+    final history = getActivityHistory(data.projects, p?.id ?? '');
 
     return Scaffold(
       appBar: AppBar(
@@ -141,12 +140,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  Text(item.projectTitle,
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                                   const SizedBox(height: 6),
-                                  Text('発起人 · ${item.status}',
-                                      style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
-                                  Text('${item.memberCount}人参加',
-                                      style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                                  Text(
+                                    item.groupName == null || item.groupName!.isEmpty
+                                        ? item.role
+                                        : '${item.role}・${item.groupName}',
+                                    style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${item.period} ・ ${item.status}',
+                                    style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                  ),
                                 ],
                               ),
                             ),
@@ -211,8 +218,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('${p.buildingLabel}棟 ${p.unit}',
-                      style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                  Text(
+                    p.locationLine,
+                    style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                  ),
                   const SizedBox(height: 4),
                   Text(roleTitle, style: const TextStyle(fontSize: 12, color: TnTokens.textMuted)),
                 ],
