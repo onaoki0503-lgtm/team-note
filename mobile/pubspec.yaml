@@ -26,15 +26,44 @@ dependencies:
   sign_in_with_apple: ^6.1.0
   crypto: ^3.0.6
   speech_to_text: ^7.5.0
+  flutter_native_splash: ^2.4.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-
+  flutter_launcher_icons: ^0.14.4
 flutter:
   uses-material-design: true
   assets:
     - assets/
     - assets/config/
     - assets/banners/
+    - assets/brand/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/brand/app-icon.png
+  adaptive_icon_background: "#285782"
+  adaptive_icon_foreground: assets/brand/app-icon-foreground.png
+  adaptive_icon_foreground_inset: 16
+  remove_alpha_ios: true
+  background_color_ios: "#285782"
+
+flutter_native_splash:
+  color: "#F7FAFC"
+  image: assets/brand/splash-logo.png
+  color_dark: "#F7FAFC"
+  image_dark: assets/brand/splash-logo.png
+  android_12:
+    color: "#F7FAFC"
+    icon_background_color: "#285782"
+    image: assets/brand/app-icon-foreground.png
+    color_dark: "#F7FAFC"
+    icon_background_color_dark: "#285782"
+    image_dark: assets/brand/app-icon-foreground.png
+  android: true
+  ios: true
+  web: false
+  fullscreen: true

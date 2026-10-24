@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,7 +11,8 @@ import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   await Environment.load();
 
   if (Environment.isConfigured) {
@@ -41,7 +43,7 @@ class _TeamNoteAppState extends State<TeamNoteApp> {
   @override
   void initState() {
     super.initState();
-    _auth.initialize();
+    _auth.initialize().whenComplete(FlutterNativeSplash.remove);
   }
 
   @override
@@ -69,7 +71,10 @@ class _TeamNoteAppState extends State<TeamNoteApp> {
             builder: (context, child) {
               if (_auth.gate == AuthGate.loading) {
                 return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
+                  backgroundColor: Color(0xFFF7FAFC),
+                  body: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF285782)),
+                  ),
                 );
               }
               return child ?? const SizedBox.shrink();
