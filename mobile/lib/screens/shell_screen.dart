@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../config/environment.dart';
 import '../providers/app_data_provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/app_prefs.dart';
 import '../theme/tokens.dart';
 import '../widgets/home_scene.dart';
 import 'archive_screen.dart';
@@ -38,7 +39,7 @@ class _ShellScreenState extends State<ShellScreen> {
   }
 
   Future<void> _readMotion() async {
-    final paused = await FaceLoginStore.readMotionPaused();
+    final paused = await AppPrefs.readMotionPaused();
     if (mounted) setState(() => _motionPaused = paused);
   }
 

@@ -1,5 +1,6 @@
 package com.teamnote.team_note_mobile
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+/// FragmentActivity required by local_auth biometric prompts.
+class MainActivity : FlutterFragmentActivity()

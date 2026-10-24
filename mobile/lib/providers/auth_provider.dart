@@ -9,20 +9,29 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/environment.dart';
 import '../models/models.dart';
+import '../services/app_prefs.dart';
+import '../services/secure_credentials_service.dart';
 import '../services/teamnote_api.dart';
 
 enum AuthGate { loading, login, join, ready, error }
 
 class AuthProvider extends ChangeNotifier {
-  AuthProvider({TeamNoteApi? api}) : _api = api ?? TeamNoteApi();
+  AuthProvider({
+    TeamNoteApi? api,
+    SecureCredentialsService? credentials,
+  })  : _api = api ?? TeamNoteApi(),
+        _credentials = credentials ?? SecureCredentialsService();
 
   final TeamNoteApi _api;
+  final SecureCredentialsService _credentials;
   AuthGate gate = AuthGate.loading;
   bool busy = false;
   String? error;
   User? user;
   MemberProfile? profile;
   bool demoSession = false;
+
+  SecureCredentialsService get credentials => _credentials;
 
   bool get isSignedIn => demoSession || user != null;
   bool get isMember => profile != null;
@@ -40,6 +49,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+
+    await AppPrefs.clearLegacyFaceEnrollment();
 
     final client = Supabase.instance.client;
     user = client.auth.currentUser;
@@ -97,13 +108,21 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> signInEmail(String email, String password) async {
+  Future<void> signInEmail(
+    String email,
+    String password, {
+    bool saveCredentials = true,
+  }) async {
     await _run(() async {
+      final trimmed = email.trim();
       final res = await Supabase.instance.client.auth.signInWithPassword(
-        email: email.trim(),
+        email: trimmed,
         password: password,
       );
       user = res.user;
+      if (saveCredentials && res.user != null) {
+        await _credentials.saveCredentials(trimmed, password);
+      }
       await _loadMembership();
     });
   }
@@ -215,12 +234,15 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut({bool clearSavedCredentials = false}) async {
     if (Environment.isConfigured) {
       await Supabase.instance.client.auth.signOut();
       try {
         await GoogleSignIn().signOut();
       } catch (_) {}
+    }
+    if (clearSavedCredentials) {
+      await _credentials.clearCredentials();
     }
     user = null;
     profile = null;

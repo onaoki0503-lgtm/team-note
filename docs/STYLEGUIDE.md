@@ -267,7 +267,7 @@ Brand mark: light white→cool gradient, 1px white border, primary icon. Avatar:
 
 **Always honor:**
 
-- `prefers-reduced-motion` / in-app motion toggle → no ambient animation (Flutter: `FaceLoginStore` motion paused + `MediaQuery.disableAnimations`)  
+- `prefers-reduced-motion` / in-app motion toggle → no ambient animation (Flutter: `AppPrefs` motion paused + `MediaQuery.disableAnimations`)  
 - `prefers-reduced-transparency` → solid white panels  
 - Pause atmosphere when keyboard is open or tab is inactive  
 

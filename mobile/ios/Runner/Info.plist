@@ -66,6 +66,8 @@
 			<string>UIInterfaceOrientationLandscapeLeft</string>
 			<string>UIInterfaceOrientationLandscapeRight</string>
 		</array>
+		<key>NSFaceIDUsageDescription</key>
+		<string>Face ID で本人確認し、保存したメールとパスワードで素早くログインします。顔写真はアプリに保存しません。</string>
 		<key>NSCameraUsageDescription</key>
 		<string>業務報告や企画の写真を撮影します。</string>
 		<key>NSPhotoLibraryUsageDescription</key>

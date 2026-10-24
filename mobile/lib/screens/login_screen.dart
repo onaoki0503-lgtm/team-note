@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../config/environment.dart';
 import '../providers/auth_provider.dart';
+import '../services/biometric_auth_service.dart';
 import '../theme/tokens.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,7 +16,21 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _biometrics = BiometricAuthService();
+
   bool _signup = false;
+  bool _obscurePassword = true;
+  bool _biometricAvailable = false;
+  bool _hasSavedCredentials = false;
+  bool _attemptingBiometric = false;
+  String _biometricLabel = '生体認証';
+  bool _bootstrapped = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
 
   @override
   void dispose() {
@@ -24,9 +39,69 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _bootstrap() async {
+    if (_bootstrapped) return;
+    _bootstrapped = true;
+
+    final auth = context.read<AuthProvider>();
+    final available = await _biometrics.isAvailable();
+    final label = await _biometrics.methodLabel();
+    final creds = await auth.credentials.getCredentials();
+
+    if (!mounted) return;
+    setState(() {
+      _biometricAvailable = available;
+      _biometricLabel = label;
+      _hasSavedCredentials = creds != null;
+      if (creds != null) {
+        _email.text = creds['email'] ?? '';
+      }
+    });
+
+    if (creds != null && available && !_signup) {
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      if (mounted) await _authenticateWithBiometric();
+    }
+  }
+
+  Future<void> _authenticateWithBiometric() async {
+    if (_attemptingBiometric || _signup) return;
+    final auth = context.read<AuthProvider>();
+    if (auth.busy) return;
+
+    setState(() => _attemptingBiometric = true);
+    try {
+      final ok = await _biometrics.authenticate(
+        reason: '$_biometricLabel でチームノートにログインします',
+      );
+      if (!ok || !mounted) return;
+
+      final creds = await auth.credentials.getCredentials();
+      if (creds == null) {
+        setState(() {
+          _hasSavedCredentials = false;
+          _notice = '保存されたログイン情報がありません。メールとパスワードでログインしてください。';
+        });
+        return;
+      }
+
+      await auth.signInEmail(
+        creds['email']!,
+        creds['password']!,
+        saveCredentials: true,
+      );
+    } finally {
+      if (mounted) setState(() => _attemptingBiometric = false);
+    }
+  }
+
+  String? _notice;
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final showBiometric =
+        !_signup && _hasSavedCredentials && _biometricAvailable;
 
     return Scaffold(
       body: SafeArea(
@@ -41,6 +116,34 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 4),
             Text(Environment.orgLabel, style: Theme.of(context).textTheme.bodySmall),
+            if (showBiometric) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: TnTokens.bgTint,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: TnTokens.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _biometricLabel == 'Face ID'
+                          ? Icons.face_retouching_natural
+                          : Icons.fingerprint,
+                      color: TnTokens.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'おかえりなさい。$_biometricLabel で素早くログインできます。',
+                        style: const TextStyle(fontSize: 13, height: 1.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
             TextField(
               controller: _email,
@@ -52,25 +155,55 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _password,
-              obscureText: true,
+              obscureText: _obscurePassword,
               textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(labelText: 'パスワード'),
+              decoration: InputDecoration(
+                labelText: 'パスワード',
+                suffixIcon: IconButton(
+                  tooltip: _obscurePassword ? '表示' : '隠す',
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                ),
+              ),
               onSubmitted: (_) => _submit(auth),
             ),
             if (auth.error != null) ...[
               const SizedBox(height: 12),
               Text(auth.error!, style: const TextStyle(color: TnTokens.errorText)),
             ],
+            if (_notice != null) ...[
+              const SizedBox(height: 12),
+              Text(_notice!, style: const TextStyle(color: TnTokens.textMuted, height: 1.5)),
+            ],
             const SizedBox(height: 20),
             FilledButton(
-              onPressed: auth.busy ? null : () => _submit(auth),
-              child: Text(auth.busy ? '確認中…' : (_signup ? 'アカウントを作成' : 'ログイン')),
+              onPressed: (auth.busy || _attemptingBiometric) ? null : () => _submit(auth),
+              child: Text(
+                (auth.busy || _attemptingBiometric)
+                    ? '確認中…'
+                    : (_signup ? 'アカウントを作成' : 'ログイン'),
+              ),
             ),
+            if (showBiometric) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: (auth.busy || _attemptingBiometric)
+                    ? null
+                    : _authenticateWithBiometric,
+                icon: Icon(
+                  _biometricLabel == 'Face ID'
+                      ? Icons.face_retouching_natural
+                      : Icons.fingerprint,
+                ),
+                label: Text('$_biometricLabel でログイン'),
+              ),
+            ],
             TextButton(
-              onPressed: auth.busy
+              onPressed: (auth.busy || _attemptingBiometric)
                   ? null
                   : () => setState(() {
                         _signup = !_signup;
+                        _notice = null;
                       }),
               child: Text(_signup ? 'ログインに戻る' : '初めての方はアカウントを作成'),
             ),
@@ -87,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 16),
             OutlinedButton(
-              onPressed: auth.busy ? null : () => auth.signInWithGoogle(),
+              onPressed: (auth.busy || _attemptingBiometric) ? null : () => auth.signInWithGoogle(),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 side: BorderSide(color: Colors.grey.shade300, width: 1.5),
@@ -130,10 +263,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit(AuthProvider auth) async {
+    setState(() => _notice = null);
     if (_signup) {
       await auth.signUpEmail(_email.text, _password.text);
     } else {
       await auth.signInEmail(_email.text, _password.text);
+      if (mounted && auth.error == null && auth.isSignedIn) {
+        setState(() => _hasSavedCredentials = true);
+      }
     }
   }
 }

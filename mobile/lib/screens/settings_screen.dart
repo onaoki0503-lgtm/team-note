@@ -1,92 +1,10 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/auth_provider.dart';
+import '../services/app_prefs.dart';
+import '../services/biometric_auth_service.dart';
 import '../theme/tokens.dart';
-
-const _faceKey = 'tn_face_login';
-const _motionKey = 'tn_motion_paused';
-
-class FaceEnrollment {
-  FaceEnrollment({
-    required this.enabled,
-    required this.userId,
-    required this.email,
-    required this.displayName,
-    required this.descriptorBase64,
-    required this.enrolledAt,
-  });
-
-  final bool enabled;
-  final String userId;
-  final String email;
-  final String displayName;
-  final String descriptorBase64;
-  final String enrolledAt;
-
-  Map<String, dynamic> toJson() => {
-        'version': 1,
-        'enabled': enabled,
-        'userId': userId,
-        'email': email,
-        'displayName': displayName,
-        'descriptor': descriptorBase64,
-        'enrolledAt': enrolledAt,
-      };
-
-  static FaceEnrollment? fromJson(Map<String, dynamic>? json) {
-    if (json == null || json['version'] != 1) return null;
-    final descriptor = json['descriptor'];
-    if (descriptor is! String || descriptor.isEmpty) return null;
-    return FaceEnrollment(
-      enabled: json['enabled'] == true,
-      userId: '${json['userId'] ?? ''}',
-      email: '${json['email'] ?? ''}',
-      displayName: '${json['displayName'] ?? ''}',
-      descriptorBase64: descriptor,
-      enrolledAt: '${json['enrolledAt'] ?? ''}',
-    );
-  }
-}
-
-class FaceLoginStore {
-  static Future<FaceEnrollment?> read() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_faceKey);
-    if (raw == null) return null;
-    try {
-      return FaceEnrollment.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static Future<void> write(FaceEnrollment? enrollment) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (enrollment == null) {
-      await prefs.remove(_faceKey);
-    } else {
-      await prefs.setString(_faceKey, jsonEncode(enrollment.toJson()));
-    }
-  }
-
-  static Future<bool> readMotionPaused() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_motionKey) ?? false;
-  }
-
-  static Future<void> writeMotionPaused(bool paused) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_motionKey, paused);
-  }
-}
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -111,10 +29,16 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  FaceEnrollment? _enrollment;
+  final _biometrics = BiometricAuthService();
+
   bool _motionPaused = false;
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
+  bool _hasCredentials = false;
   bool _busy = false;
+  String _methodLabel = '生体認証';
   String? _notice;
+  String? _error;
 
   @override
   void initState() {
@@ -123,89 +47,158 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final enrollment = await FaceLoginStore.read();
-    final motion = await FaceLoginStore.readMotionPaused();
+    final auth = context.read<AuthProvider>();
+    final motion = await AppPrefs.readMotionPaused();
+    final available = await _biometrics.isAvailable();
+    final label = await _biometrics.methodLabel();
+    final enabled = await auth.credentials.isEnabled();
+    final hasPassword = await auth.credentials.hasStoredPassword();
+    final email = await auth.credentials.peekEmail();
+
     if (!mounted) return;
     setState(() {
-      _enrollment = enrollment;
       _motionPaused = motion;
+      _biometricAvailable = available;
+      _methodLabel = label;
+      _biometricEnabled = enabled && hasPassword;
+      _hasCredentials = hasPassword && (email?.isNotEmpty ?? false);
     });
   }
 
-  Future<void> _enroll() async {
+  Future<void> _toggleBiometric(bool wantEnabled) async {
     final auth = context.read<AuthProvider>();
-    final profile = auth.profile;
-    if (profile == null) return;
+    final profileEmail = auth.user?.email?.trim() ?? '';
+
     setState(() {
       _busy = true;
       _notice = null;
+      _error = null;
     });
+
     try {
-      final file = await ImagePicker().pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        maxWidth: 480,
-        imageQuality: 70,
-      );
-      if (file == null) {
-        setState(() => _busy = false);
+      if (!wantEnabled) {
+        await auth.credentials.setEnabled(false);
+        if (!mounted) return;
+        setState(() {
+          _biometricEnabled = false;
+          _notice = '$_methodLabel ログインをオフにしました。';
+        });
         return;
       }
-      final bytes = await file.readAsBytes();
-      final enrollment = FaceEnrollment(
-        enabled: true,
-        userId: profile.id,
-        email: auth.user?.email ?? '',
-        displayName: profile.name,
-        descriptorBase64: base64Encode(bytes),
-        enrolledAt: DateTime.now().toIso8601String(),
+
+      if (!_biometricAvailable) {
+        setState(() {
+          _error = 'この端末では Face ID / 指紋認証を使えません。端末の設定を確認してください。';
+        });
+        return;
+      }
+
+      final confirmed = await _biometrics.authenticate(
+        reason: '$_methodLabel ログインを有効にするため本人確認をします',
       );
-      await FaceLoginStore.write(enrollment);
+      if (!confirmed) {
+        setState(() => _error = '本人確認をキャンセルしました。');
+        return;
+      }
+
+      if (await auth.credentials.hasStoredPassword()) {
+        await auth.credentials.setEnabled(true);
+        if (!mounted) return;
+        setState(() {
+          _biometricEnabled = true;
+          _hasCredentials = true;
+          _notice = '$_methodLabel ログインをオンにしました。';
+        });
+        return;
+      }
+
+      if (profileEmail.isEmpty) {
+        setState(() {
+          _error = '生体認証ログインはメールとパスワードで入ったアカウント向けです。一度メールでログインしてください。';
+        });
+        return;
+      }
+
+      final password = await _askPassword(profileEmail);
+      if (password == null) {
+        setState(() => _error = 'パスワードの入力をキャンセルしました。');
+        return;
+      }
+      if (password.isEmpty) {
+        setState(() => _error = 'パスワードを入力してください。');
+        return;
+      }
+
+      // Verify password against Supabase before storing.
+      await auth.signInEmail(profileEmail, password, saveCredentials: true);
       if (!mounted) return;
+      if (auth.error != null) {
+        setState(() => _error = auth.error);
+        return;
+      }
+
       setState(() {
-        _enrollment = enrollment;
-        _busy = false;
-        _notice = '顔認証を登録しました。ログイン画面で使えます。';
+        _biometricEnabled = true;
+        _hasCredentials = true;
+        _notice = '$_methodLabel ログインを登録しました。次回からログイン画面で使えます。';
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _notice = 'カメラを開けませんでした。';
-      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _remove() async {
-    await FaceLoginStore.write(null);
-    if (!mounted) return;
-    setState(() {
-      _enrollment = null;
-      _notice = '顔認証の登録を削除しました。';
-    });
+  Future<String?> _askPassword(String email) {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('パスワードを確認'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '$email のパスワードを入力すると、端末の安全な領域に保存し、$_methodLabel でログインできます。顔写真は撮りません。',
+              style: const TextStyle(fontSize: 13, height: 1.55, color: TnTokens.textMuted),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'パスワード'),
+              onSubmitted: (value) => Navigator.of(context).pop(value),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('保存する'),
+          ),
+        ],
+      ),
+    ).whenComplete(controller.dispose);
   }
 
-  Future<void> _toggleEnabled(bool enabled) async {
-    final current = _enrollment;
-    if (current == null) return;
-    final next = FaceEnrollment(
-      enabled: enabled,
-      userId: current.userId,
-      email: current.email,
-      displayName: current.displayName,
-      descriptorBase64: current.descriptorBase64,
-      enrolledAt: current.enrolledAt,
-    );
-    await FaceLoginStore.write(next);
+  Future<void> _clearCredentials() async {
+    final auth = context.read<AuthProvider>();
+    await auth.credentials.clearCredentials();
     if (!mounted) return;
     setState(() {
-      _enrollment = next;
-      _notice = enabled ? '顔認証ログインをオンにしました。' : '顔認証ログインをオフにしました。';
+      _biometricEnabled = false;
+      _hasCredentials = false;
+      _notice = '保存したログイン情報を削除しました。';
+      _error = null;
     });
   }
 
   Future<void> _toggleMotion(bool paused) async {
-    await FaceLoginStore.writeMotionPaused(paused);
+    await AppPrefs.writeMotionPaused(paused);
     if (!mounted) return;
     setState(() => _motionPaused = paused);
   }
@@ -214,7 +207,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final profile = auth.profile;
-    final mine = _enrollment?.userId == profile?.id ? _enrollment : null;
 
     return SafeArea(
       child: ListView(
@@ -242,74 +234,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 18),
           _SettingsCard(
-            icon: Icons.face_retouching_natural_outlined,
-            title: 'ログイン用の顔認証',
-            subtitle: 'カメラで顔を登録し、ログイン時の本人確認に使います。パスワードの代わりにはなりません。',
+            icon: Icons.fingerprint,
+            title: 'ログイン用の生体認証',
+            subtitle:
+                '端末の $_methodLabel で本人確認し、保存したメールとパスワードでログインします。顔写真は撮りません。パスワードの代わりにはなりません。',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (mine != null) ...[
-                  Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.memory(
-                          Uint8List.fromList(base64Decode(mine.descriptorBase64)),
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 56,
-                            height: 56,
-                            color: TnTokens.bgTint,
-                            child: const Icon(Icons.face),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(mine.displayName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                            Text(
-                              '登録済み',
-                              style: TextStyle(color: TnTokens.textMuted, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                if (!_biometricAvailable)
+                  const Text(
+                    'この端末では Face ID / 指紋認証を使えません。端末の設定で有効にしてください。',
+                    style: TextStyle(color: TnTokens.textMuted, fontSize: 13, height: 1.55),
+                  )
+                else ...[
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('顔認証でログインを使う'),
-                    value: mine.enabled,
-                    onChanged: _busy ? null : _toggleEnabled,
+                    title: Text('$_methodLabel でログインを使う'),
+                    subtitle: Text(
+                      _hasCredentials
+                          ? 'ログイン情報がこの端末に保存されています'
+                          : 'オンにするとパスワードを一度確認して保存します',
+                      style: const TextStyle(fontSize: 12, height: 1.4),
+                    ),
+                    value: _biometricEnabled,
+                    onChanged: _busy ? null : _toggleBiometric,
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _busy ? null : _enroll,
-                          child: const Text('撮り直す'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _busy ? null : _remove,
-                          child: const Text('登録を削除'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else
-                  FilledButton.icon(
-                    onPressed: _busy || profile == null ? null : _enroll,
-                    icon: const Icon(Icons.face_retouching_natural),
-                    label: Text(_busy ? '準備中…' : '顔認証を追加'),
-                  ),
+                  if (_hasCredentials)
+                    OutlinedButton(
+                      onPressed: _busy ? null : _clearCredentials,
+                      child: const Text('保存したログイン情報を削除'),
+                    ),
+                ],
               ],
             ),
           ),
@@ -332,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: '接続と端末の状態です。',
             child: Column(
               children: [
-                _MetaRow(label: 'コミュニティ', value: 'H-Village'),
+                const _MetaRow(label: 'コミュニティ', value: 'H-Village'),
                 _MetaRow(label: 'ログイン中', value: profile?.name ?? '—'),
                 _MetaRow(
                   label: 'データ',
@@ -341,6 +296,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+          if (_error != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              _error!,
+              style: const TextStyle(color: TnTokens.errorText, fontSize: 13, height: 1.6),
+            ),
+          ],
           if (_notice != null) ...[
             const SizedBox(height: 14),
             Text(

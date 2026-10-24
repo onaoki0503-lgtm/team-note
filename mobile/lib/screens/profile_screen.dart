@@ -203,7 +203,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: auth.busy
                     ? null
                     : () async {
-                        await auth.signOut();
+                        final clearSaved = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('ログアウト'),
+                            content: const Text(
+                              '保存したログイン情報を残すと、次回は Face ID / 指紋で素早く入れます。削除するとメールとパスワードの再入力が必要です。',
+                              style: TextStyle(height: 1.55),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('キャンセル'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('残してログアウト'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('削除してログアウト'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (clearSaved == null) return;
+                        await auth.signOut(clearSavedCredentials: clearSaved);
                         if (context.mounted) {
                           Navigator.of(context).popUntil((r) => r.isFirst);
                         }
