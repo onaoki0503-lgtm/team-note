@@ -32,7 +32,7 @@ React + TypeScript + Viteを使用。AIは専用Cloudflare Worker、プロフィ
 
 ### Flutter（iOS / Android）
 
-利用者向けネイティブ案は `mobile/`（TeamKaikeiとは別プロジェクト）。共有トークンは `shared/design-tokens.json` と `shared/team-note-theme.css`。手順は [mobile/README.md](mobile/README.md)、TestFlightは [mobile/TESTFLIGHT.md](mobile/TESTFLIGHT.md)。
+利用者向けネイティブ案は `mobile/`（TeamKaikeiとは別プロジェクト）。共有トークンは `shared/design-tokens.json` と `shared/team-note-theme.css`。見た目の共通ルールは [docs/STYLEGUIDE.md](docs/STYLEGUIDE.md)。手順は [mobile/README.md](mobile/README.md)、TestFlightは [mobile/TESTFLIGHT.md](mobile/TESTFLIGHT.md)。
 
 ## 検証
 
