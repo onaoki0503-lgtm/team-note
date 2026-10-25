@@ -6,8 +6,10 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:team_note_mobile/forms/work_report_form.dart';
 import '../models/models.dart';
 import '../providers/app_data_provider.dart';
+import '../providers/auth_provider.dart';
 import '../theme/tokens.dart';
 import '../widgets/attach_bar.dart';
+import '../widgets/nishimatsu_report_sheet.dart';
 
 /// Full 業務報告 — same structure as web WorkStorageViews (S21/S22)
 class WorkScreen extends StatefulWidget {
@@ -292,7 +294,18 @@ class _WorkScreenState extends State<WorkScreen> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
               ),
-              onPressed: () => _showNishimatsuInfo(context),
+              onPressed: () {
+                final profile = context.read<AuthProvider>().profile;
+                if (profile == null) {
+                  setState(() => _error = 'プロフィールを読み込んでからレポートを作成してください。');
+                  return;
+                }
+                NishimatsuReportSheet.show(
+                  context,
+                  profile: profile,
+                  reports: context.read<AppDataProvider>().reports,
+                );
+              },
               icon: const Icon(Icons.description_outlined, size: 18),
               label: const Text('西松地所レポート'),
             ),
@@ -661,53 +674,4 @@ class _WorkScreenState extends State<WorkScreen> {
         ),
       );
 
-  void _showNishimatsuInfo(BuildContext context) {
-    final reports = context.read<AppDataProvider>().reports;
-    final ym = DateFormat('yyyy-MM').format(DateTime.now());
-    final month = reports.where((r) => '${r['reportDate'] ?? ''}'.startsWith(ym)).toList();
-    final byCat = <String, int>{};
-    for (final r in month) {
-      final c = '${r['category'] ?? 'その他'}';
-      byCat[c] = (byCat[c] ?? 0) + 1;
-    }
-
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('西松地所レポート作成', style: Theme.of(ctx).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              '今月の保存済み報告 ${month.length}件を集計しています。Web版と同じ詳細フォーマット（印刷・メール）は次のビルドで接続します。',
-              style: const TextStyle(height: 1.45, color: TnTokens.textMuted),
-            ),
-            const SizedBox(height: 14),
-            if (month.isEmpty)
-              const Text('今月の報告がまだありません。先に報告書を保存してください。',
-                  style: TextStyle(color: TnTokens.textMuted))
-            else
-              ...byCat.entries.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(e.key, style: const TextStyle(fontWeight: FontWeight.w600))),
-                      Text('${e.value}件'),
-                    ],
-                  ),
-                ),
-              ),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('閉じる')),
-          ],
-        ),
-      ),
-    );
-  }
 }

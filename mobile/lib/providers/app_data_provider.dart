@@ -367,11 +367,35 @@ class AppDataProvider extends ChangeNotifier {
     String? locLabel = locationLabel;
     final maps = <Map<String, dynamic>>[];
     for (final a in attachments) {
-      maps.add(a.toJson());
       if (a.kind == AttachmentKind.location) {
         lat = a.lat;
         lng = a.lng;
         locLabel ??= a.label;
+        maps.add(a.toJson());
+        continue;
+      }
+
+      // Upload local camera/file paths to tn-files (web parity). Keep cloud keys as-is.
+      final local = a.path;
+      final needsUpload = local != null &&
+          local.isNotEmpty &&
+          !local.startsWith('http') &&
+          (local.startsWith('/') || local.startsWith('file:') || local.contains(':\\'));
+      if (needsUpload) {
+        try {
+          final cloudPath = await _api.uploadTeamnoteFile(
+            localPath: local,
+            fileName: a.label,
+            folder: 'reports',
+          );
+          maps.add(
+            AttachmentPin(kind: a.kind, label: a.label, path: cloudPath).toJson(),
+          );
+        } catch (_) {
+          throw StateError('添付のアップロードに失敗しました。通信環境を確認してもう一度保存してください。');
+        }
+      } else {
+        maps.add(a.toJson());
       }
     }
     await _api.saveReport(

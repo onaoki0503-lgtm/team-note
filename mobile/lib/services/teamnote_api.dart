@@ -197,6 +197,50 @@ class TeamNoteApi {
     return c.storage.from('tn-avatars').getPublicUrl(path);
   }
 
+  /// Upload a local photo/file into `tn-files` (same layout as web).
+  /// Returns the storage path (not a public URL).
+  Future<String> uploadTeamnoteFile({
+    required String localPath,
+    required String fileName,
+    String folder = 'reports',
+  }) async {
+    final c = _requireClient();
+    final file = File(localPath);
+    if (!await file.exists()) {
+      throw StateError('添付ファイルが見つかりません。');
+    }
+    final bytes = await file.readAsBytes();
+    final safe = fileName
+        .replaceAll(RegExp(r'[^\w.\-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .trim();
+    final clipped = (safe.isEmpty ? 'file' : safe);
+    final name = clipped.length > 80 ? clipped.substring(0, 80) : clipped;
+    final path = '$community/$folder/${_uuid.v4()}-$name';
+    await c.storage.from('tn-files').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            upsert: false,
+            contentType: _contentTypeFor(name),
+          ),
+        );
+    return path;
+  }
+
+  String _contentTypeFor(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.xlsx')) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+    if (lower.endsWith('.csv')) return 'text/csv';
+    return 'application/octet-stream';
+  }
+
   List<Map<String, dynamic>> _asList(dynamic row) {
     if (row is! List) return [];
     return [

@@ -35,9 +35,10 @@ Google uses Supabase `signInWithIdToken`. Same confirmed email can use email or 
 
 See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each upload.
 
-## 生体認証ログイン（0.1.12+19）
+## 最近のモバイル更新
 
-Face ID / 指紋でアプリをロック解除（セッションは端末に残す）。設定のオン／オフはログアウト後も保持（設定画面でのみ解除）。「残してログアウト」はロック、「サインアウト」は再ログインが必要。
+- **0.1.12+19**: Face ID 設定をログアウト後も保持。はたらく入力の不具合修正・アイコン黒表示修正は次コミット。
+- **はたらく**: 添付を `tn-files` へアップロード、西松地所レポート（コピー / 共有 / メール）、音声・区分ログのWeb寄せ。
 
 **配布用は `flutter build ipa --release -t lib/main.dart`**。`flutter build ipa`の終了コードだけで書出し成功とせず、IPA生成と署名を確認する。FlutterのビルドだけでTransporterへの送信やTestFlight配信は行われない。
 
