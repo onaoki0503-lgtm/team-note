@@ -35,10 +35,11 @@ Google uses Supabase `signInWithIdToken`. Same confirmed email can use email or 
 
 See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each upload.
 
-## 最近のモバイル更新
+## 最近のモバイル更新（0.1.13+20）
 
-- **0.1.12+19**: Face ID 設定をログアウト後も保持。はたらく入力の不具合修正・アイコン黒表示修正は次コミット。
-- **はたらく**: 添付を `tn-files` へアップロード、西松地所レポート（コピー / 共有 / メール）、音声・区分ログのWeb寄せ。
+- Face ID 設定をログアウト後も保持
+- アプリアイコン黒表示を修正（不透明 8-bit 再生成）
+- はたらく: 添付を `tn-files` へアップロード、西松地所レポート（コピー / 共有 / メール）、音声・区分ログのWeb寄せ
 
 **配布用は `flutter build ipa --release -t lib/main.dart`**。`flutter build ipa`の終了コードだけで書出し成功とせず、IPA生成と署名を確認する。FlutterのビルドだけでTransporterへの送信やTestFlight配信は行われない。
 
