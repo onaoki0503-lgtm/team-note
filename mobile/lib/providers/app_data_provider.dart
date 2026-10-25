@@ -359,18 +359,19 @@ class AppDataProvider extends ChangeNotifier {
     required String body,
     required DateTime date,
     List<AttachmentPin> attachments = const [],
+    String? locationLabel,
   }) async {
     _requireCloud();
     double? lat;
     double? lng;
-    String? locLabel;
+    String? locLabel = locationLabel;
     final maps = <Map<String, dynamic>>[];
     for (final a in attachments) {
       maps.add(a.toJson());
       if (a.kind == AttachmentKind.location) {
         lat = a.lat;
         lng = a.lng;
-        locLabel = a.label;
+        locLabel ??= a.label;
       }
     }
     await _api.saveReport(

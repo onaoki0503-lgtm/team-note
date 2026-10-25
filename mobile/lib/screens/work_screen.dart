@@ -11,7 +11,10 @@ import '../widgets/attach_bar.dart';
 
 /// Full 業務報告 — same structure as web WorkStorageViews (S21/S22)
 class WorkScreen extends StatefulWidget {
-  const WorkScreen({super.key});
+  const WorkScreen({super.key, this.active = true});
+
+  /// False when another shell tab is showing (IndexedStack keeps this mounted).
+  final bool active;
 
   @override
   State<WorkScreen> createState() => _WorkScreenState();
@@ -30,20 +33,79 @@ class _WorkScreenState extends State<WorkScreen> {
   var _reviewing = false;
   var _saving = false;
   var _listening = false;
+  var _titleEdited = false;
   var _filterMonthOnly = true;
   String? _error;
   String? _notice;
+  String? _interim;
 
   ActivityType get _type => activityByKey(_activity);
 
+  bool get _canReview {
+    if (_listening || _saving) return false;
+    if (_title.text.trim().isEmpty || _body.text.trim().isEmpty) return false;
+    if (_activity == 'unit_entry' &&
+        (_entryUnit.text.trim().isEmpty || _entryPurpose.text.trim().isEmpty)) {
+      return false;
+    }
+    return true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _body.addListener(_maybeAutofillTitle);
+    _title.addListener(() {
+      if (_title.text.trim().isNotEmpty) _titleEdited = true;
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant WorkScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active && !widget.active) {
+      _stopVoice(silent: true);
+    }
+  }
+
   @override
   void dispose() {
+    _body.removeListener(_maybeAutofillTitle);
     _title.dispose();
     _body.dispose();
     _entryUnit.dispose();
     _entryPurpose.dispose();
     _speech.stop();
     super.dispose();
+  }
+
+  void _maybeAutofillTitle() {
+    if (_titleEdited || _listening) return;
+    final body = _body.text.trim();
+    if (body.isEmpty) return;
+    final first = body.split(RegExp(r'[\n。．.!？?]')).first.trim();
+    if (first.isEmpty) return;
+    final next = first.length <= 40 ? first : '${first.substring(0, 40)}…';
+    if (_title.text == next) return;
+    _title.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+  }
+
+  Future<void> _stopVoice({bool silent = false}) async {
+    if (!_listening && !_speech.isListening) return;
+    await _speech.stop();
+    if (!mounted) return;
+    if (silent) {
+      _listening = false;
+      _interim = null;
+    } else {
+      setState(() {
+        _listening = false;
+        _interim = null;
+      });
+    }
   }
 
   void _openReview() {
@@ -61,24 +123,33 @@ class _WorkScreenState extends State<WorkScreen> {
   }
 
   Future<void> _confirmSave() async {
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
-      final body = StringBuffer(_body.text.trim());
+      final unit = _entryUnit.text.trim();
+      final purpose = _entryPurpose.text.trim();
+      String? locationLabel;
       if (_activity == 'unit_entry') {
-        body.writeln();
-        body.writeln('【立ち入り先】${_entryUnit.text.trim()}');
-        body.writeln('【目的】${_entryPurpose.text.trim()}');
+        locationLabel = '$unit / $purpose';
+      } else {
+        for (final a in _attachments) {
+          if (a.kind == AttachmentKind.location) {
+            locationLabel = a.label;
+            break;
+          }
+        }
       }
-      final pins = [
-        ..._attachments,
-        AttachmentPin(kind: AttachmentKind.file, label: 'activityType:$_activity'),
-      ];
+
+      // Do not stuff a fake activityType attachment — category already carries the type.
       await context.read<AppDataProvider>().saveReport(
             title: _title.text.trim(),
             category: _type.label,
-            body: body.toString(),
+            body: _body.text.trim(),
             date: _date,
-            attachments: pins,
+            attachments: List<AttachmentPin>.from(_attachments),
+            locationLabel: locationLabel,
           );
       if (!mounted) return;
       _title.clear();
@@ -88,10 +159,12 @@ class _WorkScreenState extends State<WorkScreen> {
       setState(() {
         _attachments.clear();
         _reviewing = false;
+        _titleEdited = false;
         _notice = '報告書を保存しました。';
         _error = null;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() => _error = '保存できませんでした。入力は残しています。');
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -100,25 +173,85 @@ class _WorkScreenState extends State<WorkScreen> {
 
   Future<void> _toggleVoice() async {
     if (_listening) {
-      await _speech.stop();
-      setState(() => _listening = false);
+      await _stopVoice();
       return;
     }
-    final ok = await _speech.initialize();
-    if (!ok) {
-      setState(() => _error = 'この端末では音声入力ボタンを使えません。文字入力をお使いください。');
-      return;
-    }
-    setState(() => _listening = true);
-    final base = _body.text;
-    await _speech.listen(
-      listenOptions: SpeechListenOptions(localeId: 'ja_JP'),
-      onResult: (r) {
-        final next = base.isEmpty ? r.recognizedWords : '$base${r.recognizedWords}';
-        setState(() => _body.text = next);
-        _body.selection = TextSelection.collapsed(offset: _body.text.length);
+    final ok = await _speech.initialize(
+      onStatus: (status) {
+        if (!mounted) return;
+        if (status == 'done' || status == 'notListening') {
+          setState(() {
+            _listening = false;
+            _interim = null;
+          });
+        }
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() {
+          _listening = false;
+          _interim = null;
+          _error = e.errorMsg.contains('error_speech_timeout') ||
+                  e.errorMsg.contains('error_no_match')
+              ? '音声を聞き取れませんでした。もう一度話すか、文字で入力してください。'
+              : '音声入力に失敗しました。文字入力をお使いください。';
+        });
       },
     );
+    if (!ok) {
+      setState(() => _error = 'この端末では音声入力を使えません。文字入力をお使いください。');
+      return;
+    }
+    setState(() {
+      _listening = true;
+      _error = null;
+      _notice = null;
+      _interim = null;
+    });
+    final base = _body.text.trimRight();
+    await _speech.listen(
+      listenOptions: SpeechListenOptions(
+        localeId: 'ja_JP',
+        partialResults: true,
+        cancelOnError: true,
+        listenMode: ListenMode.dictation,
+      ),
+      onResult: (r) {
+        if (!mounted) return;
+        final spoken = r.recognizedWords.trim();
+        if (spoken.isEmpty) return;
+        if (!r.finalResult) {
+          setState(() => _interim = spoken);
+          return;
+        }
+        final next = base.isEmpty
+            ? spoken
+            : (base.endsWith(' ') || base.endsWith('\n') ? '$base$spoken' : '$base $spoken');
+        setState(() {
+          _body.text = next;
+          _body.selection = TextSelection.collapsed(offset: _body.text.length);
+          _interim = null;
+        });
+        _maybeAutofillTitle();
+      },
+    );
+  }
+
+  Color _categoryColor(String category) {
+    switch (category) {
+      case '役職固有業務':
+        return const Color(0xFF285782);
+      case '役職連携業務':
+        return const Color(0xFF3D7A5A);
+      case '役職共通業務':
+        return const Color(0xFF6B5B95);
+      case 'トラブル対応':
+        return const Color(0xFFB92F3D);
+      case 'ユニット立ち入り':
+        return const Color(0xFF0E7490);
+      default:
+        return TnTokens.textMuted;
+    }
   }
 
   @override
@@ -188,7 +321,24 @@ class _WorkScreenState extends State<WorkScreen> {
           crossAxisAlignment: WrapCrossAlignment.center,
           alignment: WrapAlignment.spaceBetween,
           children: [
-            Text('今月の報告ログ', style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('報告ログ', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: TnTokens.bgTint,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${shown.length}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: TnTokens.textMuted),
+                  ),
+                ),
+              ],
+            ),
             SegmentedButton<bool>(
               style: const ButtonStyle(
                 visualDensity: VisualDensity.compact,
@@ -207,20 +357,60 @@ class _WorkScreenState extends State<WorkScreen> {
         if (shown.isEmpty)
           const Text('まだ報告書がありません。', style: TextStyle(color: TnTokens.textMuted))
         else
-          ...shown.map(
-            (r) => Card(
+          ...shown.map((r) {
+            final category = '${r['category'] ?? ''}';
+            final color = _categoryColor(category);
+            return Card(
               margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text('${r['title'] ?? ''}'),
-                subtitle: Text(
-                  '${r['category'] ?? ''} · ${r['reportDate'] ?? ''}\n${r['body'] ?? ''}',
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            category.isEmpty ? '業務' : category,
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${r['reportDate'] ?? ''}',
+                          style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${r['title'] ?? ''}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                    if ('${r['locationLabel'] ?? ''}'.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${r['locationLabel']}',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF0E7490)),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Text(
+                      '${r['body'] ?? ''}',
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(height: 1.45, color: TnTokens.textMain),
+                    ),
+                  ],
                 ),
-                isThreeLine: true,
               ),
-            ),
-          ),
+            );
+          }),
       ],
     );
   }
@@ -234,8 +424,10 @@ class _WorkScreenState extends State<WorkScreen> {
           children: [
             const Text('報告書への反映内容', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            const Text('音声も文字入力も同じ報告書に反映します。まだ保存されていません。',
-                style: TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+            const Text(
+              '音声も文字入力も同じ報告書に反映します。まだ保存されていません。',
+              style: TextStyle(fontSize: 12, color: TnTokens.textMuted),
+            ),
             const SizedBox(height: 14),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -252,7 +444,7 @@ class _WorkScreenState extends State<WorkScreen> {
                         context: context,
                         initialDate: _date,
                         firstDate: DateTime(2024),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
                       );
                       if (next != null) setState(() => _date = next);
                     },
@@ -262,8 +454,9 @@ class _WorkScreenState extends State<WorkScreen> {
               enabled: !_listening,
               decoration: const InputDecoration(
                 labelText: '業務名（必須）',
-                hintText: '業務名を入力',
+                hintText: '未入力なら実施内容から自動で入ります',
               ),
+              onChanged: (_) => setState(() => _titleEdited = true),
             ),
             const SizedBox(height: 12),
             const Text.rich(TextSpan(children: [
@@ -279,7 +472,9 @@ class _WorkScreenState extends State<WorkScreen> {
                   ChoiceChip(
                     label: Text(t.label, style: const TextStyle(fontSize: 12)),
                     selected: _activity == t.key,
-                    onSelected: _listening ? null : (_) => setState(() => _activity = t.key),
+                    onSelected: _listening
+                        ? null
+                        : (_) => setState(() => _activity = t.key),
                   ),
               ],
             ),
@@ -298,18 +493,22 @@ class _WorkScreenState extends State<WorkScreen> {
                   children: [
                     TextField(
                       controller: _entryUnit,
+                      enabled: !_listening,
                       decoration: const InputDecoration(
                         labelText: '棟・ユニット番号（必須）',
                         hintText: '例: ローズマリー棟 302',
                       ),
+                      onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _entryPurpose,
+                      enabled: !_listening,
                       decoration: const InputDecoration(
                         labelText: '立ち入り目的（必須）',
                         hintText: '例: 水漏れ確認・緊急立ち入り',
                       ),
+                      onChanged: (_) => setState(() {}),
                     ),
                   ],
                 ),
@@ -321,8 +520,6 @@ class _WorkScreenState extends State<WorkScreen> {
               const TextSpan(text: '必須', style: TextStyle(color: Color(0xFFB92F3D), fontSize: 11)),
             ])),
             const SizedBox(height: 6),
-            // Stack hint + mic vertically so Japanese stays horizontal (narrow Row
-            // was wrapping 「どうなった」 etc. one character per line).
             const Text(
               'いつ・どこで・何をした・どうなった・申し送り',
               softWrap: true,
@@ -348,25 +545,43 @@ class _WorkScreenState extends State<WorkScreen> {
               minLines: 6,
               maxLines: 12,
               decoration: InputDecoration(hintText: _type.bodyHint),
+              onChanged: (_) => setState(() {}),
             ),
-            if (_listening)
+            if (_listening) ...[
               const Padding(
                 padding: EdgeInsets.only(top: 6),
-                child: Text('聞いています。確定した文字を入力内容の続きに追加します。',
-                    style: TextStyle(fontSize: 12, color: TnTokens.textMuted)),
+                child: Text(
+                  '聞いています。確定した文字を入力内容の続きに追加します。マイクの内容はこの端末だけで処理します。',
+                  style: TextStyle(fontSize: 12, color: TnTokens.textMuted, height: 1.4),
+                ),
               ),
+              if (_interim != null && _interim!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '認識中: $_interim',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF285782), height: 1.4),
+                  ),
+                ),
+            ],
             const SizedBox(height: 12),
-            AttachBar(
-              attachments: _attachments,
-              onChanged: (next) => setState(() {
-                _attachments
-                  ..clear()
-                  ..addAll(next);
-              }),
+            IgnorePointer(
+              ignoring: _listening,
+              child: Opacity(
+                opacity: _listening ? 0.45 : 1,
+                child: AttachBar(
+                  attachments: _attachments,
+                  onChanged: (next) => setState(() {
+                    _attachments
+                      ..clear()
+                      ..addAll(next);
+                  }),
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: _listening ? null : _openReview,
+              onPressed: _canReview ? _openReview : null,
               icon: const Icon(Icons.send),
               label: const Text('報告書を確認する'),
             ),
@@ -395,7 +610,29 @@ class _WorkScreenState extends State<WorkScreen> {
               _kv('目的', _entryPurpose.text.trim()),
             ],
             _kv('実施内容・結果', _body.text.trim()),
-            if (_attachments.isNotEmpty) _kv('添付', '${_attachments.length}件'),
+            if (_attachments.isNotEmpty) ...[
+              _kv('添付', '${_attachments.length}件'),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final a in _attachments)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      label: Text(a.label, style: const TextStyle(fontSize: 11)),
+                      avatar: Icon(
+                        switch (a.kind) {
+                          AttachmentKind.camera => Icons.photo_camera_outlined,
+                          AttachmentKind.file => Icons.attach_file,
+                          AttachmentKind.location => Icons.place_outlined,
+                        },
+                        size: 14,
+                      ),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _saving ? null : _confirmSave,
@@ -425,9 +662,19 @@ class _WorkScreenState extends State<WorkScreen> {
       );
 
   void _showNishimatsuInfo(BuildContext context) {
+    final reports = context.read<AppDataProvider>().reports;
+    final ym = DateFormat('yyyy-MM').format(DateTime.now());
+    final month = reports.where((r) => '${r['reportDate'] ?? ''}'.startsWith(ym)).toList();
+    final byCat = <String, int>{};
+    for (final r in month) {
+      final c = '${r['category'] ?? 'その他'}';
+      byCat[c] = (byCat[c] ?? 0) + 1;
+    }
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
         child: Column(
@@ -436,11 +683,26 @@ class _WorkScreenState extends State<WorkScreen> {
           children: [
             Text('西松地所レポート作成', style: Theme.of(ctx).textTheme.titleMedium),
             const SizedBox(height: 8),
-            const Text(
-              'Web版と同じく、蓄積した業務報告から西松地所向けレポートを組み立てます。'
-              'まずは通常の報告書を保存してください。レポート出力UIは次ビルドでWebと同等に接続します。',
-              style: TextStyle(height: 1.45, color: TnTokens.textMuted),
+            Text(
+              '今月の保存済み報告 ${month.length}件を集計しています。Web版と同じ詳細フォーマット（印刷・メール）は次のビルドで接続します。',
+              style: const TextStyle(height: 1.45, color: TnTokens.textMuted),
             ),
+            const SizedBox(height: 14),
+            if (month.isEmpty)
+              const Text('今月の報告がまだありません。先に報告書を保存してください。',
+                  style: TextStyle(color: TnTokens.textMuted))
+            else
+              ...byCat.entries.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(e.key, style: const TextStyle(fontWeight: FontWeight.w600))),
+                      Text('${e.value}件'),
+                    ],
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
             FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('閉じる')),
           ],

@@ -63,7 +63,7 @@ class _ShellScreenState extends State<ShellScreen> {
         keyboardVisible: keyboard,
       ),
       const ProjectsScreen(),
-      const WorkScreen(),
+      WorkScreen(active: _index == 2),
       const ArchiveScreen(),
     ];
     return Scaffold(

@@ -50,6 +50,7 @@ flutter_launcher_icons:
   adaptive_icon_background: "#285782"
   adaptive_icon_foreground: assets/brand/app-icon-foreground.png
   adaptive_icon_foreground_inset: 16
+  # Keep icons opaque 8-bit RGB — 16-bit/alpha paths previously produced near-black home icons.
   remove_alpha_ios: true
   background_color_ios: "#285782"
 

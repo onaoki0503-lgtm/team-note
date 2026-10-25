@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <path fill="#FFFFFF" d="M512 270c-92 0-166 74-166 166 0 57 29 108 74 137 14 9 22 25 22 42v14h140v-14c0-17 8-33 22-42 45-29 74-80 74-137 0-92-74-166-166-166z"/>
-  <path fill="#285782" d="M468 352c0-24 20-44 44-44s44 20 44 44c0 17-9 32-24 40v36h-40v-36c-15-8-24-23-24-40z"/>
-  <rect x="440" y="629" width="144" height="28" rx="8" fill="#FFFFFF"/>
-  <rect x="452" y="671" width="120" height="22" rx="6" fill="#FFFFFF"/>
-  <rect x="464" y="707" width="96" height="22" rx="6" fill="#FFFFFF"/>
-  <rect x="478" y="743" width="68" height="20" rx="6" fill="#FFFFFF"/>
+  <!-- Transparent adaptive foreground — safe zone centered -->
+  <circle cx="512" cy="448" r="250" fill="#FFFFFF" fill-opacity="0.12"/>
+  <path fill="#FFFFFF" d="M512 210c-122 0-220 98-220 220 0 78 41 146 102 185 18 12 29 32 29 54v22h178v-22c0-22 11-42 29-54 61-39 102-107 102-185 0-122-98-220-220-220z"/>
+  <path fill="#285782" d="M452 318c0-33 27-60 60-60s60 27 60 60c0 24-13 45-33 55v50h-54v-50c-20-10-33-31-33-55z"/>
+  <rect x="404" y="691" width="216" height="40" rx="12" fill="#FFFFFF"/>
+  <rect x="422" y="747" width="180" height="32" rx="10" fill="#FFFFFF"/>
+  <rect x="442" y="795" width="140" height="30" rx="10" fill="#FFFFFF"/>
+  <rect x="466" y="841" width="92" height="26" rx="9" fill="#FFFFFF"/>
 </svg>
