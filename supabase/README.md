@@ -33,3 +33,5 @@ Storage buckets created by v2: `tn-avatars` (public), `tn-files` (private).
 ## 2026-10-26：管理ダッシュボード
 
 - `migrations/20261026004612_management_dashboard.sql` — 管理者のサーバー側許可リスト・報告確認用RPC・添付ポリシー
+
+- `migrations/20261026044814_monthly_report_submissions.sql` — 提出時点の月次文書を日常ログから分離して保存し、管理者へ月別に返す。実DB適用・21項目のrollback試験済み。既存管理権限とポリシーは元の定義を維持。

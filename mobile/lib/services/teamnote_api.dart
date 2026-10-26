@@ -21,6 +21,18 @@ class TeamNoteApi {
 
   String get community => Environment.communityId;
 
+  Future<void> submitMonthlyReport(String month, String body) async {
+    final c = _requireClient();
+    final result = await c.rpc('tn_submit_monthly_report', params: {
+      'p_community': community,
+      'p_month': '$month-01',
+      'p_body': body,
+    });
+    if (result is! Map || result['id'] is! String || result['month'] != month || result['submittedAt'] is! String) {
+      throw StateError('月次報告書の提出結果を確認できませんでした');
+    }
+  }
+
   Future<Map<String, dynamic>?> getBoard() async {
     final c = _requireClient();
     final row = await c.rpc('tn_get_board', params: {'p_community': community});

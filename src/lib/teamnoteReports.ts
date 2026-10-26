@@ -95,3 +95,13 @@ export async function saveTeamnoteReport(input: {
 }
 
 export { ACTIVITY_TO_CATEGORY };
+
+/** Persist the reviewed monthly document, independently of later daily-log edits. */
+export async function submitTeamnoteMonthlyReport(month: string, body: string) {
+  if (!teamnoteClient) throw new Error('teamnote_not_configured');
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !body.trim() || Array.from(body.trim()).length > 50000) throw new Error('invalid_monthly_report');
+  const { data, error } = await teamnoteClient.rpc('tn_submit_monthly_report', { p_community: community, p_month: `${month}-01`, p_body: body });
+  if (error) throw error;
+  if (!data || typeof data.id !== 'string' || data.month !== month || typeof data.submittedAt !== 'string') throw new Error('invalid_monthly_response');
+  return data as { id: string; month: string; submittedAt: string };
+}

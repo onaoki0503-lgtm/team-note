@@ -5,6 +5,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/models.dart';
+import '../services/teamnote_api.dart';
+import '../config/environment.dart';
 import '../theme/tokens.dart';
 
 /// 西松地所向け月次提出レポート — mirrors web WorkStorageViews modal.
@@ -47,6 +49,24 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
   final _extraEntry = TextEditingController();
 
   var _copied = false;
+  var _submitting = false;
+  String? _submissionNotice;
+  String? _submissionError;
+
+  Future<void> _submit() async {
+    if (_submitting || !Environment.isConfigured) return;
+    final now = DateTime.now();
+    final month = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    setState(() { _submitting = true; _submissionNotice = null; _submissionError = null; });
+    try {
+      await TeamNoteApi().submitMonthlyReport(month, _buildPlainText());
+      if (mounted) { setState(() { _submissionNotice = '月次報告書を管理側に提出しました。同じ月の再提出は最新の内容に置き換わります。'; }); }
+    } catch (_) {
+      if (mounted) { setState(() { _submissionError = '提出できませんでした。接続を確認して再度お試しください。'; }); }
+    } finally {
+      if (mounted) { setState(() { _submitting = false; }); }
+    }
+  }
 
   @override
   void dispose() {
@@ -432,6 +452,10 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 child: Column(
                   children: [
+                    if (_submissionNotice != null)
+                      Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_submissionNotice!, style: const TextStyle(fontSize: 12, color: Color(0xFF183181)))),
+                    if (_submissionError != null)
+                      Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_submissionError!, style: const TextStyle(fontSize: 12, color: Colors.red))),
                     if (_copied)
                       const Padding(
                         padding: EdgeInsets.only(bottom: 8),
@@ -445,6 +469,12 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
                       runSpacing: 8,
                       alignment: WrapAlignment.center,
                       children: [
+                        FilledButton.icon(
+                          onPressed: _submitting || !Environment.isConfigured ? null : _submit,
+                          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF183181)),
+                          icon: _submitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, size: 16),
+                          label: Text(_submitting ? '提出中…' : '管理側に提出'),
+                        ),
                         OutlinedButton.icon(
                           onPressed: _copy,
                           icon: const Icon(Icons.copy, size: 16),

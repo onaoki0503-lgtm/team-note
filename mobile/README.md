@@ -1,6 +1,6 @@
 # チームノート Mobile
 
-> **最終更新日**: 2026-10-24
+> **最終更新日**: 2026-10-26
 > **更新者**: AI (Codex)
 
 Native Flutter (iOS / Android). Supabase Auth + data. Not a WebView of the Vite app.
@@ -59,3 +59,11 @@ See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each uplo
 - `pubspec.lock`
 - `pubspec.yaml`
 - `test/`
+
+## Monthly submission (2026-10-26)
+
+The existing Nishimatsu monthly sheet now has a “管理側に提出” action. It submits the full reviewed text via `tn_submit_monthly_report`; one author/community/month is stored and resubmission replaces that document. The monthly snapshot is separate from daily reports. Connection failures are shown without claiming success. The management Web view reads these monthly submissions only.
+
+Requires `../supabase/migrations/20261026044814_monthly_report_submissions.sql` (already applied to the existing shared project). No manager accounts have been added. Source version remains 0.1.13+20; unsigned build validation does not mean a new TestFlight upload. Alan's latest home change 4af73a0 is also included.
+
+Validation: Flutter analysis and the existing 12 tests pass after a small flexible-width fix for the home count/update row at 320px and 1.6x text. Daily reporting, existing sharing actions, and native navigation are retained.

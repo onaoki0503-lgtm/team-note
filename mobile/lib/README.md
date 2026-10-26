@@ -1,6 +1,6 @@
 # lib
 
-> **最終更新日**: 2026-10-24
+> **最終更新日**: 2026-10-26
 > **更新者**: AI (Codex)
 
 ## 概要
@@ -21,3 +21,5 @@
 - `theme/`
 - `widgets/`
 - `README.md` — このフォルダの案内
+
+2026-10-26 / AI (Codex): `services/teamnote_api.dart` と `widgets/nishimatsu_report_sheet.dart` に月次文書の提出保存を接続。管理側のWeb表示と同じ月次保存先を使用する。

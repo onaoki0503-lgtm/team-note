@@ -7,6 +7,7 @@ import { Send, Users, Package, Archive, ChevronRight, Calendar, Check, FileText,
 import type { CurrentUser } from '../lib/db';
 import { useSharedIdeas } from '../lib/sharedIdeasContext';
 import { uploadTeamnoteFile } from '../lib/teamnoteFiles';
+import { submitTeamnoteMonthlyReport } from '../lib/teamnoteReports';
 
 export interface WorkReportItem {
   id: string;
@@ -107,8 +108,12 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   // 西松地所公式フォーマット用ステート
   const [showNishimatsuModal, setShowNishimatsuModal] = useScreenState('monthly-report-modal', false);
   const [copiedNotice, setCopiedNotice] = useState(false);
-  const [studentYear, setStudentYear] = useState('3年');
-  const [studentId, setStudentId] = useState('H24-0892');
+  const [monthlyBusy, setMonthlyBusy] = useState(false);
+  const monthlyRevision = useRef(0);
+  const [monthlyNotice, setMonthlyNotice] = useState('');
+  const [monthlyError, setMonthlyError] = useState('');
+  const [studentYear, setStudentYear] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [absencePeriod, setAbsencePeriod] = useState('');
   const [absenceReason, setAbsenceReason] = useState('');
   
@@ -210,6 +215,59 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
   });
 
   const displayedReports = filterPeriod === 'current_month' ? currentMonthReports : reports;
+
+  const monthlyReportText = () => {
+    const troubleReports = currentMonthReports.filter((r) => r.activityType === 'trouble');
+    const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
+
+    const troubleLines = [
+      ...troubleReports.map((r, i) => `${i + 1}. 日時: ${r.date} | 内容: ${r.title} - ${r.actionResult || r.content}`),
+      troubleDateTime || troubleContent ? `追加記入. 日時: ${troubleDateTime} | 内容: ${troubleContent}` : ''
+    ].filter(Boolean);
+
+    const entryLines = [
+      ...unitEntryReports.map((r, i) => `${i + 1}. 日時: ${r.date} | 棟・ユニット: ${r.entryUnit || r.title} | 目的: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
+      entryDateTime || entryUnit || entryPurpose ? `追加記入. 日時: ${entryDateTime} | 棟・ユニット: ${entryUnit} | 目的: ${entryPurpose}` : ''
+    ].filter(Boolean);
+
+    const textLines = [
+      `西松地所株式会社 御中`,
+      `H ヴィレッジ 役職者活動報告書 ${now.getFullYear()}年${now.getMonth() + 1}月分`,
+      ``,
+      `【基本情報】`,
+      `役職: ${currentUser.role}`,
+      `担当フロア: ${currentUser.floor}F`,
+      `ハウス・部屋番号: ${currentUser.building}棟 ${currentUser.unit}号室`,
+      `学年: ${studentYear} | 学籍番号: ${studentId} | 氏名: ${currentUser.name}`,
+      `不在日・期間: ${absencePeriod || 'なし'} 理由: ${absenceReason || 'なし'}`,
+      ``,
+      `1. 活動報告:`,
+      `■ 役職固有業務:`,
+      ...currentMonthReports
+        .filter((r) => r.activityType === 'inherent')
+        .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
+      ``,
+      `■ 役職連携業務:`,
+      ...currentMonthReports
+        .filter((r) => r.activityType === 'cooperation')
+        .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
+      ``,
+      `■ 役職共通業務:`,
+      ...currentMonthReports
+        .filter((r) => r.activityType === 'common')
+        .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
+      ``,
+      `2. トラブル対応など報告:`,
+      troubleLines.length > 0 ? troubleLines.join('\n') : '該当なし',
+      ``,
+      `3. ユニット立ち入り記録:`,
+      entryLines.length > 0 ? entryLines.join('\n') : '該当なし',
+      ``,
+      `4. 学生寮について気づいたこと・要望・意見など:`,
+      noticeFeedback || '特になし'
+    ].join('\n');
+    return textLines;
+  };
 
   // ============================================================
   // モード1: はたらく (S21, S22 業務報告 即時ログ蓄積)
@@ -699,7 +757,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
         {/* 西松地所向け月次提出レポートモーダル */}
         {showNishimatsuModal && (
-          <div role="dialog" aria-modal="true" className="app-modal"
+          <div role="dialog" aria-modal="true" className="app-modal" onChangeCapture={() => { monthlyRevision.current++; setMonthlyNotice(''); setMonthlyError(''); }}
             style={{
               position: 'fixed',
               inset: 0,
@@ -1204,6 +1262,8 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {monthlyNotice && <p role="status" style={{ fontSize: 12, color: '#183181' }}>{monthlyNotice}</p>}
+                  {monthlyError && <p role="alert" style={{ fontSize: 12, color: '#b42318' }}>{monthlyError}</p>}
                   {copiedNotice && (
                     <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Check size={14} />
@@ -1212,61 +1272,24 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button className="glass-button glass-button-primary" type="button" disabled={monthlyBusy || !shared.enabled} onClick={async () => {
+                    if (monthlyBusy || !shared.enabled) return;
+                    const submittedRevision = monthlyRevision.current;
+                    setMonthlyBusy(true); setMonthlyNotice(''); setMonthlyError('');
+                    try {
+                      await submitTeamnoteMonthlyReport(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, monthlyReportText());
+                      setMonthlyNotice(submittedRevision === monthlyRevision.current ? '月次報告書を管理側に提出しました。同じ月に再提出すると最新の内容に置き換わります。' : '提出しました。送信中に編集した内容は再提出してください。');
+                    } catch { setMonthlyError('提出できませんでした。接続を確認して再度お試しください。'); }
+                    finally { setMonthlyBusy(false); }
+                  }} style={{ backgroundColor: '#183181', color: '#fff', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700 }}>
+                    <Send size={14} />{monthlyBusy ? '提出中…' : '管理側に提出'}
+                  </button>
                   {/* テキストコピーボタン */}
                   <button className="glass-button"
                     type="button"
                     onClick={() => {
-                      const troubleReports = currentMonthReports.filter((r) => r.activityType === 'trouble');
-                      const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
-
-                      const troubleLines = [
-                        ...troubleReports.map((r, i) => `${i + 1}. 日時: ${r.date} | 内容: ${r.title} - ${r.actionResult || r.content}`),
-                        troubleDateTime || troubleContent ? `追加記入. 日時: ${troubleDateTime} | 内容: ${troubleContent}` : ''
-                      ].filter(Boolean);
-
-                      const entryLines = [
-                        ...unitEntryReports.map((r, i) => `${i + 1}. 日時: ${r.date} | 棟・ユニット: ${r.entryUnit || r.title} | 目的: ${r.entryPurpose || r.title} - ${r.actionResult || r.content}`),
-                        entryDateTime || entryUnit || entryPurpose ? `追加記入. 日時: ${entryDateTime} | 棟・ユニット: ${entryUnit} | 目的: ${entryPurpose}` : ''
-                      ].filter(Boolean);
-
-                      const textLines = [
-                        `西松地所株式会社 御中`,
-                        `H ヴィレッジ 役職者活動報告書 ${now.getFullYear()}年${now.getMonth() + 1}月分`,
-                        ``,
-                        `【基本情報】`,
-                        `役職: ${currentUser.role}`,
-                        `担当フロア: ${currentUser.floor}F`,
-                        `ハウス・部屋番号: ${currentUser.building}棟 ${currentUser.unit}号室`,
-                        `学年: ${studentYear} | 学籍番号: ${studentId} | 氏名: ${currentUser.name}`,
-                        `不在日・期間: ${absencePeriod || 'なし'} 理由: ${absenceReason || 'なし'}`,
-                        ``,
-                        `1. 活動報告:`,
-                        `■ 役職固有業務:`,
-                        ...currentMonthReports
-                          .filter((r) => r.activityType === 'inherent')
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
-                        ``,
-                        `■ 役職連携業務:`,
-                        ...currentMonthReports
-                          .filter((r) => r.activityType === 'cooperation')
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
-                        ``,
-                        `■ 役職共通業務:`,
-                        ...currentMonthReports
-                          .filter((r) => r.activityType === 'common')
-                          .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
-                        ``,
-                        `2. トラブル対応など報告:`,
-                        troubleLines.length > 0 ? troubleLines.join('\n') : '該当なし',
-                        ``,
-                        `3. ユニット立ち入り記録:`,
-                        entryLines.length > 0 ? entryLines.join('\n') : '該当なし',
-                        ``,
-                        `4. 学生寮について気づいたこと・要望・意見など:`,
-                        noticeFeedback || '特になし'
-                      ].join('\n');
-                      navigator.clipboard.writeText(textLines);
+                      navigator.clipboard.writeText(monthlyReportText());
                       setCopiedNotice(true);
                       setTimeout(() => setCopiedNotice(false), 3000);
                     }}

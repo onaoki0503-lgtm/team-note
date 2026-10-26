@@ -244,13 +244,17 @@ class _IdeaHomeState extends State<IdeaHome> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Semantics(
-                    label: 'いま表示中のアイデア $shown件、上限は12件',
-                    child: Text(
-                      '表示中 $shown / 上限12',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: TnTokens.textMuted,
+                  Expanded(
+                    child: Semantics(
+                      label: 'いま表示中のアイデア $shown件、上限は12件',
+                      child: Text(
+                        '表示中 $shown / 上限12',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: TnTokens.textMuted,
+                        ),
                       ),
                     ),
                   ),
