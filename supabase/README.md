@@ -1,6 +1,7 @@
 # Supabase定義
 
-> **最終更新日**: 2026-10-23
+> **最終更新日**: 2026-10-26
+> **更新者**: AI (Codex)
 
 ## 適用順
 
@@ -28,3 +29,7 @@ Storage buckets created by v2: `tn-avatars` (public), `tn-files` (private).
 ## 権限検証
 
 `../tests/teamnote-cloud-rls.sql`（ROLLBACK）。v2テーブル用の追加試験は未作成。
+
+## 2026-10-26：管理ダッシュボード
+
+- `migrations/20261026004612_management_dashboard.sql` — 管理者のサーバー側許可リスト・報告確認用RPC・添付ポリシー

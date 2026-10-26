@@ -1,6 +1,6 @@
 # チームノート — Hヴィレッジ実証アプリ
 
-> **最終更新日**: 2026-10-24
+> **最終更新日**: 2026-10-26
 > **更新者**: AI (Codex)
 
 ## 概要
@@ -187,3 +187,7 @@ React + TypeScript + Viteを使用。AIは専用Cloudflare Worker、プロフィ
 ## 2026-10-24：ネイティブホームをWebの表示へ統一
 
 Flutter版ホームを白いガラス調、スクロールしない最大12件の吹き出し、中央の企画作成、4秒ごとの消失・ポップに変更。共通ヘッダーと4タブもガラス調へ揃えた。既存の共有操作・Google認証・設定・アイコンは維持。詳細・試験と未確認範囲は [mobile/README.md](mobile/README.md) を参照。既存GitHub Pages／Flutter TestFlight／Supabase／Workersを継続する画面改修で、公開基盤は変更しない。
+
+## 管理ダッシュボード
+
+西松地所・寮母向けの管理用Web画面を既存Viteアプリの`?view=management`に追加する。GitHubでソース管理し、既存GitHub Pages・Supabase・Workersの構成を維持する既存アプリ改修。公開基盤は移行しない。白いLiquid Glassとコズミックブルーを参考にした青（#183181）、全画面スケルトン、動きを控える設定を含む。管理者のメールアドレスは後で登録するという代表回答に従い、この変更だけで誰にも管理権限を付与しない。デモは`?view=management&demo=1`。本番用の管理者登録・検証手順は [管理画面README](src/management/README.md) を参照。管理用DB定義は適用済み。管理者の実アカウント登録とWeb公開は今回行っていない。
