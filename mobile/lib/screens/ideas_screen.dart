@@ -196,157 +196,196 @@ class _IdeaHomeState extends State<IdeaHome> {
     }
   }
 
+  void _dismissKeyboard() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _focus.unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final length = _controller.text.runes.length;
     final keyboard =
         widget.keyboardVisible || MediaQuery.viewInsetsOf(context).bottom > 0;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-      child: Column(
-        children: [
-          Expanded(
-            child: keyboard
-                ? const SizedBox.shrink()
-                : IdeaCloudBoard(
-                    ideas: widget.ideas,
-                    loading: widget.loading && widget.ideas.isEmpty,
-                    paused:
-                        widget.motionPaused ||
-                        !widget.active ||
-                        _focus.hasFocus ||
-                        _previewOpen,
-                    onCreate: () => widget.onCreate(''),
-                    onOpen: _open,
-                  ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${widget.ideas.length.clamp(0, 12)} / 12件',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: TnTokens.textMuted,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _refreshing ? null : _refresh,
-                  icon: _refreshing
-                      ? const SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 1.5),
-                        )
-                      : const Icon(Icons.sync, size: 14),
-                  label: Text(
-                    widget.loading ? '更新中' : '更新',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(64, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    tapTargetSize: MaterialTapTargetSize.padded,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          GlassSurface(
-            radius: 24,
-            padding: const EdgeInsets.fromLTRB(14, 3, 4, 3),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focus,
-                    readOnly: _posting,
-                    minLines: 1,
-                    maxLines: 2,
-                    textInputAction: TextInputAction.newline,
-                    decoration: const InputDecoration(
-                      hintText: 'アイデアを入力',
-                      labelText: null,
-                      contentPadding: EdgeInsets.symmetric(vertical: 12),
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
+    final focused = _focus.hasFocus || keyboard;
+    final shown = widget.ideas.length.clamp(0, 12);
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      behavior: HitTestBehavior.translucent,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+        child: Column(
+          children: [
+            Expanded(
+              child: focused
+                  ? GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _dismissKeyboard,
+                      child: Center(
+                        child: Text(
+                          'タップして閉じる',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: TnTokens.textMuted.withValues(alpha: .85),
+                          ),
+                        ),
+                      ),
+                    )
+                  : IdeaCloudBoard(
+                      ideas: widget.ideas,
+                      loading: widget.loading && widget.ideas.isEmpty,
+                      paused:
+                          widget.motionPaused || !widget.active || _previewOpen,
+                      onCreate: () => widget.onCreate(''),
+                      onOpen: _open,
                     ),
-                    style: const TextStyle(fontSize: 15, height: 1.4),
-                  ),
-                ),
-                Semantics(
-                  label: 'アイデアを投稿',
-                  button: true,
-                  child: IconButton.filled(
-                    tooltip: 'アイデアを投稿',
-                    onPressed:
-                        !_posting &&
-                            _controller.text.trim().isNotEmpty &&
-                            length <= 140
-                        ? _submit
-                        : null,
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: .75),
-                      foregroundColor: TnTokens.primary,
-                      minimumSize: const Size(46, 46),
-                    ),
-                    icon: _posting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send_rounded, size: 19),
-                  ),
-                ),
-              ],
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 5, 6, 4),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    '7日間反応がないと表示終了',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 10, color: TnTokens.textMuted),
-                  ),
-                ),
-                Text(
-                  '$length / 140',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: length > 140
-                        ? TnTokens.errorText
-                        : TnTokens.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_error != null || widget.error != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  _error ?? '共有データを更新できませんでした。もう一度お試しください。',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: TnTokens.errorText,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Semantics(
+                    label: 'いま表示中のアイデア $shown件、上限は12件',
+                    child: Text(
+                      '表示中 $shown / 上限12',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: TnTokens.textMuted,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _refreshing ? null : _refresh,
+                    icon: _refreshing
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 1.5),
+                          )
+                        : const Icon(Icons.sync, size: 14),
+                    label: Text(
+                      widget.loading ? '更新中' : '更新',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(64, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GlassSurface(
+              radius: 24,
+              padding: const EdgeInsets.fromLTRB(14, 3, 4, 3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focus,
+                      readOnly: _posting,
+                      minLines: 1,
+                      maxLines: 2,
+                      textInputAction: TextInputAction.done,
+                      onTapOutside: (_) => _dismissKeyboard(),
+                      onSubmitted: (_) => _dismissKeyboard(),
+                      decoration: const InputDecoration(
+                        hintText: 'アイデアを入力',
+                        labelText: null,
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
+                      style: const TextStyle(fontSize: 15, height: 1.4),
+                    ),
+                  ),
+                  if (focused)
+                    Semantics(
+                      label: 'キーボードを閉じる',
+                      button: true,
+                      child: IconButton(
+                        tooltip: '閉じる',
+                        onPressed: _dismissKeyboard,
+                        style: IconButton.styleFrom(
+                          foregroundColor: TnTokens.textMuted,
+                          minimumSize: const Size(44, 44),
+                        ),
+                        icon: const Icon(Icons.keyboard_hide_rounded, size: 20),
+                      ),
+                    ),
+                  Semantics(
+                    label: 'アイデアを投稿',
+                    button: true,
+                    child: IconButton.filled(
+                      tooltip: 'アイデアを投稿',
+                      onPressed:
+                          !_posting &&
+                              _controller.text.trim().isNotEmpty &&
+                              length <= 140
+                          ? _submit
+                          : null,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: .75),
+                        foregroundColor: TnTokens.primary,
+                        minimumSize: const Size(46, 46),
+                      ),
+                      icon: _posting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_rounded, size: 19),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 5, 6, 4),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '7日間反応がないと表示終了',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10, color: TnTokens.textMuted),
+                    ),
+                  ),
+                  Text(
+                    '$length / 140',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: length > 140
+                          ? TnTokens.errorText
+                          : TnTokens.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_error != null || widget.error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _error ?? '共有データを更新できませんでした。もう一度お試しください。',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: TnTokens.errorText,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

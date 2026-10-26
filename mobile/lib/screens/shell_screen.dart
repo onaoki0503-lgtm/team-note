@@ -72,10 +72,13 @@ class _ShellScreenState extends State<ShellScreen> {
         animate: _index == 0 && !_motionPaused && !keyboard,
         child: SafeArea(
           bottom: false,
+          // Keep chrome clear of the Dynamic Island / notch; atmosphere
+          // already paints edge-to-edge behind this inset.
+          minimum: const EdgeInsets.only(top: 6),
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
                 child: GlassSurface(
                   radius: 25,
                   padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
