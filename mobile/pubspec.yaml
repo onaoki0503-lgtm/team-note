@@ -1,7 +1,7 @@
 name: team_note_mobile
 description: Team Note — native iOS & Android (H-Village)
 publish_to: "none"
-version: 0.1.13+20
+version: 0.1.14+21
 
 environment:
   sdk: ^3.8.0
