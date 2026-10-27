@@ -1,6 +1,6 @@
 # test/support
 
-> **最終更新日**: 2026-10-24
+> **最終更新日**: 2026-10-27
 > **更新者**: AI (Codex)
 
 ## 概要
@@ -11,3 +11,5 @@ home_preview.dartは検証専用の架空データ画面。Supabaseや認証へ�
 
 - `home_preview.dart`
 - `README.md` — このフォルダの案内
+
+2026-10-27 / AI (Codex): home_preview.dartは実装と同じTeamNoteHeaderを使用。`--dart-define=PREVIEW_IDEA_COUNT=2` で参考画像に近い2件を表示できる。認証・実DBは初期化しないテスト専用エントリー。

@@ -6,7 +6,7 @@ import 'package:team_note_mobile/screens/ideas_screen.dart';
 import 'package:team_note_mobile/theme/app_theme.dart';
 import 'package:team_note_mobile/widgets/home_scene.dart';
 
-void main() => runApp(const HomePreviewApp());
+void main() => runApp(const HomePreviewApp(ideaCount: int.fromEnvironment('PREVIEW_IDEA_COUNT', defaultValue: 12)));
 
 List<IdeaItem> previewIdeas() => [
   for (var i = 0; i < 12; i++)
@@ -38,7 +38,9 @@ class HomePreviewApp extends StatefulWidget {
     this.reducedMotion = false,
     this.textScale = 1,
     this.keyboard = 0,
+    this.ideaCount = 12,
   });
+  final int ideaCount;
   final bool reducedMotion;
   final double textScale, keyboard;
   @override
@@ -46,7 +48,7 @@ class HomePreviewApp extends StatefulWidget {
 }
 
 class _HomePreviewAppState extends State<HomePreviewApp> {
-  final ideas = previewIdeas();
+  late final ideas = previewIdeas().take(widget.ideaCount).toList();
   int serial = 12, index = 0;
   String? created;
   @override
@@ -72,39 +74,7 @@ class _HomePreviewAppState extends State<HomePreviewApp> {
             child: SafeArea(
               child: Column(
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(12, 8, 12, 6),
-                    child: GlassSurface(
-                      padding: EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          Icon(Icons.lightbulb_outline),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'チームノート',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                Text(
-                                  'H-Village · プレビュー',
-                                  style: TextStyle(fontSize: 10),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(Icons.settings_outlined),
-                          SizedBox(width: 18),
-                          CircleAvatar(radius: 20, child: Text('寮')),
-                        ],
-                      ),
-                    ),
-                  ),
+                  TeamNoteHeader(name: '寮生', onProfile: () {}),
                   Expanded(
                     child: index != 0
                         ? Center(

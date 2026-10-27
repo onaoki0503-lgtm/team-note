@@ -1,6 +1,6 @@
 import { checkIdeaSentenceValidity } from '../lib/ideaValidation';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Heart, Send, MoreHorizontal, Trash2, ArrowRight, X } from 'lucide-react';
+import { Heart, MoreHorizontal, Trash2, ArrowRight, X } from 'lucide-react';
 import { community } from '../lib/community';
 import { displayedIdeas, type IdeaItem } from '../lib/ideaBoard';
 export type { IdeaItem } from '../lib/ideaBoard';
@@ -11,37 +11,27 @@ interface IdeaBubbleProps {
   isPaused: boolean; onPauseChange: (paused: boolean) => void; centerAction: ReactNode;
   onAddNewIdea: (text: string) => Promise<boolean>; onToggleLike: (id: string) => Promise<boolean>; onDeleteIdea: (id: string) => Promise<boolean>;
 }
-// Every outline stays inside its own cell, including the speech tail.
-const outlines = [
-  'M30 23C22 6 48 0 64 12C79-2 105 1 114 13C139 0 161 12 155 30C182 38 180 62 162 69C175 91 153 101 132 94C114 108 91 102 80 98L59 116L63 98C40 108 20 96 24 81C0 83-4 59 14 48C-1 32 13 18 30 23Z',
-  'M89 3C137-3 178 18 176 53C180 85 143 105 103 102L76 117L78 102C31 105 2 84 4 53C1 20 42 1 89 3Z',
-  'M23 8L149 3Q169 3 172 22L178 75Q179 94 157 98L116 101L91 117L95 101L24 106Q6 105 5 84L2 31Q0 10 23 8Z',
-  'M17 28C21 3 48-2 71 12C95-3 128 1 137 18C165 13 184 34 171 55C186 76 167 96 142 93C127 109 96 104 83 98L65 117L60 99C34 108 9 95 16 75C-4 67-3 39 17 28Z',
-  'M22 15Q32 0 56 6L151 10Q171 11 171 31L177 75Q178 96 151 99L133 99L143 117L115 100L28 105Q8 105 7 84L3 38Q1 19 22 15Z',
-  'M43 5C83-7 160 2 173 39C186 78 149 106 110 100L87 118L88 101C49 112 6 92 4 65C-6 36 13 13 43 5Z'
-];
 const tones = ['coral', 'blue', 'gold', 'green', 'violet', 'cyan'] as const;
 type BubbleTone = typeof tones[number];
 function hashId(id: string) { return [...id].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7); }
 function toneOf(id: string): BubbleTone { return tones[hashId(id) % tones.length]; }
 function variation(id: string): CSSProperties {
   const hash = hashId(id);
-  return { '--drift': `${9 + hash % 5}s`, '--delay': `${-(hash % 110) / 10}s`, '--float-x-request': `${5 + hash % 3}`, '--float-y-request': `${6 + hash % 4}`, '--bubble-width': `${82 + hash % 10}%`, '--bubble-height': `${80 + (hash >> 4) % 10}%` } as CSSProperties;
+  return { '--drift': `${9 + hash % 5}s`, '--delay': `${-(hash % 110) / 10}s`, '--float-x-request': `${5 + hash % 3}`, '--float-y-request': `${6 + hash % 4}`, '--bubble-width': `${88 + hash % 4}%`, '--bubble-height': `${84 + (hash >> 4) % 6}%`, '--card-tilt': `${(hash % 5 - 2) * .6}deg` } as CSSProperties;
 }
 type Layout = 'portrait' | 'desktop' | 'wide';
-const layouts: Record<Layout, number[][]> = {
-  portrait: [[1,1],[1,3],[3,1],[3,3],[5,1],[5,3],[1,2],[5,2],[2,1],[4,3],[2,3],[4,1]],
-  desktop: [[1,1],[1,4],[4,1],[4,4],[1,2],[4,3],[2,1],[3,4],[1,3],[4,2],[3,1],[2,4]],
-  wide: [[1,1],[1,6],[3,1],[3,6],[1,3],[3,4],[1,2],[3,5],[1,4],[3,3],[1,5],[3,2]]
-};
+function cardLayout(count: number, layout: Layout) {
+  if (count <= 2) return { columns: 6, rows: 4, cells: [[1, 1, 2, 4], [3, 3, 2, 4]] };
+  const columns = layout === 'wide' ? Math.min(6, count) : layout === 'desktop' && count > 6 ? 4 : count > 6 ? 3 : 2;
+  return { columns, rows: Math.ceil(count / columns), cells: Array.from({ length: count }, (_, i) => [Math.floor(i / columns) + 1, i % columns + 1, 1, 1]) };
+}
 const currentLayout = (): Layout => innerHeight <= 520 && innerWidth > innerHeight ? 'wide' : innerWidth >= 900 ? 'desktop' : 'portrait';
 
 function Bubble({ idea, popping, onPopEnd, onOpen }: { idea: IdeaItem; popping: boolean; onPopEnd: () => void; onOpen: (trigger: HTMLButtonElement) => void }) {
-  const shape = hashId(idea.id) % outlines.length;
+  const shape = hashId(idea.id) % 6;
   const tone = toneOf(idea.id);
   return <article className={`idea-card idea-card--shape-${shape} idea-card--tone-${tone} ${idea.isNew ? 'idea-card--new' : ''} ${popping ? 'is-popping' : ''}`} data-idea-id={idea.id} data-pop-active={popping} data-shape={shape} data-tone={tone} style={variation(idea.id)} onPointerEnter={() => { if (popping) onPopEnd(); }} onFocusCapture={() => { if (popping) onPopEnd(); }} onAnimationEnd={event => { if (event.animationName === 'bubble-pop') onPopEnd(); }}>
-    <svg className="idea-bubble-outline" viewBox="0 0 180 120" preserveAspectRatio="none" aria-hidden="true"><path d={outlines[shape]} /></svg>
-    <button type="button" className="glass-button idea-card-text" onClick={event => onOpen(event.currentTarget)} aria-label={idea.text} title={idea.text}><span className="idea-bubble-excerpt">{idea.text}</span><span className="idea-bubble-reactions" aria-hidden="true"><Heart size={10} />{idea.likes > 0 ? idea.likes : ''}</span></button>
+    <button type="button" className="glass-button idea-card-text" onClick={event => onOpen(event.currentTarget)} aria-label={idea.text} title={idea.text}><span className="idea-bubble-excerpt">{idea.text}</span><span className="idea-bubble-label" aria-hidden="true">アイデア{idea.likes > 0 && <span><Heart size={11} />{idea.likes}</span>}</span></button>
   </article>;
 }
 function IdeaPreview({ idea, userId, onClose, onOpen, onLike, onDelete }: { idea: IdeaItem; userId: string; onClose: () => void; onOpen: () => void; onLike: () => void; onDelete: () => void }) {
@@ -69,6 +59,8 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
   const layerRef = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
   const [focused, setFocused] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const postTrigger = useRef<HTMLButtonElement>(null);
   const [pageHidden, setPageHidden] = useState(document.hidden);
   const [reducedMotion, setReducedMotion] = useState(matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [layout, setLayout] = useState(currentLayout);
@@ -77,10 +69,11 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
   const visibleIdeas = displayedIdeas(ideas);
   const selectedIdea = visibleIdeas.find(idea => idea.id === selected);
   const previewOpen = !!selectedIdea;
+  const composition = cardLayout(visibleIdeas.length, layout);
   const [poppingId, setPoppingId] = useState<string | null>(null);
   const lastPopped = useRef<string | null>(null);
   const idsKey = visibleIdeas.map(idea => idea.id).join('|');
-  const motionPaused = isPaused || focused || keyboard || previewOpen || pageHidden || reducedMotion;
+  const motionPaused = isPaused || composeOpen || focused || keyboard || previewOpen || pageHidden || reducedMotion;
   useLayoutEffect(() => {
     const layer = layerRef.current;
     const board = layer?.querySelector<HTMLElement>('.idea-board');
@@ -119,7 +112,7 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
   useLayoutEffect(() => {
     const measure = () => { const input = inputRef.current; if (input) { input.style.height = 'auto'; input.style.height = `${Math.min(76, Math.max(32, input.scrollHeight))}px`; } };
     measure(); window.addEventListener('resize', measure); return () => window.removeEventListener('resize', measure);
-  }, [comment]);
+  }, [comment, composeOpen]);
   useLayoutEffect(() => {
     const shell = layerRef.current?.closest<HTMLElement>('.app-shell');
     const viewport = visualViewport;
@@ -133,7 +126,7 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
     return () => { motion.removeEventListener('change', reduce); document.removeEventListener('visibilitychange', visibility); };
   }, []);
   useEffect(() => { const timer = setTimeout(() => { try { localStorage.setItem(draftKey, comment); } catch { /* Optional persistence. */ } }, 500); return () => clearTimeout(timer); }, [draftKey, comment]);
-  useEffect(() => { onPauseChange(focused || previewOpen); return () => onPauseChange(false); }, [focused, previewOpen, onPauseChange]);
+  useEffect(() => { onPauseChange(composeOpen || focused || previewOpen); return () => onPauseChange(false); }, [composeOpen, focused, previewOpen, onPauseChange]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 5000); return () => clearTimeout(timer); }, [notice]);
   const submit = async () => {
     if (sending) return;
@@ -142,23 +135,37 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
     setSending(true);
     const saved = await onAddNewIdea(text).catch(() => false);
     setSending(false);
-    if (!saved) return;
+    if (!saved) { setNotice('保存できませんでした。入力内容は残っています。'); return; }
+    setComposeOpen(false); setFocused(false); setKeyboard(false); requestAnimationFrame(() => postTrigger.current?.focus({ preventScroll: true }));
     setComment(''); try { localStorage.removeItem(draftKey); } catch { /* Optional persistence. */ }
     setNotice(visibleIdeas.length >= community.ideas.displayLimit ? '吹き出しを追加し、一番古い表示を外しました' : '吹き出しにアイデアを追加しました');
   };
   const length = Array.from(comment).length;
-  return <div ref={layerRef} className="idea-layer" data-layout={layout} data-keyboard={keyboard} data-rotation-paused="true" data-floating-paused={motionPaused}>
-    <div className="idea-board" aria-label="みんなのアイデア" inert={keyboard && focused}>
-      <div className="home-start">{centerAction}</div>
-      {visibleIdeas.map((idea, index) => { const [row, col] = layouts[layout][index]; return <div className="idea-slot" style={{ gridRow: row, gridColumn: col }} key={idea.id}><Bubble idea={idea} popping={!motionPaused && poppingId === idea.id} onPopEnd={() => setPoppingId(current => current === idea.id ? null : current)} onOpen={trigger => { opener.current = trigger; setSelected(idea.id); }} /></div>; })}
+  return <div ref={layerRef} className="idea-layer" data-layout={layout} data-count={visibleIdeas.length} data-density={visibleIdeas.length <= 2 ? 'spacious' : visibleIdeas.length <= 6 ? 'medium' : 'compact'} data-keyboard={keyboard} data-rotation-paused="true" data-floating-paused={motionPaused}>
+    <div className="idea-home-heading"><h1>アイデア</h1>{connectionLabel && <span className="idea-connection" aria-live="polite">{connectionLabel}</span>}</div>
+    <div className="idea-board" aria-label="みんなのアイデア" style={{ gridTemplateColumns: `repeat(${composition.columns},minmax(0,1fr))`, gridTemplateRows: `repeat(${composition.rows},minmax(0,1fr))` }} inert={composeOpen}>
+      {visibleIdeas.length === 0 && <p className="idea-empty">まだアイデアはありません</p>}
+      {visibleIdeas.map((idea, index) => { const [row, col, rowSpan, colSpan] = composition.cells[index]; return <div className="idea-slot" style={{ gridRow: `${row} / span ${rowSpan}`, gridColumn: `${col} / span ${colSpan}` }} key={idea.id}><Bubble idea={idea} popping={!motionPaused && poppingId === idea.id} onPopEnd={() => setPoppingId(current => current === idea.id ? null : current)} onOpen={trigger => { opener.current = trigger; setSelected(idea.id); }} /></div>; })}
     </div>
     <div className="idea-composer">
-      <div className="idea-board-caption"><span>{visibleIdeas.length} / {community.ideas.displayLimit}件</span>{connectionLabel && <span aria-live="polite">{connectionLabel}</span>}</div>
-      <div className={`idea-composer-field ${focused ? 'is-focused' : ''}`}><textarea ref={inputRef} rows={1} aria-label="アイデアをつぶやく" placeholder="アイデアを入力" readOnly={sending} value={comment} onChange={event => setComment(event.target.value)} onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); setKeyboard(false); }} />
-        <button type="button" className="glass-button idea-send" aria-label="アイデアを投稿" disabled={sending || !comment.trim() || length > community.ideas.maxLength} onClick={submit}><Send size={18} /></button></div>
-      <div className="idea-composer-help"><span>7日間反応がないと表示終了</span><span style={{ color: length > 140 ? '#B92F3D' : undefined }}>{length} / 140</span></div>
-      <p role={syncError ? 'alert' : 'status'} aria-live="polite" className="idea-notice">{syncError || notice}</p>
+      <button ref={postTrigger} type="button" className="idea-post-primary" onClick={() => { setNotice(''); setComposeOpen(true); }}>アイデアを投稿</button>
+      {(syncError || notice) && !composeOpen && <p role={syncError ? 'alert' : 'status'} aria-live="polite" className="idea-notice">{syncError || notice}</p>}
     </div>
+    {composeOpen && <IdeaComposer onClose={() => { if (sending) return; setComposeOpen(false); setFocused(false); setKeyboard(false); requestAnimationFrame(() => postTrigger.current?.focus({ preventScroll: true })); }}>
+      <form onSubmit={e => { e.preventDefault(); void submit(); }}>
+        <textarea ref={inputRef} rows={4} autoFocus aria-label="アイデアをつぶやく" placeholder="アイデアを入力" readOnly={sending} value={comment} onChange={event => setComment(event.target.value)} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
+        <div className="idea-composer-help"><span>140文字まで</span><span style={{ color: length > 140 ? '#B92F3D' : undefined }}>{length} / 140</span></div>
+        {(syncError || notice) && <p role="alert" className="idea-compose-error">{syncError || notice}</p>}
+        <button type="submit" className="idea-post-primary" disabled={sending || !comment.trim() || length > community.ideas.maxLength}>{sending ? '投稿中…' : '投稿する'}</button>
+      </form>
+      <div className="idea-compose-proposal" onClick={() => setComposeOpen(false)}>{centerAction}</div>
+    </IdeaComposer>}
     {selectedIdea && <IdeaPreview key={selectedIdea.id} idea={selectedIdea} userId={currentUserId} onClose={() => { setSelected(null); opener.current?.focus({ preventScroll: true }); }} onLike={() => onToggleLike(selectedIdea.id)} onDelete={() => { void onDeleteIdea(selectedIdea.id); setSelected(null); }} onOpen={() => { setSelected(null); if (selectedIdea.projectId && onSelectProject) onSelectProject(selectedIdea.projectId); else onOpenIdeaInputWithText(selectedIdea.text); }} />}
   </div>;
+}
+
+function IdeaComposer({ children, onClose }: { children: ReactNode; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { const node = dialog.current; node?.showModal(); node?.querySelector('textarea')?.focus(); return () => node?.close(); }, []);
+  return <dialog ref={dialog} className="idea-compose-dialog" aria-labelledby="idea-compose-title" onCancel={e => { e.preventDefault(); onClose(); }}><header><h2 id="idea-compose-title">アイデアを投稿</h2><button type="button" className="glass-icon-button" aria-label="投稿欄を閉じる" onClick={onClose}><X size={21} /></button></header>{children}</dialog>;
 }

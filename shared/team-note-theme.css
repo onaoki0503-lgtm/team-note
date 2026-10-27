@@ -3,13 +3,13 @@
  * (see mobile/lib/theme/tokens.dart). Source of truth: design-tokens.json.
  */
 :root {
-  --tn-bg-main: #f7fafc;
+  --tn-bg-main: #f5f8ff;
   --tn-bg-surface: #ffffff;
-  --tn-bg-tint: #e6effa;
-  --tn-text-main: #202734;
-  --tn-text-muted: #626e80;
+  --tn-bg-tint: #eef3ff;
+  --tn-text-main: #17284e;
+  --tn-text-muted: #5b6e91;
   --tn-border: rgba(170, 187, 208, 0.32);
-  --tn-primary: #285782;
+  --tn-primary: #183181;
   --tn-on-primary: #ffffff;
   --tn-accent-blue: #3b82f6;
   --tn-accent-gold: #c9a227;
@@ -20,7 +20,7 @@
   --tn-error-text: #92364b;
   --tn-error-border: #eed4d7;
   --tn-nav-inactive: #687180;
-  --tn-nav-active: #244f78;
+  --tn-nav-active: #183181;
 
   --tn-radius-sm: 12px;
   --tn-radius-md: 16px;
@@ -35,11 +35,11 @@
   --tn-space-xl: 20px;
   --tn-space-xxl: 28px;
 
-  --tn-type-brand: 15px;
+  --tn-type-brand: 23px;
   --tn-type-title: 22px;
   --tn-type-body: 15px;
   --tn-type-caption: 12px;
-  --tn-type-nav: 11px;
+  --tn-type-nav: 13px;
 
   --tn-shadow-card: 0 12px 38px rgba(43, 64, 94, 0.07),
     0 2px 6px rgba(43, 64, 94, 0.035);

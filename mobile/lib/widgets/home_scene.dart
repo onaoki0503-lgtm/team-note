@@ -7,181 +7,136 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../theme/tokens.dart';
 
-/// The same twelve perimeter slots and reserved centre as the web home.
+/// Non-overlapping slots adapt to the submitted card count, like the web home.
 class CloudLayout {
-  CloudLayout(Size size) {
+  CloudLayout(Size size, [int count = 12]) {
+    count = count.clamp(1, 12);
     final wide = size.width > size.height * 1.65;
-    final compact = !wide && size.height < 280;
+    if (count <= 2 && !wide) {
+      slots = [
+        Rect.fromLTWH(0, 0, size.width * .64, size.height * .52),
+        Rect.fromLTWH(
+          size.width * .36,
+          size.height * .48,
+          size.width * .64,
+          size.height * .52,
+        ),
+      ];
+      return;
+    }
     final columns = wide
-        ? 7
-        : compact || size.width >= 700
+        ? math.min(6, count)
+        : size.width >= 700 && count > 6
         ? 4
-        : 3;
-    final rows = wide
-        ? 2
-        : columns == 4
-        ? 4
-        : 5;
-    final positions = wide
-        ? <(int, int)>[
-            (0, 0),
-            (0, 6),
-            (1, 0),
-            (1, 6),
-            (0, 1),
-            (1, 5),
-            (0, 5),
-            (1, 1),
-            (0, 2),
-            (1, 4),
-            (0, 4),
-            (1, 2),
-          ]
-        : columns == 4
-        ? <(int, int)>[
-            (0, 0),
-            (0, 3),
-            (3, 0),
-            (3, 3),
-            (0, 1),
-            (3, 2),
-            (1, 0),
-            (2, 3),
-            (0, 2),
-            (3, 1),
-            (2, 0),
-            (1, 3),
-          ]
-        : <(int, int)>[
-            (0, 0),
-            (0, 2),
-            (2, 0),
-            (2, 2),
-            (4, 0),
-            (4, 2),
-            (0, 1),
-            (4, 1),
-            (1, 0),
-            (3, 2),
-            (1, 2),
-            (3, 0),
-          ];
-    final cw = size.width / columns;
-    final ch = size.height / rows;
-    slots = positions
-        .map(
-          (p) => Rect.fromLTWH(
-            p.$2 * cw + 3,
-            p.$1 * ch + 3,
-            math.max(0, cw - 6),
-            math.max(0, ch - 6),
-          ),
-        )
-        .toList();
-    final diameter = math.min(
-      wide ? 64.0 : 104.0,
-      math.min(
-        columns == 3 || wide ? cw - 10 : cw * 2 - 16,
-        columns == 3 ? ch * 3 - 16 : ch * 2 - 12,
-      ),
-    );
-    centre = Rect.fromCenter(
-      center: size.center(Offset.zero),
-      width: math.max(44, diameter),
-      height: math.max(44, diameter),
-    );
+        : count > 6
+        ? 3
+        : 2;
+    final rows = (count / columns).ceil();
+    final cw = size.width / columns, ch = size.height / rows;
+    slots = [
+      for (var i = 0; i < count; i++)
+        Rect.fromLTWH(
+          i % columns * cw + 2,
+          i ~/ columns * ch + 3,
+          math.max(0, cw - 4),
+          math.max(0, ch - 6),
+        ),
+    ];
   }
   late final List<Rect> slots;
-  late final Rect centre;
 }
-
-Color cloudInk(int shape) => const [
-  Color(0xFF9A4E1F),
-  Color(0xFF2A5688),
-  Color(0xFF785C20),
-  Color(0xFF1F6E4B),
-  Color(0xFF5F458F),
-  Color(0xFF276270),
-][shape % 6];
 
 int cloudHash(String id) =>
     id.codeUnits.fold(7, (h, c) => (h * 31 + c) & 0x7fffffff);
 
-/// Six code-native outlines, kept inside the 180 x 120 coordinate space.
+/// Soft, slightly asymmetric glass cards from the approved reference.
 Path cloudPath(int shape, Size size) {
-  final p = Path();
-  switch (shape % 6) {
-    case 0:
-      p.moveTo(30, 23);
-      p.cubicTo(22, 6, 48, 0, 64, 12);
-      p.cubicTo(79, 0, 105, 1, 114, 13);
-      p.cubicTo(139, 0, 161, 12, 155, 30);
-      p.cubicTo(180, 38, 180, 62, 162, 69);
-      p.cubicTo(175, 91, 153, 101, 132, 94);
-      p.cubicTo(114, 108, 91, 102, 80, 98);
-      p.lineTo(59, 116);
-      p.lineTo(63, 98);
-      p.cubicTo(40, 108, 20, 96, 24, 81);
-      p.cubicTo(0, 83, 0, 59, 14, 48);
-      p.cubicTo(0, 32, 13, 18, 30, 23);
-    case 1:
-      p.moveTo(89, 3);
-      p.cubicTo(137, 0, 178, 18, 176, 53);
-      p.cubicTo(180, 85, 143, 105, 103, 102);
-      p.lineTo(76, 117);
-      p.lineTo(78, 102);
-      p.cubicTo(31, 105, 2, 84, 4, 53);
-      p.cubicTo(1, 20, 42, 1, 89, 3);
-    case 2:
-      p.moveTo(23, 8);
-      p.lineTo(149, 3);
-      p.quadraticBezierTo(169, 3, 172, 22);
-      p.lineTo(178, 75);
-      p.quadraticBezierTo(179, 94, 157, 98);
-      p.lineTo(116, 101);
-      p.lineTo(91, 117);
-      p.lineTo(95, 101);
-      p.lineTo(24, 106);
-      p.quadraticBezierTo(6, 105, 5, 84);
-      p.lineTo(2, 31);
-      p.quadraticBezierTo(0, 10, 23, 8);
-    case 3:
-      p.moveTo(17, 28);
-      p.cubicTo(21, 3, 48, 0, 71, 12);
-      p.cubicTo(95, 0, 128, 1, 137, 18);
-      p.cubicTo(165, 13, 180, 34, 171, 55);
-      p.cubicTo(180, 76, 167, 96, 142, 93);
-      p.cubicTo(127, 109, 96, 104, 83, 98);
-      p.lineTo(65, 117);
-      p.lineTo(60, 99);
-      p.cubicTo(34, 108, 9, 95, 16, 75);
-      p.cubicTo(0, 67, 0, 39, 17, 28);
-    case 4:
-      p.moveTo(22, 15);
-      p.quadraticBezierTo(32, 0, 56, 6);
-      p.lineTo(151, 10);
-      p.quadraticBezierTo(171, 11, 171, 31);
-      p.lineTo(177, 75);
-      p.quadraticBezierTo(178, 96, 151, 99);
-      p.lineTo(133, 99);
-      p.lineTo(143, 117);
-      p.lineTo(115, 100);
-      p.lineTo(28, 105);
-      p.quadraticBezierTo(8, 105, 7, 84);
-      p.lineTo(3, 38);
-      p.quadraticBezierTo(1, 19, 22, 15);
-    default:
-      p.moveTo(43, 5);
-      p.cubicTo(83, 0, 160, 2, 173, 39);
-      p.cubicTo(180, 78, 149, 106, 110, 100);
-      p.lineTo(87, 118);
-      p.lineTo(88, 101);
-      p.cubicTo(49, 112, 6, 92, 4, 65);
-      p.cubicTo(0, 36, 13, 13, 43, 5);
+  final r = math.min(30.0, size.shortestSide * .26);
+  return Path()..addRRect(
+    RRect.fromRectAndCorners(
+      Offset.zero & size,
+      topLeft: Radius.circular(r * .95),
+      topRight: Radius.circular(r * (1 + shape % 3 * .08)),
+      bottomLeft: Radius.circular(r * 1.08),
+      bottomRight: Radius.circular(r),
+    ),
+  );
+}
+
+class TeamNoteHeader extends StatelessWidget {
+  const TeamNoteHeader({
+    super.key,
+    required this.name,
+    this.avatar,
+    required this.onProfile,
+  });
+  final String name;
+  final String? avatar;
+  final VoidCallback onProfile;
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).height < 500;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(22, compact ? 4 : 16, 22, compact ? 4 : 20),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'チームノート',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .4,
+                color: TnTokens.textMain,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Semantics(
+            button: true,
+            label: 'プロフィール',
+            child: ExcludeSemantics(
+              child: Material(
+                color: Colors.white,
+                shape: const CircleBorder(
+                  side: BorderSide(color: Color(0xFFDCE5F7)),
+                ),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onProfile,
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: ClipOval(
+                      child: avatar != null && avatar!.isNotEmpty
+                          ? Image.network(
+                              avatar!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _initial,
+                            )
+                          : _initial,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
-  p.close();
-  return p.transform(
-    Matrix4.diagonal3Values(size.width / 180, size.height / 120, 1).storage,
+
+  Widget get _initial => Center(
+    child: Text(
+      name.isEmpty ? '?' : name.characters.first,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: TnTokens.primary,
+      ),
+    ),
   );
 }
 
@@ -282,17 +237,6 @@ class _GlassBackdropState extends State<GlassBackdrop>
               builder: (context, _) => Stack(
                 fit: StackFit.expand,
                 children: [
-                  Opacity(
-                    opacity: .075,
-                    child: Transform.scale(
-                      scale: 1 + _motion.value * .035,
-                      child: Image.asset(
-                        'assets/banners/courtyard_monochrome.png',
-                        fit: BoxFit.cover,
-                        excludeFromSemantics: true,
-                      ),
-                    ),
-                  ),
                   CustomPaint(painter: _AtmospherePainter(_motion.value)),
                 ],
               ),
@@ -318,12 +262,12 @@ class _AtmospherePainter extends CustomPainter {
       ),
       (
         Offset(size.width * (1 - phase * .06), size.height * .48),
-        const Color(0x70E7E1FA),
+        const Color(0x70E9EFFF),
         size.width * .8,
       ),
       (
         Offset(size.width * .45, size.height * (1 - phase * .04)),
-        const Color(0x90D9F1F4),
+        const Color(0x90F8FAFF),
         size.width * .9,
       ),
     ]) {
@@ -449,7 +393,10 @@ class _IdeaCloudBoardState extends State<IdeaCloudBoard>
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final layout = CloudLayout(constraints.biggest);
+      final layout = CloudLayout(
+        constraints.biggest,
+        widget.loading ? 12 : widget.ideas.length,
+      );
       final count = widget.loading ? 12 : math.min(12, widget.ideas.length);
       return AnimatedBuilder(
         animation: Listenable.merge([_float, _pop]),
@@ -457,52 +404,13 @@ class _IdeaCloudBoardState extends State<IdeaCloudBoard>
           clipBehavior: Clip.hardEdge,
           children: [
             for (var i = 0; i < count; i++) _slot(layout.slots[i], i),
-            Positioned.fromRect(
-              rect: layout.centre,
-              child: Semantics(
-                button: true,
-                label: '企画を作成',
-                child: ExcludeSemantics(
-                  child: GlassSurface(
-                    radius: 100,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: widget.loading ? null : widget.onCreate,
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.add_rounded,
-                                  size: 30,
-                                  color: TnTokens.primary,
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  '企画を作成',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: widget.loading
-                                        ? TnTokens.textMuted
-                                        : TnTokens.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+            if (!widget.loading && widget.ideas.isEmpty)
+              const Center(
+                child: Text(
+                  'まだアイデアはありません',
+                  style: TextStyle(fontSize: 13, color: TnTokens.textMuted),
                 ),
               ),
-            ),
           ],
         ),
       );
@@ -511,11 +419,14 @@ class _IdeaCloudBoardState extends State<IdeaCloudBoard>
   Widget _slot(Rect slot, int i) {
     final idea = widget.loading ? null : widget.ideas[i];
     final hash = cloudHash(idea?.id ?? 'skeleton-$i');
-    final width = slot.width * (.82 + hash % 10 / 100);
-    final height = math.min(
+    final width = slot.width * (.88 + hash % 4 / 100);
+    var height = math.min(
       slot.height,
-      math.max(44.0, slot.height * (.80 + (hash >> 4) % 10 / 100)),
+      math.max(44.0, slot.height * (.84 + (hash >> 4) % 6 / 100)),
     );
+    if (!widget.loading && widget.ideas.length <= 2) {
+      height = math.min(height, i == 0 ? 150 : 130);
+    }
     final amplitudeX = math.min(
       7.0,
       math.max(0.0, (slot.width - width * 1.08) / 2 - 1),
@@ -593,52 +504,78 @@ class _IdeaCloudBoardState extends State<IdeaCloudBoard>
                                   onTap: () => widget.onOpen(idea),
                                   child: Stack(
                                     children: [
-                                      Positioned(
-                                        left: width * .15,
-                                        right: width * .15,
-                                        top: height * .15,
-                                        bottom: height * .31,
-                                        child: Center(
-                                          child: Text(
-                                            idea.body,
-                                            maxLines: height < 60 ? 1 : 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              height: 1.35,
-                                              fontWeight: FontWeight.w600,
-                                              color: cloudInk(hash % 6),
-                                            ),
+                                      Positioned.fill(
+                                        child: Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: width < 110 ? 10 : 18,
+                                            vertical: height < 75 ? 7 : 16,
                                           ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        left: 0,
-                                        right: 0,
-                                        bottom: height * .17,
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              idea.likedByMe
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              size: 10,
-                                              color: TnTokens.textMuted,
-                                            ),
-                                            if (idea.likes > 0) ...[
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                '${idea.likes}',
-                                                style: const TextStyle(
-                                                  fontSize: 9,
-                                                  color: TnTokens.textMuted,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  idea.body,
+                                                  maxLines: height < 65
+                                                      ? 1
+                                                      : height < 110
+                                                      ? 2
+                                                      : 3,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: width < 110
+                                                        ? 11
+                                                        : width < 160
+                                                        ? 13
+                                                        : 16,
+                                                    height: 1.6,
+                                                    color: TnTokens.textMain,
+                                                  ),
                                                 ),
                                               ),
+                                              if (height > 75 &&
+                                                  width > 95) ...[
+                                                const SizedBox(height: 12),
+                                                Row(
+                                                  children: [
+                                                    const Expanded(
+                                                      child: Text(
+                                                        'アイデア',
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color: TnTokens
+                                                              .textMuted,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (idea.likes > 0) ...[
+                                                      const Icon(
+                                                        Icons.favorite_border,
+                                                        size: 10,
+                                                        color:
+                                                            TnTokens.textMuted,
+                                                      ),
+                                                      Text(
+                                                        ' ${idea.likes}',
+                                                        style: const TextStyle(
+                                                          fontSize: 9,
+                                                          color: TnTokens
+                                                              .textMuted,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                              ],
                                             ],
-                                          ],
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -665,23 +602,9 @@ class _CloudPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final path = cloudPath(shape, size);
-    final fill = const [
-      Color(0xF0FFF1EA),
-      Color(0xF0EAF4FF),
-      Color(0xF0FFF7E6),
-      Color(0xF0EAF8F0),
-      Color(0xF0F3EDFF),
-      Color(0xF0E8F8FB),
-    ][shape % 6];
-    final stroke = const [
-      Color(0xBDEFb089),
-      Color(0xBD8FB6E2),
-      Color(0xBDDFC06A),
-      Color(0xBD7FC4A3),
-      Color(0xBDC4ADE6),
-      Color(0xBD87CFDB),
-    ][shape % 6];
-    canvas.drawShadow(path, const Color(0x25506985), 4, false);
+    const fill = Color(0xEFFFFFFF);
+    const stroke = Color(0xFFFFFFFF);
+    canvas.drawShadow(path, const Color(0x183C5089), 10, false);
     canvas.drawPath(
       path,
       Paint()
@@ -690,7 +613,7 @@ class _CloudPainter extends CustomPainter {
           end: Alignment.bottomRight,
           colors: skeleton
               ? const [Color(0xBDECF2F8), Color(0x90F5F8FC)]
-              : [fill, const Color(0xEDFFFFFF)],
+              : [fill, const Color(0xB8FFFFFF)],
         ).createShader(Offset.zero & size),
     );
     canvas.drawPath(
@@ -733,98 +656,88 @@ class GlassBottomNav extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelected;
   @override
-  Widget build(BuildContext context) => SafeArea(
-    top: false,
-    minimum: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-    child: Center(
-      heightFactor: 1,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
-        child: GlassSurface(
-          radius: 30,
-          padding: const EdgeInsets.all(6),
-          child: LayoutBuilder(
-            builder: (context, c) => SizedBox(
-              height: 58,
-              child: Stack(
-                children: [
-                  AnimatedAlign(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 400),
-                    curve: Curves.easeOutCubic,
-                    alignment: Alignment(-1 + index * 2 / 3, 0),
-                    child: Container(
-                      width: c.maxWidth / 4,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(24),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xC9E6EFFA), Color(0xE0FFFFFF)],
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).height < 500;
+    return SafeArea(
+      top: false,
+      minimum: EdgeInsets.fromLTRB(18, compact ? 3 : 8, 18, compact ? 5 : 18),
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 660),
+          child: GlassSurface(
+            radius: 38,
+            padding: const EdgeInsets.all(8),
+            child: LayoutBuilder(
+              builder: (context, c) => SizedBox(
+                height: compact ? 44 : 56,
+                child: Stack(
+                  children: [
+                    AnimatedAlign(
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 350),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment(-1 + index * 2 / 3, 0),
+                      child: Container(
+                        width: c.maxWidth / 4,
+                        decoration: BoxDecoration(
+                          color: TnTokens.primary,
+                          borderRadius: BorderRadius.circular(27),
                         ),
-                        border: Border.all(color: Colors.white),
                       ),
                     ),
-                  ),
-                  Row(
-                    children: [
-                      for (var i = 0; i < 4; i++)
-                        Expanded(
-                          child: Semantics(
-                            selected: i == index,
-                            button: true,
-                            label: ['アイデア', '進行中', 'はたらく', '保管する'][i],
-                            child: ExcludeSemantics(
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(24),
-                                  onTap: () => onSelected(i),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        [
-                                          Icons.lightbulb_outline,
-                                          Icons.play_circle_outline,
-                                          Icons.work_outline,
-                                          Icons.inventory_2_outlined,
-                                        ][i],
-                                        size: 22,
-                                        color: i == index
-                                            ? TnTokens.navActive
-                                            : TnTokens.navInactive,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        ['アイデア', '進行中', 'はたらく', '保管する'][i],
-                                        maxLines: 1,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: i == index
-                                              ? FontWeight.w700
-                                              : FontWeight.w500,
-                                          color: i == index
-                                              ? TnTokens.navActive
-                                              : TnTokens.navInactive,
+                    Row(
+                      children: [
+                        for (var i = 0; i < 4; i++)
+                          Expanded(
+                            child: Semantics(
+                              selected: i == index,
+                              button: true,
+                              label: ['アイデア', '進行中', 'はたらく', '保管する'][i],
+                              child: ExcludeSemantics(
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(27),
+                                    onTap: () => onSelected(i),
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                        ),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            ['アイデア', '進行中', 'はたらく', '保管する'][i],
+                                            maxLines: 1,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: i == index
+                                                  ? Colors.white
+                                                  : TnTokens.textMuted,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class HomeLoadingScaffold extends StatelessWidget {

@@ -35,7 +35,9 @@ void main() {
           expect(boxes[i].height, greaterThanOrEqualTo(40));
           expect((Offset.zero & size).contains(boxes[i].topLeft), isTrue);
           expect((Offset.zero & size).contains(boxes[i].bottomRight), isTrue);
-          final centre = tester.getRect(find.bySemanticsLabel('企画を作成'));
+          final centre = tester.getRect(
+            find.byKey(const ValueKey('idea-post-trigger')),
+          );
           expect(boxes[i].overlaps(centre), isFalse);
           for (var j = 0; j < i; j++) {
             expect(boxes[i].overlaps(boxes[j]), isFalse);
@@ -50,6 +52,33 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets(
+    'two ideas use large white cards and a separate blue posting action',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        const HomePreviewApp(reducedMotion: true, ideaCount: 2),
+      );
+      await tester.pump();
+      final first = tester.getRect(
+        find.byKey(const ValueKey('cloud-preview-0')),
+      );
+      final second = tester.getRect(
+        find.byKey(const ValueKey('cloud-preview-1')),
+      );
+      expect(first.width, greaterThan(180));
+      expect(first.height, lessThanOrEqualTo(150.01));
+      expect(second.height, lessThanOrEqualTo(130.01));
+      expect(first.overlaps(second), isFalse);
+      expect(find.bySemanticsLabel('企画を作成'), findsNothing);
+      expect(find.byKey(const ValueKey('idea-post-trigger')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'one cloud disappears and pops every four seconds; reduced motion stops it',
     (tester) async {
@@ -113,7 +142,10 @@ void main() {
     await tester.tap(find.text('削除する'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('cloud-preview-0')), findsNothing);
-    await tester.tap(find.bySemanticsLabel('企画を作成'));
+    await tester.tap(find.byKey(const ValueKey('idea-post-trigger')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('企画を作成'));
+    await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('企画フォーム: '), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
@@ -123,16 +155,24 @@ void main() {
     (tester) async {
       await tester.pumpWidget(const HomePreviewApp(reducedMotion: true));
       await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('idea-post-trigger')));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), '中庭で星を観察したい');
       await tester.pump();
-      await tester.tap(find.byTooltip('アイデアを投稿'));
+      await tester.tap(find.text('投稿する'));
+      await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.byKey(const ValueKey('cloud-preview-12')), findsOneWidget);
       expect(find.text('朝ごはん会を開こう'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('idea-post-trigger')));
+      await tester.pumpAndSettle();
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         isEmpty,
       );
+      await tester.tap(find.byTooltip('投稿欄を閉じる'));
+      await tester.pumpAndSettle();
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -150,9 +190,12 @@ void main() {
         ),
       );
       await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('idea-post-trigger')));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), '失敗しても消さない入力内容');
       await tester.pump();
-      await tester.tap(find.byTooltip('アイデアを投稿'));
+      await tester.tap(find.text('投稿する'));
+      await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 500));
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,

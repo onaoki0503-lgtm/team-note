@@ -4,13 +4,13 @@
   "version": "1.0.0",
   "description": "Shared visual tokens for Team Note web (Vite) and mobile (Flutter). Keep values in sync across platforms.",
   "color": {
-    "bgMain": "#F7FAFC",
+    "bgMain": "#F5F8FF",
     "bgSurface": "#FFFFFF",
-    "bgTint": "#E6EFFA",
-    "textMain": "#202734",
-    "textMuted": "#626E80",
+    "bgTint": "#EEF3FF",
+    "textMain": "#17284E",
+    "textMuted": "#5B6E91",
     "border": "#AABBD052",
-    "primary": "#285782",
+    "primary": "#183181",
     "onPrimary": "#FFFFFF",
     "accentBlue": "#3B82F6",
     "accentGold": "#C9A227",
@@ -21,7 +21,7 @@
     "errorText": "#92364B",
     "errorBorder": "#EED4D7",
     "navInactive": "#687180",
-    "navActive": "#244F78"
+    "navActive": "#183181"
   },
   "radius": {
     "sm": 12,
@@ -39,11 +39,11 @@
     "xxl": 28
   },
   "type": {
-    "brand": 15,
+    "brand": 23,
     "title": 22,
     "body": 15,
     "caption": 12,
-    "nav": 11
+    "nav": 13
   },
   "shadow": {
     "card": "0 12px 38px rgba(43,64,94,0.07), 0 2px 6px rgba(43,64,94,0.035)",

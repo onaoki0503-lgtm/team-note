@@ -1,6 +1,6 @@
 # widgets
 
-> **最終更新日**: 2026-10-26
+> **最終更新日**: 2026-10-27
 > **更新者**: AI (Codex)
 
 ## 概要
@@ -13,3 +13,5 @@
 - `home_scene.dart`
 - `nishimatsu_report_sheet.dart`
 - `README.md` — この案内
+
+2026-10-27 / AI (Codex): home_scene.dartへTeamNoteHeaderを追加し、雲の輪郭／6色を白い角丸カードへ変更。件数に応じた配置・非重複・4秒ポップ、文字だけの濃青選択タブとスケルトンを共通化。中庭写真の背景を削除。

@@ -19,7 +19,6 @@ import { listTeamnoteReports, saveTeamnoteReport } from './lib/teamnoteReports';
 import { listTeamnoteArchives, type ArchiveDocItem } from './lib/teamnoteArchives';
 import { SharedProfile } from './components/SharedProfile';
 import { AppShell, type MainNavDestination } from './components/AppShell';
-import { VillageScene } from './components/VillageScene';
 import { StartIdeaButton } from './components/StartIdeaButton';
 import { IdeaBubbleLayer, type IdeaItem } from './components/IdeaBubble';
 import type { IdeaDraftData } from './components/IdeaFlowViews';
@@ -667,16 +666,6 @@ export default function App() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {ideaFlowMode === 'home' ? (
             <div className={`idea-home ${isScenePaused || isComposerFocused ? 'animation-paused' : ''}`}>
-              {/* モノクロ背景 ＆ 4色の細い光線 */}
-              <VillageScene
-                type="courtyard"
-                isPaused={isScenePaused}
-                isInteractionPaused={isComposerFocused}
-                onTogglePause={() => setMotionPaused(!isScenePaused)}
-              />
-
-              <h1 className="sr-only">アイデア</h1>
-
               {/* 吹き出しレイヤー S01通常交代 ＆ S02直接入力展開 */}
               <IdeaBubbleLayer
                 ideas={bubbleIdeas}

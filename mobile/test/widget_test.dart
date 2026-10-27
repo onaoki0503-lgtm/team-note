@@ -4,7 +4,7 @@ import 'package:team_note_mobile/theme/tokens.dart';
 
 void main() {
   test('primary token', () {
-    expect(TnTokens.primary.toARGB32(), 0xFF285782);
+    expect(TnTokens.primary.toARGB32(), 0xFF183181);
   });
 
   test('profile json matches web join shape', () {

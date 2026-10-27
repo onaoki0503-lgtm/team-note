@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 /// Mirrors `shared/design-tokens.json` and `shared/team-note-theme.css`.
 abstract final class TnTokens {
-  static const Color bgMain = Color(0xFFF7FAFC);
+  static const Color bgMain = Color(0xFFF5F8FF);
   static const Color bgSurface = Color(0xFFFFFFFF);
-  static const Color bgTint = Color(0xFFE6EFFA);
-  static const Color textMain = Color(0xFF202734);
-  static const Color textMuted = Color(0xFF626E80);
+  static const Color bgTint = Color(0xFFEEF3FF);
+  static const Color textMain = Color(0xFF17284e);
+  static const Color textMuted = Color(0xFF5B6E91);
   static const Color border = Color(0x52AABBD0);
-  static const Color primary = Color(0xFF285782);
+  static const Color primary = Color(0xFF183181);
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color accentBlue = Color(0xFF3B82F6);
   static const Color accentGold = Color(0xFFC9A227);
@@ -18,7 +18,7 @@ abstract final class TnTokens {
   static const Color errorBg = Color(0xFFFFF5F5);
   static const Color errorText = Color(0xFF92364B);
   static const Color navInactive = Color(0xFF687180);
-  static const Color navActive = Color(0xFF244F78);
+  static const Color navActive = Color(0xFF183181);
 
   static const double radiusSm = 12;
   static const double radiusMd = 16;
@@ -32,11 +32,11 @@ abstract final class TnTokens {
   static const double spaceXl = 20;
   static const double spaceXxl = 28;
 
-  static const double typeBrand = 15;
+  static const double typeBrand = 23;
   static const double typeTitle = 22;
   static const double typeBody = 15;
   static const double typeCaption = 12;
-  static const double typeNav = 11;
+  static const double typeNav = 13;
 
   static const double maxContent = 440;
   static const double navHeight = 64;

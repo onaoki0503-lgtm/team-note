@@ -1,8 +1,6 @@
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 const errors = new WeakMap<Page, string[]>();
-// Move the pointer onto a drifting bubble before asking Playwright to click a stable target.
-const pointAtBubble = async (page: Page, bubble: Locator) => { const box = await bubble.boundingBox(); expect(box).not.toBeNull(); await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2); };
-const boot = async (page: Page) => { await page.goto('/'); await expect(page.getByRole('button', { name: '企画を作成', exact: true })).toBeVisible(); };
+const boot = async (page: Page) => { await page.goto('/'); await expect(page.getByRole('button', { name: 'アイデアを投稿', exact: true })).toBeVisible(); };
 const nav = async (page: Page, name: string) => { await page.getByRole('navigation', { name: 'メインメニュー' }).getByRole('button', { name, exact: true }).click(); await expect(page.locator('.screen-body.is-preparing')).toHaveCount(0); };
 const back = (page: Page) => page.getByRole('button', { name: '前の画面に戻る', exact: true }).click();
 const openProject = async (page: Page) => { await nav(page, '進行中'); const title = (await page.locator('.project-card h3').first().innerText()).trim(); await page.locator('.project-card').first().click(); await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible(); return title; };
@@ -17,7 +15,7 @@ test('白ベースのホーム・4タブ・不要なキャッチコピーなし'
   await boot(page); await expect(page).toHaveTitle('H-Village チームノート');
   await expect(page.getByText('アイデアをカタチに。', { exact: true })).toHaveCount(0);
   await expect(page.getByText('小さな思いつきから、はじめよう', { exact: true })).toHaveCount(0);
-  expect(await page.locator('.glass-toolbar').evaluate(el => getComputedStyle(el).backdropFilter)).toContain('blur');
+  expect(await page.locator('.glass-nav').evaluate(el => getComputedStyle(el).backdropFilter)).toContain('blur');
   for (const name of ['進行中', 'はたらく', '保管する', 'アイデア']) { await nav(page, name); await expect(page.getByRole('navigation').getByRole('button', { name, exact: true })).toHaveAttribute('aria-current', 'page'); }
   expect(await page.evaluate(() => (window as any).__skeletons)).toBeGreaterThanOrEqual(4);
 });
@@ -25,18 +23,6 @@ test('読み込みが遅い画面にも全画面スケルトンを表示', async
   await page.route('**/src/components/WorkStorageViews.tsx*', async route => { await new Promise(resolve => setTimeout(resolve, 1200)); await route.continue(); });
   await boot(page); await page.getByRole('navigation').getByRole('button', { name: 'はたらく', exact: true }).click();
   await expect(page.getByTestId('screen-skeleton').first()).toBeVisible(); await expect(page.getByRole('heading', { name: '業務報告', exact: true })).toBeVisible(); await expect(page.getByTestId('screen-skeleton')).toHaveCount(0);
-});
-test('投稿・いいね・削除・再読込の保持', async ({ page }) => {
-  await boot(page); const text = '中庭で映画の上映会を実施したい'; const input = page.getByRole('textbox', { name: 'アイデアをつぶやく' }); await input.fill(text); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click();
-  const card = page.locator('.idea-card').filter({ hasText: text }); await expect(card).toBeVisible();
-  await pointAtBubble(page, card); await card.getByRole('button', { name: text, exact: true }).click(); const dialog = page.getByRole('dialog', { name: 'アイデアの詳細' }); const heart = dialog.getByRole('button', { name: /いいね/ }); await heart.click(); await expect(heart).toHaveAttribute('aria-pressed', 'true'); await heart.click(); await expect(heart).toHaveAttribute('aria-pressed', 'false'); await dialog.getByRole('button', { name: 'アイデアの詳細を閉じる' }).click();
-  await page.reload(); await expect(page.getByRole('button', { name: text, exact: true })).toBeVisible();
-  await pointAtBubble(page, card); await card.getByRole('button', { name: text, exact: true }).click(); await dialog.getByRole('button', { name: 'アイデアのメニュー' }).click(); await page.getByRole('button', { name: '削除する', exact: true }).click(); await expect(page.getByRole('button', { name: text, exact: true })).toHaveCount(0);
-});
-test('投稿の入力制限と下書きの保持', async ({ page }) => {
-  await boot(page); const input = page.getByRole('textbox', { name: 'アイデアをつぶやく' }); await input.fill('短い'); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(); await expect(page.getByRole('status').filter({ hasText: '4文字以上' })).toBeVisible();
-  await input.fill('あ'.repeat(141)); await expect(page.getByRole('button', { name: 'アイデアを投稿', exact: true })).toBeDisabled(); await input.fill('備品の配置を相談する下書き'); await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('tn_draft')).map(key => localStorage.getItem(key)).join())).toContain('備品の配置');
-  await nav(page, '保管する'); await nav(page, 'アイデア'); await expect(page.getByRole('textbox', { name: 'アイデアをつぶやく' })).toHaveValue('備品の配置を相談する下書き');
 });
 test('検索条件・企画詳細・ブラウザの戻ると進む', async ({ page }) => {
   await boot(page); await nav(page, '進行中'); const search = page.getByPlaceholder('企画を検索'); await search.fill('キッチン'); await expect(page.locator('.project-card')).toHaveCount(1);
@@ -46,7 +32,7 @@ test('検索条件・企画詳細・ブラウザの戻ると進む', async ({ pa
 const proposalValues: Record<string, string> = {
   '企画名': '中庭の上映会', '背景・課題': '寮生同士が交流する機会が少ない。', '目的': '寮生の交流を増やす', '実施内容': '中庭で映画上映会を行う。', '実施日時': '未定', '場所': '中庭', '対象・人数': '寮生20人を予定', '担当・役割': '責任者は未定。設営と片づけを分担する。', '準備・当日の手順': '利用条件を確認する\n設営する\n上映後に片づける', '安全・確認事項': '利用時間と音量を管理事務所へ確認する。', '予算・調達方法': '未確認。機材は借用を検討。', '成果・振り返り方法': '参加者へ感想を聞く', '提出先': '管理事務所', '提出日': '未定'
 };
-const startProposal = async (page: Page) => { await boot(page); await page.getByRole('button', { name: '企画を作成', exact: true }).click(); await expect(page.getByRole('heading', { name: '企画書を作成', exact: true })).toBeVisible(); };
+const startProposal = async (page: Page) => { await boot(page); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(); await page.getByRole('button', { name: '企画を作成', exact: true }).click(); await expect(page.getByRole('heading', { name: '企画書を作成', exact: true })).toBeVisible(); };
 const fillProposal = async (page: Page) => { for (const [label, value] of Object.entries(proposalValues)) await page.getByLabel(`企画書の${label}`, { exact: true }).fill(value); };
 const openDistribution = async (page: Page) => { return page.getByLabel('振り分け用の音声・メモ', { exact: true }); };
 test('項目入力からAI呼出しなしで企画書を確認・修正・登録し再読込', async ({ page }) => {
@@ -70,7 +56,7 @@ test('分類失敗・捏造出力・中止でメモと入力項目を保持し�
 });
 test('必須項目を確認し下書きを再開、旧APIキーを使わない', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('team_note_gemini_api_key', 'retired-test-key')); await startProposal(page); await page.getByRole('button', { name: '企画書を確認', exact: true }).click(); await expect(page.getByRole('alert')).toContainText('企画名を入力'); await expect(page.getByRole('article', { name: '企画書プレビュー' })).toHaveCount(0);
-  await fillProposal(page); await page.getByRole('button', { name: '下書きを保存', exact: true }).click(); await expect(page.getByRole('status')).toContainText('下書きを保存'); await page.reload(); await page.getByRole('button', { name: '企画を作成', exact: true }).click(); await expect(page.getByLabel('企画書の担当・役割', { exact: true })).toHaveValue(proposalValues['担当・役割']); expect(await page.evaluate(() => localStorage.getItem('team_note_gemini_api_key'))).toBeNull();
+  await fillProposal(page); await page.getByRole('button', { name: '下書きを保存', exact: true }).click(); await expect(page.getByRole('status')).toContainText('下書きを保存'); await page.reload(); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(); await page.getByRole('button', { name: '企画を作成', exact: true }).click(); await expect(page.getByLabel('企画書の担当・役割', { exact: true })).toHaveValue(proposalValues['担当・役割']); expect(await page.evaluate(() => localStorage.getItem('team_note_gemini_api_key'))).toBeNull();
 });
 test('音声非対応でも同じ入力欄から報告書を確認・保存・復元', async ({ page }) => {
   await page.addInitScript(() => { (window as any).SpeechRecognition = undefined; (window as any).webkitSpeechRecognition = undefined; }); await boot(page); await nav(page, 'はたらく'); await expect(page.getByText(/このブラウザでは音声入力ボタンを使えません/)).toBeVisible();
@@ -117,7 +103,7 @@ test('月次報告のダイアログを開き、Escapeで閉じる', async ({ pa
 });
 test('右上の動き操作を削除し、既存の停止設定とOSの減動を保持', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('tn_motion_paused', 'true')); await boot(page); await expect(page.getByRole('button', { name: /アニメーションを停止|アニメーションを再開/ })).toHaveCount(0); await expect(page.locator('header').getByText('動き', { exact: true })).toHaveCount(0); await expect(page.locator('.app-shell')).toHaveAttribute('data-motion-paused', 'true'); await expect(page.locator('.idea-layer')).toHaveAttribute('data-rotation-paused', 'true');
-  await page.emulateMedia({ reducedMotion: 'reduce' }); expect(await page.locator('.start-idea').evaluate(el => getComputedStyle(el, '::before').animationName)).toBe('none');
+  await page.emulateMedia({ reducedMotion: 'reduce' }); expect(await page.locator('.idea-card').first().evaluate(el => getComputedStyle(el).animationName)).toBe('none');
 });
 test('320・390・768・1440pxで全タブと企画詳細が画面内に収まる', async ({ page }) => {
   await boot(page); for (const width of [320, 390, 768, 1440]) { await page.setViewportSize({ width, height: 900 }); for (const name of ['アイデア', '進行中', 'はたらく', '保管する']) { await nav(page, name); expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), `${width}px ${name}`).toBe(false); } }
@@ -296,120 +282,4 @@ test('新しい企画入力とプレビューを4画面幅で操作、印刷に�
 test('全体の音声が上限を超えてもメモと保存済みフォームを保持しAIを呼ばない', async ({ page }) => {
   await mockProposalSpeech(page); const calls: string[] = []; page.on('request', request => { if (request.url().includes('/api/ai')) calls.push(request.url()); }); await startProposal(page); const title = page.getByLabel('企画書の企画名', { exact: true }); await title.fill('保存済みの企画'); await page.getByRole('button', { name: '下書きを保存', exact: true }).click(); await page.getByRole('button', { name: '企画全体を音声入力', exact: true }).click(); await emitProposalSpeech(page, 'あ'.repeat(2401)); await page.getByRole('button', { name: '音声入力を止める', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('2400文字以内'); await expect(page.getByLabel('振り分け用の音声・メモ', { exact: true })).toHaveValue('あ'.repeat(2401)); await expect(title).toHaveValue('保存済みの企画'); expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tn_proposal_form:r1:v1')!).form.title)).toBe('保存済みの企画'); expect(calls).toEqual([]);
-});
-
-
-test('吹き出しが雲のように漂い、触れた1枚は停止して離すと再開', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' }); await boot(page); await page.mouse.move(0, 0);
-  const cards = page.locator('.idea-card'); const card = cards.nth(0); const other = cards.nth(1);
-  await expect.poll(() => card.evaluate(el => getComputedStyle(el).opacity)).toBe('1');
-  const position = async (item: typeof card) => item.evaluate(el => { const rect = el.getBoundingClientRect(); return { x: rect.x, y: rect.y }; });
-  const moved = async (item: typeof card, before: { x: number; y: number }) => { const after = await position(item); return Math.hypot(after.x - before.x, after.y - before.y); };
-  const first = await position(card); await expect.poll(() => moved(card, first), { timeout: 4000 }).toBeGreaterThan(.3);
-  expect((await cards.evaluateAll(items => new Set(items.map(el => { const style = getComputedStyle(el); return style.animationDuration + style.animationDelay; })).size))).toBeGreaterThan(1);
-  await pointAtBubble(page, card); const stopped = await position(card); const drifting = await position(other); await expect.poll(() => moved(other, drifting), { timeout: 4000 }).toBeGreaterThan(.3); expect(await moved(card, stopped)).toBeLessThan(.1);
-  await page.mouse.move(0, 0); await expect.poll(() => moved(card, stopped), { timeout: 4000 }).toBeGreaterThan(.3);
-  await page.getByRole('textbox', { name: 'アイデアをつぶやく' }).focus(); await expect(page.locator('.idea-layer')).toHaveAttribute('data-floating-paused', 'true'); const typing = await position(card); await page.waitForTimeout(400); expect(await moved(card, typing)).toBeLessThan(.1);
-  await page.emulateMedia({ reducedMotion: 'reduce' }); await expect(page.locator('.idea-layer')).toHaveAttribute('data-floating-paused', 'true'); expect(await card.evaluate(el => getComputedStyle(el).animationName)).toBe('none');
-});
-
-const seedBoard = async (page: Page, items: unknown[]) => page.addInitScript(items => { if (!localStorage.getItem('tn_db_bubble_ideas')) localStorage.setItem('tn_db_bubble_ideas', JSON.stringify(items)); }, items);
-const boardItems = (count: number, now = Date.now()) => Array.from({ length: count }, (_, i) => ({ id: `board-${i}`, text: `残しておくアイデア${String(i).padStart(2, '0')}：寮の暮らしをより良くする案`, color: 'coral', authorId: 'r1', likes: 0, likedUserIds: [], createdAt: new Date(now - (count - i) * 60000).toISOString(), activityTrackedFrom: new Date(now - (count - i) * 60000).toISOString() }));
-test('追加投稿は既存の吹き出しを残して増え、時間経過でも書き換わらない', async ({ page }) => {
-  await page.clock.install(); const original = boardItems(4); await seedBoard(page, original); await boot(page);
-  const cards = page.locator('.idea-card'); await expect(cards).toHaveCount(4); const before = await cards.locator('.idea-card-text').allTextContents();
-  for (const text of ['新しく追加した上映会の相談', '続けて追加した清掃道具の相談']) { await page.getByRole('textbox', { name: 'アイデアをつぶやく' }).fill(text); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(); }
-  await expect(cards).toHaveCount(6); expect((await cards.locator('.idea-card-text').allTextContents()).slice(0, 4)).toEqual(before); await expect(page.getByRole('button', { name: '次のアイデア' })).toHaveCount(0);
-  await page.clock.fastForward(11000); expect((await cards.locator('.idea-card-text').allTextContents()).slice(0, 4)).toEqual(before); await page.reload(); await expect(cards).toHaveCount(6); expect((await cards.locator('.idea-card-text').allTextContents()).slice(0, 4)).toEqual(before);
-});
-test('12件を超えると古い順に表示終了し、元の投稿と本文を保管する', async ({ page }) => {
-  const original = boardItems(12); await seedBoard(page, original); await boot(page); await expect(page.locator('.idea-card')).toHaveCount(12);
-  for (let i = 0; i < 3; i++) { await page.getByRole('textbox', { name: 'アイデアをつぶやく' }).fill(`追加する新しい企画のアイデア${i}`); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(); await expect(page.locator('.idea-card')).toHaveCount(12); await expect(page.getByRole('button', { name: original[i].text, exact: true })).toHaveCount(0); }
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tn_db_bubble_ideas')!).length)).toBe(15);
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('tn_db_bubble_ideas')!)); expect(stored.slice(0, 3).every((item: any) => item.hiddenReason === 'capacity')).toBe(true); expect(stored[0].text).toBe(original[0].text);
-  await page.reload(); await expect(page.locator('.idea-card')).toHaveCount(12); await expect(page.getByRole('button', { name: original[0].text, exact: true })).toHaveCount(0);
-});
-test('反応なし7日で表示終了し、新しいいいねは期限を更新、再訪で復活しない', async ({ page }) => {
-  const now = Date.parse('2026-10-22T00:00:00Z'); const day = 86400000; await page.clock.setFixedTime(new Date(now));
-  const items = boardItems(2, now - 8 * day); items[0].text = '期限を過ぎたアイデアの表示'; items[1].text = '最近反応のあったアイデア'; await seedBoard(page, [items[0], { ...items[1], lastReactionAt: new Date(now - day).toISOString() }]); await boot(page);
-  await expect(page.locator('.idea-card')).toHaveCount(1); await expect(page.getByRole('button', { name: items[0].text, exact: true })).toHaveCount(0);
-  const card = page.locator('.idea-card'); await pointAtBubble(page, card); await card.getByRole('button').click(); const dialog = page.getByRole('dialog', { name: 'アイデアの詳細' }); await dialog.getByRole('button', { name: /いいね/ }).click(); await expect(dialog.getByRole('button', { name: /いいね/ })).toHaveAttribute('aria-pressed', 'true'); await dialog.getByRole('button', { name: 'アイデアの詳細を閉じる' }).click();
-  await page.clock.setFixedTime(new Date(now + 6 * day)); await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); await expect(card).toHaveCount(1);
-  await page.clock.setFixedTime(new Date(now + 7 * day)); await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); await expect(card).toHaveCount(0); await page.reload(); await expect(card).toHaveCount(0); await expect(page.getByRole('button', { name: '企画を作成', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('tn_db_bubble_ideas')!).every((item: any) => item.hiddenReason === 'inactive'))).toBe(true);
-});
-test('12枚を1画面に収め、浮遊とポップの最大時も重ならず形も異なる', async ({ page }) => {
-  const items = boardItems(12).map(item => ({ ...item, text: (item.text + '。安全や担当、片付けなども相談したいです。'.repeat(8)).slice(0, 140) })); await seedBoard(page, items); await boot(page);
-  for (const [width, height] of [[320,568],[390,844],[430,932],[768,900],[1440,900],[844,390]]) {
-    await page.setViewportSize({ width, height }); await expect.poll(() => page.locator('.app-shell').evaluate(el => Math.round(el.getBoundingClientRect().height))).toBe(height); await expect.poll(() => page.locator('.idea-layer').getAttribute('data-layout')).toBe(height <= 520 && width > height ? 'wide' : width >= 900 ? 'desktop' : 'portrait');
-    for (const phase of [0, .25, .75]) {
-      const boxes = await page.evaluate(phase => {
-        const cards = [...document.querySelectorAll('.idea-card')]; cards.forEach((el, i) => { el.classList.add('is-popping'); for (const animation of el.getAnimations()) { if ((animation as CSSAnimation).animationName === 'cloud-float') { animation.pause(); animation.currentTime = ((animation.effect!.getTiming().duration as number) * ((phase + i % 2 * .5) % 1)); } else if ((animation as CSSAnimation).animationName === 'bubble-pop') { animation.pause(); animation.currentTime = (animation.effect!.getTiming().duration as number) * .42; } else animation.finish(); } });
-        return [...cards, document.querySelector('.start-idea')!, document.querySelector('.idea-composer')!, document.querySelector('.glass-toolbar')!, document.querySelector('.glass-nav')!].map(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; });
-      }, phase);
-      for (let i = 0; i < boxes.length; i++) { const a = boxes[i]; expect(a.x).toBeGreaterThanOrEqual(0); expect(a.y).toBeGreaterThanOrEqual(0); expect(a.right).toBeLessThanOrEqual(width); expect(a.bottom).toBeLessThanOrEqual(height + 1); if (i < 13) { expect(Math.round(a.width * 100) / 100).toBeGreaterThanOrEqual(44); expect(Math.round(a.height * 100) / 100).toBeGreaterThanOrEqual(44); } for (let j = i + 1; j < boxes.length; j++) { const b = boxes[j]; expect(a.right <= b.x || b.right <= a.x || a.bottom <= b.y || b.bottom <= a.y, `${width}x${height}: ${i} and ${j}`).toBe(true); } }
-      const overflow = await page.evaluate(() => ({ x: document.documentElement.scrollWidth > innerWidth, y: document.documentElement.scrollHeight > innerHeight + 1 })); expect(overflow).toEqual({ x: false, y: false });
-    }
-    expect(await page.locator('.idea-card').evaluateAll(items => new Set(items.map(el => el.getAttribute('data-shape'))).size)).toBeGreaterThanOrEqual(4);
-  }
-});
-test('短いプレビューから全文・いいね・企画化へ進み、閉じると元の吹き出しへ戻る', async ({ page }) => {
-  const text = '全文を確認するテストです。'.repeat(10).slice(0, 140); await seedBoard(page, [{ ...boardItems(1)[0], text }]); await boot(page); const bubble = page.getByRole('button', { name: text, exact: true }); await bubble.focus(); await page.keyboard.press('Enter');
-  const dialog = page.getByRole('dialog', { name: 'アイデアの詳細' }); await expect(dialog).toContainText(text); await dialog.getByRole('button', { name: /いいね/ }).click(); await expect(dialog.getByRole('button', { name: /いいね/ })).toHaveAttribute('aria-pressed', 'true'); await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0); await expect(bubble).toBeFocused();
-  await page.keyboard.press('Enter'); await dialog.getByRole('button', { name: '企画にする', exact: true }).click(); await expect(page.getByRole('heading', { name: '企画書を作成', exact: true })).toBeVisible(); await expect(page.getByLabel('企画書の実施内容', { exact: true })).toHaveValue(text);
-});
-
-
-test('約4秒に1枚だけポップし、入力中・減動・画面非表示では発生しない', async ({ page }) => {
-  test.setTimeout(25000); await seedBoard(page, boardItems(6)); await boot(page); await page.mouse.move(0, 0);
-  await page.evaluate(() => { (window as any).__pops = []; new MutationObserver(records => { for (const r of records) { const el = r.target as HTMLElement; if (el.matches('.idea-card.is-popping')) (window as any).__pops.push({ id: el.dataset.ideaId, time: performance.now() }); } }).observe(document.querySelector('.idea-board')!, { subtree: true, attributes: true, attributeFilter: ['class'] }); });
-  const start = await page.evaluate(() => performance.now()); const active = page.locator('.idea-card[data-pop-active=true]');
-  await expect.poll(() => page.evaluate(() => (window as any).__pops.length), { timeout: 6000, intervals: [100] }).toBe(1); await expect(active).toHaveCount(1);
-  const first = await page.evaluate(() => (window as any).__pops[0]); expect(first.time - start).toBeGreaterThan(3000); expect(first.time - start).toBeLessThan(5000);
-  const phases = await active.evaluate(el => {
-    const a = el.getAnimations().find(a => (a as CSSAnimation).animationName === 'bubble-pop')!; const duration = a.effect!.getTiming().duration as number; a.pause();
-    a.currentTime = duration * .16; const hidden = Number(getComputedStyle(el).opacity);
-    a.currentTime = duration * .42; const appeared = Number(getComputedStyle(el).opacity); const scale = Number(getComputedStyle(el).scale);
-    a.currentTime = duration * .99; const restored = Number(getComputedStyle(el).opacity); a.currentTime = duration * .42;
-    return { hidden, appeared, scale, restored };
-  }); expect(phases.hidden).toBe(0); expect(phases.appeared).toBe(1); expect(phases.restored).toBe(1); expect(phases.scale).toBeGreaterThan(1.05); expect(phases.scale).toBeLessThanOrEqual(1.101);
-  await page.getByRole('textbox', { name: 'アイデアをつぶやく' }).focus(); await expect(active).toHaveCount(0); await page.waitForTimeout(4200); expect(await page.evaluate(() => (window as any).__pops.length)).toBe(1);
-  await page.getByText('チームノート', { exact: true }).click(); await expect.poll(() => page.evaluate(() => (window as any).__pops.length), { timeout: 6000, intervals: [100] }).toBe(2); const second = await page.evaluate(() => (window as any).__pops[1]); expect(second.id).not.toBe(first.id); await expect(active).toHaveCount(1);
-  const secondBubble = page.locator(`[data-idea-id="${second.id}"]`); await pointAtBubble(page, secondBubble); await expect(active).toHaveCount(0); await expect(secondBubble).toHaveCSS('opacity', '1');
-  await page.emulateMedia({ reducedMotion: 'reduce' }); await expect(active).toHaveCount(0); expect(await page.locator('.idea-card').first().evaluate(el => getComputedStyle(el).animationName)).toBe('none');
-  await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); }); await expect(page.locator('.idea-layer')).toHaveAttribute('data-floating-paused', 'true'); await expect(active).toHaveCount(0);
-});
-
-test('リアルタイム同期：別タブの投稿・いいね・削除が再読込なしで反映され下書きを保持', async ({ page, context }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' }); await seedBoard(page, boardItems(3)); await boot(page);
-  const other = await context.newPage(); const otherErrors: string[] = []; other.on('pageerror', error => otherErrors.push(error.message));
-  await other.route('https://**', route => route.abort()); await other.emulateMedia({ reducedMotion: 'reduce' });
-  await other.addInitScript(() => { localStorage.setItem('tn_db_current_user', JSON.stringify({ id: 'r2', name: '伊藤 雄吉', building: 'basil', unit: '201', role: '一般寮生', roleType: 'member' })); });
-  await boot(other);
-  const draft = other.getByRole('textbox', { name: 'アイデアをつぶやく' }); await draft.fill('編集中の下書きはそのまま残す');
-  const text = '中庭で集まるアイデアをみんなに共有したい'; await page.getByRole('textbox', { name: 'アイデアをつぶやく' }).fill(text); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click();
-  await expect(other.getByRole('button', { name: text, exact: true })).toBeVisible(); await expect(draft).toHaveValue('編集中の下書きはそのまま残す'); await expect(draft).toBeFocused();
-  await other.getByRole('button', { name: text, exact: true }).click(); const otherDialog = other.getByRole('dialog', { name: 'アイデアの詳細' }); await expect(otherDialog.getByRole('button', { name: 'アイデアのメニュー' })).toHaveCount(0); await otherDialog.getByRole('button', { name: /いいね/ }).click();
-  await page.getByRole('button', { name: text, exact: true }).click(); const dialog = page.getByRole('dialog', { name: 'アイデアの詳細' }); await expect(dialog.getByRole('button', { name: 'いいね 1件' })).toBeVisible(); await expect(dialog.getByRole('button', { name: /いいね/ })).toHaveAttribute('aria-pressed', 'false');
-  await dialog.getByRole('button', { name: 'アイデアのメニュー' }).click(); await dialog.getByRole('button', { name: '削除する', exact: true }).click(); await expect(otherDialog).toHaveCount(0); await expect(other.getByRole('button', { name: text, exact: true })).toHaveCount(0); await expect(draft).toHaveValue('編集中の下書きはそのまま残す');
-  await other.reload(); await expect(other.getByRole('button', { name: text, exact: true })).toHaveCount(0); expect(otherErrors).toEqual([]); await other.close();
-});
-
-test('リアルタイム同期：同時投稿と別利用者の同時いいねで上書きせず両画面へ反映', async ({ page, context }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' }); await seedBoard(page, boardItems(3)); await boot(page);
-  const other = await context.newPage(); await other.route('https://**', route => route.abort()); await other.emulateMedia({ reducedMotion: 'reduce' }); await other.addInitScript(() => { localStorage.setItem('tn_db_current_user', JSON.stringify({ id: 'r2', name: '伊藤 雄吉', role: '一般寮生', roleType: 'member' })); }); await boot(other);
-  const one = '同時に投稿した朝の交流会を開催したい'; const two = '同時に投稿した夜の映画会を開催したい';
-  await page.getByRole('textbox', { name: 'アイデアをつぶやく' }).fill(one); await other.getByRole('textbox', { name: 'アイデアをつぶやく' }).fill(two);
-  await Promise.all([page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(), other.getByRole('button', { name: 'アイデアを投稿', exact: true }).click()]);
-  for (const screen of [page, other]) { await expect(screen.getByRole('button', { name: one, exact: true })).toBeVisible(); await expect(screen.getByRole('button', { name: two, exact: true })).toBeVisible(); await expect(screen.locator('.idea-card')).toHaveCount(5); await screen.getByRole('button', { name: one, exact: true }).click(); }
-  await Promise.all([page.getByRole('dialog').getByRole('button', { name: /いいね/ }).click(), other.getByRole('dialog').getByRole('button', { name: /いいね/ }).click()]);
-  for (const screen of [page, other]) { await expect(screen.getByRole('dialog').getByRole('button', { name: 'いいね 2件' })).toHaveAttribute('aria-pressed', 'true'); }
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('tn_db_bubble_ideas')!)); const idea = stored.find((idea: any) => idea.text === one); expect(idea.likedUserIds.sort()).toEqual(['r1', 'r2']); expect(stored).toHaveLength(5); await other.close();
-});
-
-test('リアルタイム同期：保存に失敗しても投稿本文を消さず再試行で1件だけ保存', async ({ page }) => {
-  await boot(page);
-  await page.evaluate(() => { const write = Storage.prototype.setItem; (window as any).__restoreIdeaStorage = () => { Storage.prototype.setItem = write; }; Storage.prototype.setItem = function(key, value) { if (key === 'tn_db_bubble_ideas') throw new DOMException('full', 'QuotaExceededError'); return write.call(this, key, value); }; });
-  const text = '保存に失敗しても残しておく交流会の提案'; const input = page.getByRole('textbox', { name: 'アイデアをつぶやく' }); await input.fill(text); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(); await expect(page.getByRole('alert')).toContainText('保存できませんでした'); await expect(input).toHaveValue(text); await expect(page.getByRole('button', { name: text, exact: true })).toHaveCount(0);
-  await page.evaluate(() => (window as any).__restoreIdeaStorage()); await page.getByRole('button', { name: 'アイデアを投稿', exact: true }).click(); await expect(page.getByRole('button', { name: text, exact: true })).toBeVisible(); await expect(input).toHaveValue(''); await expect(page.getByRole('alert')).toHaveCount(0); expect(await page.evaluate(text => JSON.parse(localStorage.getItem('tn_db_bubble_ideas')!).filter((idea: any) => idea.text === text).length, text)).toBe(1);
 });

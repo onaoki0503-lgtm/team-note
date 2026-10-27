@@ -93,7 +93,7 @@ test('デモは外部接続や書き込みをせず、減動設定に対応す�
 
 test('寮生が月次文書を提出・修正再提出すると管理側に一件だけ届く。失敗は成功表示しない',async({page,context})=>{
   const f=new Fixture();f.rows=[];await f.install(context);await page.goto('/');
-  await expect(page.getByRole('button',{name:'企画を作成',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'アイデアを投稿',exact:true})).toBeVisible();
   await page.getByRole('navigation',{name:'メインメニュー'}).getByRole('button',{name:'はたらく',exact:true}).click();
   await page.getByRole('button',{name:'西松地所レポート作成',exact:true}).click();
   const d=page.getByRole('dialog');const feedback=d.getByPlaceholder('共用部の利用状況、寮生の動向、施設面の改善要望などを入力してください');

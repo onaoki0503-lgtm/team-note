@@ -10,6 +10,7 @@ import '../providers/app_data_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/media_service.dart';
 import '../theme/tokens.dart';
+import 'settings_screen.dart';
 
 /// Full profile — mirrors web SharedProfile + RosterArchiveViews S28 fields.
 /// Prefer [showAsSheet] from the shell / meibo so presentation matches other pull-up cards.
@@ -122,6 +123,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : ListView(
             padding: EdgeInsets.fromLTRB(16, widget.asSheet ? 0 : 8, 16, bottom + 20),
             children: [
+              Align(alignment: Alignment.centerRight, child: TextButton.icon(
+                onPressed: () => SettingsScreen.showAsSheet(context), icon: const Icon(Icons.settings_outlined, size: 18), label: const Text('設定'))),
               Card(
                 margin: EdgeInsets.zero,
                 child: Padding(

@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
-  testDir: './tests', testMatch: 'app.spec.ts', timeout: 30000, expect: { timeout: 8000 }, fullyParallel: false, workers: 1,
+  testDir: './tests', testMatch: ['app.spec.ts', 'home-reference.spec.ts'], timeout: 30000, expect: { timeout: 8000 }, fullyParallel: false, workers: 1,
   reporter: [['list'], ['json', { outputFile: '/private/tmp/teamnote-glass-playwright.json' }]],
   outputDir: '/private/tmp/teamnote-glass-test-results',
   use: { baseURL: 'http://127.0.0.1:5174', viewport: { width: 390, height: 844 }, launchOptions: { executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' }, screenshot: 'only-on-failure', trace: 'retain-on-failure' },

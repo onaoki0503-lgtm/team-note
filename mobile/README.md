@@ -1,6 +1,6 @@
 # チームノート Mobile
 
-> **最終更新日**: 2026-10-26
+> **最終更新日**: 2026-10-27
 > **更新者**: AI (Codex)
 
 Native Flutter (iOS / Android). Supabase Auth + data. Not a WebView of the Vite app.
@@ -67,3 +67,11 @@ The existing Nishimatsu monthly sheet now has a “管理側に提出” action.
 Requires `../supabase/migrations/20261026044814_monthly_report_submissions.sql` (already applied to the existing shared project). No manager accounts have been added. Source version remains 0.1.13+20; unsigned build validation does not mean a new TestFlight upload. Alan's latest home change 4af73a0 is also included.
 
 Validation: Flutter analysis and the existing 12 tests pass after a small flexible-width fix for the home count/update row at 320px and 1.6x text. Daily reporting, existing sharing actions, and native navigation are retained.
+
+## Approved home reference (2026-10-27)
+
+The selected reference is now implemented in the Flutter source: a large app name, white circular profile, white translucent rounded idea cards, a wide #183181 posting action, and text-only pill navigation. The posting action opens a sheet with retained drafts and error handling. Direct proposal creation remains inside that sheet; converting an existing idea remains in its detail view. Settings are accessible from the profile sheet. Home motion pauses while a profile or composer is open.
+
+One or two ideas use large staggered cards; up to 12 use adaptive non-overlapping slots without page scrolling. Four-second disappear/pop motion and reduced-motion settings remain. Shared colors and typography are mirrored from `shared/design-tokens.json`. The native source version remains 0.1.13+20; no duplicate TestFlight build was uploaded. Check the development record for validation and distribution status.
+
+2026-10-27 / AI (Codex): 検証結果 — ホーム16件、既存画面29件、共有4件、管理画面11件は今回の実行／再試行の合計で合格。吹き出し保存規則6件、Flutter解析・13件・署名なしiOSリリースビルド、Web build・lintが成功。重いビルドとブラウザの同時実行でタイムアウトした項目は順次再試行して合格を確認。既知の備品取り込み11件は今回の回帰から除外しており、アプリ全体の全件合格という意味ではない。シミュレーターのコールドビルドは負荷回避で中断し、実機表示・配信確認は未実施。TestFlightの署名／送信とWeb公開は行っていない。
