@@ -6,5 +6,5 @@ export const community = {
   memberLabel: '寮生',
   homeLabel: 'イータを変える',
   scenes: { courtyard: './courtyard_monochrome.png', commons: './commons_monochrome.png' },
-  ideas: { maxLength: 140, displayLimit: 12, inactivityMs: 7 * 24 * 60 * 60 * 1000, storageKey: 'tn_db_bubble_ideas' }
+  ideas: { maxLength: 140, storageKey: 'tn_db_bubble_ideas' }
 } as const;

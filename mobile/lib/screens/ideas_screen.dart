@@ -77,7 +77,7 @@ class IdeaHome extends StatefulWidget {
 class _IdeaHomeState extends State<IdeaHome> {
   final _controller = TextEditingController();
   Timer? _draftTimer;
-  bool _previewOpen = false, _composerOpen = false;
+
   String? _error;
   String get _draftKey =>
       'tn_draft:${Environment.communityId}:${widget.userId}';
@@ -133,7 +133,6 @@ class _IdeaHomeState extends State<IdeaHome> {
   }
 
   Future<void> _compose() async {
-    setState(() => _composerOpen = true);
     final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -149,13 +148,11 @@ class _IdeaHomeState extends State<IdeaHome> {
       ),
     );
     if (!mounted) return;
-    setState(() => _composerOpen = false);
     if (action == 'proposal') widget.onCreate('');
   }
 
   Future<void> _open(IdeaItem idea) async {
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _previewOpen = true);
     try {
       await showModalBottomSheet<void>(
         context: context,
@@ -174,7 +171,7 @@ class _IdeaHomeState extends State<IdeaHome> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _previewOpen = false);
+      // The conversation stays at its current scroll offset when the sheet closes.
     }
   }
 
@@ -199,22 +196,17 @@ class _IdeaHomeState extends State<IdeaHome> {
           Expanded(
             child: keyboard
                 ? const SizedBox.shrink()
-                : IdeaCloudBoard(
+                : IdeaTimeline(
                     ideas: widget.ideas,
+                    userId: widget.userId,
                     loading: widget.loading && widget.ideas.isEmpty,
-                    paused:
-                        widget.motionPaused ||
-                        !widget.active ||
-                        _previewOpen ||
-                        _composerOpen,
-                    onCreate: () => widget.onCreate(''),
                     onOpen: _open,
                   ),
           ),
           Padding(
             padding: EdgeInsets.only(
-              top: compact ? 6 : 22,
-              bottom: compact ? 4 : 28,
+              top: compact ? 6 : 12,
+              bottom: compact ? 4 : 8,
             ),
             child: FilledButton(
               key: const ValueKey('idea-post-trigger'),
@@ -222,7 +214,7 @@ class _IdeaHomeState extends State<IdeaHome> {
               style: FilledButton.styleFrom(
                 backgroundColor: TnTokens.primary,
                 foregroundColor: Colors.white,
-                minimumSize: Size(double.infinity, compact ? 44 : 58),
+                minimumSize: Size(double.infinity, 48),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(27),
                 ),

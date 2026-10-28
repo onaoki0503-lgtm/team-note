@@ -6,10 +6,14 @@ import 'package:team_note_mobile/screens/ideas_screen.dart';
 import 'package:team_note_mobile/theme/app_theme.dart';
 import 'package:team_note_mobile/widgets/home_scene.dart';
 
-void main() => runApp(const HomePreviewApp(ideaCount: int.fromEnvironment('PREVIEW_IDEA_COUNT', defaultValue: 12)));
+void main() => runApp(
+  const HomePreviewApp(
+    ideaCount: int.fromEnvironment('PREVIEW_IDEA_COUNT', defaultValue: 12),
+  ),
+);
 
 List<IdeaItem> previewIdeas() => [
-  for (var i = 0; i < 12; i++)
+  for (var i = 0; i < 40; i++)
     IdeaItem(
       id: 'preview-$i',
       body: [
@@ -25,10 +29,11 @@ List<IdeaItem> previewIdeas() => [
         'ボードゲームの夜',
         '自転車点検をしたい',
         '音楽を楽しむ会',
-      ][i],
-      authorId: i == 0 ? 'preview-user' : 'other-$i',
+      ][i % 12],
+      authorId: i % 3 == 0 ? 'preview-user' : 'other-$i',
       authorName: 'プレビュー',
       likes: i % 4,
+      createdAt: DateTime.now().subtract(Duration(days: 40 - i)),
     ),
 ];
 
@@ -49,7 +54,8 @@ class HomePreviewApp extends StatefulWidget {
 
 class _HomePreviewAppState extends State<HomePreviewApp> {
   late final ideas = previewIdeas().take(widget.ideaCount).toList();
-  int serial = 12, index = 0;
+  late int serial = widget.ideaCount;
+  int index = 0;
   String? created;
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -95,7 +101,6 @@ class _HomePreviewAppState extends State<HomePreviewApp> {
                                     authorId: 'preview-user',
                                   ),
                                 );
-                                if (ideas.length > 12) ideas.removeAt(0);
                               });
                             },
                             onLike: (idea) async {

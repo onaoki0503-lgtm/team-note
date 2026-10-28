@@ -1,6 +1,6 @@
 # services
 
-> **最終更新日**: 2026-10-26
+> **最終更新日**: 2026-10-28
 > **更新者**: AI (Codex)
 
 ## 概要
@@ -16,3 +16,5 @@ Supabase接続など既存サービス群。teamnote_api.dartに本人の月次�
 - `secure_credentials_service.dart`
 - `teamnote_api.dart`
 - `README.md` — この案内
+
+2026-10-28 / AI (Codex): ideas_service.dartの旧ローカルフォールバックも12件で削除しない。配布アプリの主経路はAppDataProvider／TeamNoteApiのまま。

@@ -14,144 +14,84 @@ void main() {
     const Size(844, 390),
     const Size(768, 900),
   ]) {
-    testWidgets('12 clouds fit without overlap or scrolling at $size', (
+    testWidgets('history scrolls at $size and keeps composer reachable', (
       tester,
     ) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = size;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const HomePreviewApp());
-      await tester.pump(const Duration(milliseconds: 100));
-      for (var frame = 0; frame < 8; frame++) {
-        await tester.pump(const Duration(milliseconds: 1000));
-        expect(tester.takeException(), isNull);
-        final boxes = [
-          for (var i = 0; i < 12; i++)
-            tester.getRect(find.byKey(ValueKey('cloud-preview-$i'))),
-        ];
-        for (var i = 0; i < 12; i++) {
-          expect(boxes[i].width, greaterThanOrEqualTo(44));
-          expect(boxes[i].height, greaterThanOrEqualTo(40));
-          expect((Offset.zero & size).contains(boxes[i].topLeft), isTrue);
-          expect((Offset.zero & size).contains(boxes[i].bottomRight), isTrue);
-          final centre = tester.getRect(
-            find.byKey(const ValueKey('idea-post-trigger')),
-          );
-          expect(boxes[i].overlaps(centre), isFalse);
-          for (var j = 0; j < i; j++) {
-            expect(boxes[i].overlaps(boxes[j]), isFalse);
-          }
-        }
-      }
-      for (final state in tester.stateList<ScrollableState>(
-        find.byType(Scrollable),
-      )) {
-        expect(state.position.maxScrollExtent, 0);
-      }
+      await tester.pumpWidget(
+        const HomePreviewApp(reducedMotion: true, ideaCount: 40),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('message-preview-39')), findsOneWidget);
+      final scroll = tester.widget<ListView>(find.byType(ListView)).controller!;
+      expect(scroll.position.maxScrollExtent, greaterThan(0));
+      scroll.jumpTo(scroll.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('message-preview-0')), findsOneWidget);
+      final button = tester.getRect(
+        find.byKey(const ValueKey('idea-post-trigger')),
+      );
+      final nav = tester.getRect(find.byType(GlassBottomNav));
+      expect(button.bottom, lessThanOrEqualTo(nav.top));
+      expect(button.top, greaterThan(0));
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
   }
   testWidgets(
-    'two ideas use large white cards and a separate blue posting action',
+    'text stays still after four seconds; own and other messages show in a conversation',
     (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(390, 844);
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
-        const HomePreviewApp(reducedMotion: true, ideaCount: 2),
+        const HomePreviewApp(ideaCount: 2, reducedMotion: true),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
       final first = tester.getRect(
-        find.byKey(const ValueKey('cloud-preview-0')),
+        find.byKey(const ValueKey('message-preview-0')),
       );
-      final second = tester.getRect(
-        find.byKey(const ValueKey('cloud-preview-1')),
+      await tester.pump(const Duration(seconds: 5));
+      expect(
+        tester.getRect(find.byKey(const ValueKey('message-preview-0'))),
+        first,
       );
-      expect(first.width, greaterThan(180));
-      expect(first.height, lessThanOrEqualTo(150.01));
-      expect(second.height, lessThanOrEqualTo(130.01));
-      expect(first.overlaps(second), isFalse);
-      expect(find.bySemanticsLabel('企画を作成'), findsNothing);
-      expect(find.byKey(const ValueKey('idea-post-trigger')), findsOneWidget);
+      expect(find.textContaining('年'), findsWidgets);
+      expect(find.byType(IdeaTimeline), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
   );
-  testWidgets(
-    'one cloud disappears and pops every four seconds; reduced motion stops it',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const HomePreviewApp());
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 4000));
-      await tester.pump(const Duration(milliseconds: 130));
-      final fading = tester
-          .widgetList<Opacity>(find.byType(Opacity))
-          .where((o) => o.opacity == 0)
-          .length;
-      expect(fading, 1);
-      await tester.pump(const Duration(milliseconds: 800));
-      expect(
-        tester
-            .widgetList<Opacity>(find.byType(Opacity))
-            .where((o) => o.opacity == 0),
-        isEmpty,
-      );
-      await tester.pumpWidget(
-        const HomePreviewApp(key: ValueKey('reduced'), reducedMotion: true),
-      );
-      await tester.pump();
-      final before = tester.getRect(
-        find.byKey(const ValueKey('cloud-preview-0')),
-      );
-      await tester.pump(const Duration(seconds: 5));
-      expect(
-        tester.getRect(find.byKey(const ValueKey('cloud-preview-0'))),
-        before,
-      );
-      expect(
-        tester
-            .widgetList<Opacity>(find.byType(Opacity))
-            .where((o) => o.opacity == 0),
-        isEmpty,
-      );
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
-  testWidgets('whole text, likes, own-only delete and proposal are usable', (
+  testWidgets('history detail, likes, own deletion and proposal stay usable', (
     tester,
   ) async {
     await tester.pumpWidget(const HomePreviewApp(reducedMotion: true));
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.byKey(const ValueKey('cloud-preview-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('message-preview-11')));
     await tester.pumpAndSettle();
     expect(find.byTooltip('アイデアを削除'), findsNothing);
-    expect(find.text('企画にする'), findsOneWidget);
-    await tester.tap(find.text('いいね 1件'));
+    await tester.tap(find.text('いいね 3件'));
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    await tester.tap(find.byKey(const ValueKey('cloud-preview-0')));
+    final scroll = tester.widget<ListView>(find.byType(ListView)).controller!;
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('message-preview-0')));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('アイデアを削除'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('削除する'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('cloud-preview-0')), findsNothing);
+    expect(find.byKey(const ValueKey('message-preview-0')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('idea-post-trigger')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('企画を作成'));
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('企画フォーム: '), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
-    'posting appends a cloud and preserves other text; failed save retains draft',
+    'posting appends a message and preserves other text; failed save retains draft',
     (tester) async {
       await tester.pumpWidget(const HomePreviewApp(reducedMotion: true));
       await tester.pump();
@@ -162,8 +102,12 @@ void main() {
       await tester.tap(find.text('投稿する'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.byKey(const ValueKey('cloud-preview-12')), findsOneWidget);
-      expect(find.text('朝ごはん会を開こう'), findsOneWidget);
+      expect(find.byKey(const ValueKey('message-preview-12')), findsOneWidget);
+      final view = tester.widget<ListView>(find.byType(ListView));
+      expect(view.controller!.position.maxScrollExtent, greaterThan(0));
+      view.controller!.jumpTo(view.controller!.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('message-preview-0')), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
       await tester.tap(find.byKey(const ValueKey('idea-post-trigger')));
       await tester.pumpAndSettle();
@@ -205,8 +149,9 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
   testWidgets(
-    'keyboard and large text do not overflow; loading uses a skeleton',
+    'large text and keyboard fit, full loading uses history skeleton',
     (tester) async {
       tester.view.physicalSize = const Size(320, 568);
       tester.view.devicePixelRatio = 1;
@@ -215,13 +160,12 @@ void main() {
       await tester.pumpWidget(
         const HomePreviewApp(textScale: 1.6, keyboard: 260),
       );
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byType(IdeaCloudBoard), findsNothing);
+      await tester.pump();
       expect(tester.takeException(), isNull);
-      await tester.pumpWidget(MaterialApp(home: const HomeLoadingScaffold()));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      await tester.pumpWidget(const MaterialApp(home: HomeLoadingScaffold()));
+      await tester.pump();
       expect(find.bySemanticsLabel('ホームを読み込み中'), findsOneWidget);
+      expect(find.byType(IdeaTimelineSkeleton), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

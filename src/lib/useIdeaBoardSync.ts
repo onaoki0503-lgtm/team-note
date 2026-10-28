@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { community } from './community';
-import { maintainIdeaBoard, type IdeaItem } from './ideaBoard';
+import { type IdeaItem } from './ideaBoard';
 
 const storageKey = community.ideas.storageKey;
-const normalise = (ideas: IdeaItem[]) => maintainIdeaBoard(ideas, Date.now(), community.ideas.displayLimit, community.ideas.inactivityMs);
 function readIdeas(): IdeaItem[] | null {
   const saved = localStorage.getItem(storageKey);
   if (saved === null) return null;
@@ -14,7 +13,7 @@ function readIdeas(): IdeaItem[] | null {
 
 // This transport synchronises tabs on the same origin only. It is not a shared cloud database.
 export function useIdeaBoardSync(initialIdeas: IdeaItem[], enabled = true) {
-  const [ideas, setIdeas] = useState<IdeaItem[]>(() => { if (!enabled) return []; try { return normalise(readIdeas() ?? initialIdeas); } catch { return normalise(initialIdeas); } });
+  const [ideas, setIdeas] = useState<IdeaItem[]>(() => { if (!enabled) return []; try { return (readIdeas() ?? initialIdeas); } catch { return initialIdeas; } });
   const latest = useRef(ideas);
   const active = useRef(true);
   const [error, setError] = useState('');
@@ -28,7 +27,7 @@ export function useIdeaBoardSync(initialIdeas: IdeaItem[], enabled = true) {
       if (!active.current) return false;
       // Read inside the lock: another tab's post/like/delete must not be overwritten by an old React state.
       const current = readIdeas() ?? latest.current;
-      const next = normalise(change(current));
+      const next = change(current);
       const saved = JSON.stringify(next.map(idea => ({ ...idea, isNew: false })));
       if (localStorage.getItem(storageKey) !== saved) localStorage.setItem(storageKey, saved);
       show(next); setError(''); return true;
@@ -46,17 +45,17 @@ export function useIdeaBoardSync(initialIdeas: IdeaItem[], enabled = true) {
     const refresh = () => {
       try {
         const saved = readIdeas();
-        if (saved) show(normalise(saved));
+        if (saved) show(saved);
       } catch { setError('アイデアの更新を読み込めませんでした。表示中の内容を保持しています。'); }
     };
     const storage = (event: StorageEvent) => { if (event.storageArea === localStorage && (event.key === storageKey || event.key === null)) refresh(); };
-    const maintain = () => { void update(current => current); };
-    const visible = () => { if (!document.hidden) { refresh(); maintain(); } };
-    const focus = () => { refresh(); maintain(); };
+    const persistInitial = () => { void update(current => current); };
+    const visible = () => { if (!document.hidden) { refresh(); } };
+    const focus = () => { refresh(); };
     // The first save also takes the lock, so opening a tab cannot overwrite a concurrent post.
-    maintain(); const timer = window.setInterval(maintain, 60000);
+    persistInitial();
     window.addEventListener('storage', storage); window.addEventListener('focus', focus); window.addEventListener('online', focus); document.addEventListener('visibilitychange', visible);
-    return () => { active.current = false; clearInterval(timer); window.removeEventListener('storage', storage); window.removeEventListener('focus', focus); window.removeEventListener('online', focus); document.removeEventListener('visibilitychange', visible); };
+    return () => { active.current = false; window.removeEventListener('storage', storage); window.removeEventListener('focus', focus); window.removeEventListener('online', focus); document.removeEventListener('visibilitychange', visible); };
   }, [show, update, enabled]);
   return { ideas, update, error };
 }

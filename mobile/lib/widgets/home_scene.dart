@@ -1,67 +1,9 @@
-import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../theme/tokens.dart';
-
-/// Non-overlapping slots adapt to the submitted card count, like the web home.
-class CloudLayout {
-  CloudLayout(Size size, [int count = 12]) {
-    count = count.clamp(1, 12);
-    final wide = size.width > size.height * 1.65;
-    if (count <= 2 && !wide) {
-      slots = [
-        Rect.fromLTWH(0, 0, size.width * .64, size.height * .52),
-        Rect.fromLTWH(
-          size.width * .36,
-          size.height * .48,
-          size.width * .64,
-          size.height * .52,
-        ),
-      ];
-      return;
-    }
-    final columns = wide
-        ? math.min(6, count)
-        : size.width >= 700 && count > 6
-        ? 4
-        : count > 6
-        ? 3
-        : 2;
-    final rows = (count / columns).ceil();
-    final cw = size.width / columns, ch = size.height / rows;
-    slots = [
-      for (var i = 0; i < count; i++)
-        Rect.fromLTWH(
-          i % columns * cw + 2,
-          i ~/ columns * ch + 3,
-          math.max(0, cw - 4),
-          math.max(0, ch - 6),
-        ),
-    ];
-  }
-  late final List<Rect> slots;
-}
-
-int cloudHash(String id) =>
-    id.codeUnits.fold(7, (h, c) => (h * 31 + c) & 0x7fffffff);
-
-/// Soft, slightly asymmetric glass cards from the approved reference.
-Path cloudPath(int shape, Size size) {
-  final r = math.min(30.0, size.shortestSide * .26);
-  return Path()..addRRect(
-    RRect.fromRectAndCorners(
-      Offset.zero & size,
-      topLeft: Radius.circular(r * .95),
-      topRight: Radius.circular(r * (1 + shape % 3 * .08)),
-      bottomLeft: Radius.circular(r * 1.08),
-      bottomRight: Radius.circular(r),
-    ),
-  );
-}
 
 class TeamNoteHeader extends StatelessWidget {
   const TeamNoteHeader({
@@ -287,364 +229,319 @@ class _AtmospherePainter extends CustomPainter {
       phase != oldDelegate.phase;
 }
 
-class IdeaCloudBoard extends StatefulWidget {
-  const IdeaCloudBoard({
+/// Full history, reversed for a natural latest-at-bottom conversation.
+class IdeaTimeline extends StatefulWidget {
+  const IdeaTimeline({
     super.key,
     required this.ideas,
+    required this.userId,
     required this.onOpen,
-    required this.onCreate,
-    this.paused = false,
     this.loading = false,
   });
   final List<IdeaItem> ideas;
+  final String userId;
   final ValueChanged<IdeaItem> onOpen;
-  final VoidCallback onCreate;
-  final bool paused, loading;
+  final bool loading;
   @override
-  State<IdeaCloudBoard> createState() => _IdeaCloudBoardState();
+  State<IdeaTimeline> createState() => _IdeaTimelineState();
 }
 
-class _IdeaCloudBoardState extends State<IdeaCloudBoard>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
-  late final _float = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 360),
-  );
-  late final _pop = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 800),
-  );
-  Timer? _timer;
-  final _random = math.Random();
-  String? _popping, _lastPopped;
-  bool _foreground = true;
+class _IdeaTimelineState extends State<IdeaTimeline> {
+  final _scroll = ScrollController();
+  int _unread = 0;
+  Set<String> _ids = {};
+  bool _initialized = false;
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _pop.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        setState(() => _popping = null);
-      }
-    });
+    _ids = widget.ideas.map((idea) => idea.id).toSet();
+    _initialized = _ids.isNotEmpty;
+    _scroll.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scroll.hasClients && _scroll.offset < 64 && _unread > 0) {
+      setState(() => _unread = 0);
+    }
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncMotion();
-  }
-
-  @override
-  void didUpdateWidget(covariant IdeaCloudBoard oldWidget) {
+  void didUpdateWidget(covariant IdeaTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _syncMotion();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
-    _syncMotion();
-  }
-
-  bool get _paused =>
-      widget.paused ||
-      !_foreground ||
-      MediaQuery.disableAnimationsOf(context) ||
-      !TickerMode.valuesOf(context).enabled;
-  void _syncMotion() {
-    if (_paused) {
-      _float.stop();
-      _pop.stop();
-      _timer?.cancel();
-      _timer = null;
-      _popping = null;
-      return;
+    final added = widget.ideas
+        .where((idea) => !_ids.contains(idea.id))
+        .toList();
+    final wasPinned = !_scroll.hasClients || _scroll.offset < 64;
+    final oldOffset = _scroll.hasClients ? _scroll.offset : 0.0;
+    final oldMax = _scroll.hasClients ? _scroll.position.maxScrollExtent : 0.0;
+    if (added.isNotEmpty) {
+      final follow =
+          !_initialized ||
+          wasPinned ||
+          added.any((idea) => idea.isMine(widget.userId));
+      if (!follow) _unread += added.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        if (follow) {
+          _scroll.jumpTo(0);
+          if (_unread > 0) setState(() => _unread = 0);
+        } else {
+          _scroll.jumpTo(
+            (oldOffset + _scroll.position.maxScrollExtent - oldMax).clamp(
+              0.0,
+              _scroll.position.maxScrollExtent,
+            ),
+          );
+        }
+      });
     }
-    if (!_float.isAnimating) _float.repeat();
-    if (widget.ideas.isEmpty || widget.loading) {
-      _timer?.cancel();
-      _timer = null;
-      return;
-    }
-    _timer ??= Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!mounted || _paused) return;
-      final visible = widget.ideas.take(12).toList();
-      var choices = visible.where((i) => i.id != _lastPopped).toList();
-      if (choices.isEmpty) choices = visible;
-      if (choices.isEmpty) return;
-      setState(
-        () => _popping = _lastPopped =
-            choices[_random.nextInt(choices.length)].id,
-      );
-      _pop.forward(from: 0);
-    });
+    _ids = widget.ideas.map((idea) => idea.id).toSet();
+    _initialized = _initialized || _ids.isNotEmpty;
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel();
-    _float.dispose();
-    _pop.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final layout = CloudLayout(
-        constraints.biggest,
-        widget.loading ? 12 : widget.ideas.length,
-      );
-      final count = widget.loading ? 12 : math.min(12, widget.ideas.length);
-      return AnimatedBuilder(
-        animation: Listenable.merge([_float, _pop]),
-        builder: (context, _) => Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            for (var i = 0; i < count; i++) _slot(layout.slots[i], i),
-            if (!widget.loading && widget.ideas.isEmpty)
-              const Center(
-                child: Text(
-                  'まだアイデアはありません',
-                  style: TextStyle(fontSize: 13, color: TnTokens.textMuted),
-                ),
-              ),
-          ],
-        ),
-      );
-    },
-  );
-  Widget _slot(Rect slot, int i) {
-    final idea = widget.loading ? null : widget.ideas[i];
-    final hash = cloudHash(idea?.id ?? 'skeleton-$i');
-    final width = slot.width * (.88 + hash % 4 / 100);
-    var height = math.min(
-      slot.height,
-      math.max(44.0, slot.height * (.84 + (hash >> 4) % 6 / 100)),
-    );
-    if (!widget.loading && widget.ideas.length <= 2) {
-      height = math.min(height, i == 0 ? 150 : 130);
+  Widget build(BuildContext context) {
+    if (widget.loading && widget.ideas.isEmpty) {
+      return const IdeaTimelineSkeleton();
     }
-    final amplitudeX = math.min(
-      7.0,
-      math.max(0.0, (slot.width - width * 1.08) / 2 - 1),
-    );
-    final amplitudeY = math.min(
-      9.0,
-      math.max(0.0, (slot.height - height * 1.08) / 2 - 1),
-    );
-    final phase =
-        _float.value * 360 / [9, 10, 12, 15][hash % 4] * math.pi * 2 +
-        (hash % 110) / 10;
-    final drift = _paused
-        ? Offset.zero
-        : Offset(math.sin(phase) * amplitudeX, math.cos(phase) * amplitudeY);
-    final peak = math.max(
-      1.0,
-      math.min(
-        1.08,
-        math.min(
-          (slot.width - amplitudeX * 2) / width,
-          (slot.height - amplitudeY * 2) / height,
-        ),
-      ),
-    );
-    var opacity = 1.0, scale = 1.0;
-    final popping = idea != null && _popping == idea.id && !_paused;
-    if (popping) {
-      final t = _pop.value;
-      if (t < .10) {
-        opacity = 1 - t / .10;
-        scale = 1 - t / .10 * .10;
-      } else if (t < .22) {
-        opacity = 0;
-        scale = .72;
-      } else if (t < .42) {
-        final v = (t - .22) / .20;
-        opacity = v;
-        scale = .72 + (peak - .72) * Curves.easeOutCubic.transform(v);
-      } else if (t < .72) {
-        scale = peak + (.985 - peak) * (t - .42) / .30;
-      } else {
-        scale = .985 + .015 * (t - .72) / .28;
-      }
+    final indexed = widget.ideas.indexed.toList()
+      ..sort((a, b) {
+        final order = a.$2.createdAt.compareTo(b.$2.createdAt);
+        return order == 0 ? a.$1.compareTo(b.$1) : order;
+      });
+    final ideas = indexed.map((e) => e.$2).toList().reversed.toList();
+    String day(IdeaItem idea) {
+      final d = idea.createdAt.toLocal();
+      return '${d.year}年${d.month}月${d.day}日';
     }
-    return Positioned.fromRect(
-      rect: slot,
-      child: Center(
-        child: Transform.translate(
-          offset: drift,
-          child: Transform.scale(
-            scale: scale,
-            child: Opacity(
-              opacity: opacity,
-              child: SizedBox(
-                width: width,
-                height: height,
-                child: RepaintBoundary(
-                  child: idea == null
-                      ? ExcludeSemantics(
-                          child: CustomPaint(
-                            painter: _CloudPainter(hash % 6, skeleton: true),
+
+    return Stack(
+      children: [
+        if (ideas.isEmpty)
+          const Center(
+            child: Text(
+              'まだアイデアはありません',
+              style: TextStyle(fontSize: 13, color: TnTokens.textMuted),
+            ),
+          ),
+        Scrollbar(
+          controller: _scroll,
+          child: ListView.builder(
+            key: const PageStorageKey('idea-history'),
+            controller: _scroll,
+            reverse: true,
+            padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
+            itemCount: ideas.length,
+            findChildIndexCallback: (key) {
+              final index = ideas.indexWhere(
+                (idea) => ValueKey(idea.id) == key,
+              );
+              return index < 0 ? null : index;
+            },
+            itemBuilder: (context, index) {
+              final idea = ideas[index],
+                  own = ideas[index].isMine(widget.userId);
+              final date = idea.createdAt.toLocal();
+              final time =
+                  '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+              final divider =
+                  index == ideas.length - 1 ||
+                  day(idea) != day(ideas[index + 1]);
+              final radius = BorderRadius.only(
+                topLeft: Radius.circular(own ? 21 : 4),
+                topRight: Radius.circular(own ? 4 : 21),
+                bottomLeft: const Radius.circular(21),
+                bottomRight: const Radius.circular(21),
+              );
+              return Column(
+                key: ValueKey(idea.id),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (divider)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: const Color(0xB8E7EDFA),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                        )
-                      : Semantics(
-                          button: true,
-                          label: '${idea.body}、いいね${idea.likes}件',
-                          child: ExcludeSemantics(
-                            child: CustomPaint(
-                              key: ValueKey('cloud-${idea.id}'),
-                              painter: _CloudPainter(hash % 6),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  customBorder: _CloudBorder(hash % 6),
-                                  onTap: () => widget.onOpen(idea),
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: width < 110 ? 10 : 18,
-                                            vertical: height < 75 ? 7 : 16,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Flexible(
-                                                child: Text(
-                                                  idea.body,
-                                                  maxLines: height < 65
-                                                      ? 1
-                                                      : height < 110
-                                                      ? 2
-                                                      : 3,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontSize: width < 110
-                                                        ? 11
-                                                        : width < 160
-                                                        ? 13
-                                                        : 16,
-                                                    height: 1.6,
-                                                    color: TnTokens.textMain,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (height > 75 &&
-                                                  width > 95) ...[
-                                                const SizedBox(height: 12),
-                                                Row(
-                                                  children: [
-                                                    const Expanded(
-                                                      child: Text(
-                                                        'アイデア',
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: TextStyle(
-                                                          fontSize: 11,
-                                                          color: TnTokens
-                                                              .textMuted,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    if (idea.likes > 0) ...[
-                                                      const Icon(
-                                                        Icons.favorite_border,
-                                                        size: 10,
-                                                        color:
-                                                            TnTokens.textMuted,
-                                                      ),
-                                                      Text(
-                                                        ' ${idea.likes}',
-                                                        style: const TextStyle(
-                                                          fontSize: 9,
-                                                          color: TnTokens
-                                                              .textMuted,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 5,
+                            ),
+                            child: Text(
+                              day(idea),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: TnTokens.textMuted,
                               ),
                             ),
                           ),
                         ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: own
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: [
+                        if (!own) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 20),
+                            child: CircleAvatar(
+                              radius: 15,
+                              backgroundColor: Colors.white,
+                              child: Text(
+                                idea.authorName.isEmpty
+                                    ? '寮'
+                                    : idea.authorName.characters.first,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: TnTokens.textMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Flexible(
+                          child: FractionallySizedBox(
+                            widthFactor: .88,
+                            alignment: own
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Column(
+                              crossAxisAlignment: own
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
+                              children: [
+                                if (!own)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 4,
+                                      bottom: 5,
+                                    ),
+                                    child: Text(
+                                      idea.authorName.isEmpty
+                                          ? '寮生'
+                                          : idea.authorName,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: TnTokens.textMuted,
+                                      ),
+                                    ),
+                                  ),
+                                Material(
+                                  key: ValueKey('message-${idea.id}'),
+                                  color: own
+                                      ? TnTokens.primary
+                                      : const Color(0xF2FFFFFF),
+                                  borderRadius: radius,
+                                  child: InkWell(
+                                    borderRadius: radius,
+                                    onTap: () => widget.onOpen(idea),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 13,
+                                      ),
+                                      child: Text(
+                                        idea.body,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          height: 1.7,
+                                          color: own
+                                              ? Colors.white
+                                              : TnTokens.textMain,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 5,
+                                    left: 4,
+                                    right: 4,
+                                  ),
+                                  child: Text(
+                                    '$time${idea.likes > 0 ? '  ♡ ${idea.likes}' : ''}',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: TnTokens.textMuted,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        if (_unread > 0)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 8,
+            child: Center(
+              child: FilledButton.tonalIcon(
+                onPressed: () {
+                  _scroll.jumpTo(0);
+                  setState(() => _unread = 0);
+                },
+                icon: const Icon(Icons.arrow_downward, size: 15),
+                label: Text('新しい投稿 $_unread件'),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class IdeaTimelineSkeleton extends StatelessWidget {
+  const IdeaTimelineSkeleton({super.key});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < 3; i++)
+          Expanded(
+            child: Align(
+              alignment: i.isOdd ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 220,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: TnTokens.bgTint,
+                  borderRadius: BorderRadius.circular(22),
                 ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CloudPainter extends CustomPainter {
-  _CloudPainter(this.shape, {this.skeleton = false});
-  final int shape;
-  final bool skeleton;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = cloudPath(shape, size);
-    const fill = Color(0xEFFFFFFF);
-    const stroke = Color(0xFFFFFFFF);
-    canvas.drawShadow(path, const Color(0x183C5089), 10, false);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: skeleton
-              ? const [Color(0xBDECF2F8), Color(0x90F5F8FC)]
-              : [fill, const Color(0xB8FFFFFF)],
-        ).createShader(Offset.zero & size),
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = skeleton ? const Color(0x99B8C8DB) : stroke,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CloudPainter oldDelegate) =>
-      shape != oldDelegate.shape || skeleton != oldDelegate.skeleton;
-}
-
-class _CloudBorder extends ShapeBorder {
-  const _CloudBorder(this.shape);
-  final int shape;
-  @override
-  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
-  @override
-  Path getOuterPath(Rect rect, {TextDirection? textDirection}) =>
-      cloudPath(shape, rect.size).shift(rect.topLeft);
-  @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
-      getOuterPath(rect, textDirection: textDirection);
-  @override
-  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {}
-  @override
-  ShapeBorder scale(double t) => this;
+      ],
+    ),
+  );
 }
 
 class GlassBottomNav extends StatelessWidget {
@@ -780,15 +677,7 @@ class HomeLoadingScaffold extends StatelessWidget {
               Expanded(
                 child: Semantics(
                   label: 'ホームを読み込み中',
-                  child: ExcludeSemantics(
-                    child: IdeaCloudBoard(
-                      ideas: const [],
-                      loading: true,
-                      paused: true,
-                      onOpen: (_) {},
-                      onCreate: () {},
-                    ),
-                  ),
+                  child: ExcludeSemantics(child: const IdeaTimelineSkeleton()),
                 ),
               ),
               const GlassSurface(

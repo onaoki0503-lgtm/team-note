@@ -108,7 +108,7 @@ class AppDataProvider extends ChangeNotifier {
     }
     ideas = [
       for (final e in raw)
-        if (e is Map && e['hiddenAt'] == null)
+        if (e is Map)
           IdeaItem(
             id: '${e['id']}',
             body: '${e['text'] ?? ''}',

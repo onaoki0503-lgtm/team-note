@@ -1,6 +1,6 @@
 # チームノート Mobile
 
-> **最終更新日**: 2026-10-27
+> **最終更新日**: 2026-10-28
 > **更新者**: AI (Codex)
 
 Native Flutter (iOS / Android). Supabase Auth + data. Not a WebView of the Vite app.
@@ -75,3 +75,5 @@ The selected reference is now implemented in the Flutter source: a large app nam
 One or two ideas use large staggered cards; up to 12 use adaptive non-overlapping slots without page scrolling. Four-second disappear/pop motion and reduced-motion settings remain. Shared colors and typography are mirrored from `shared/design-tokens.json`. Shipped as native 0.1.15+22 (includes Apple Sign-In). Check the development record for validation and distribution status.
 
 2026-10-27 / AI (Codex): 検証結果 — ホーム16件、既存画面29件、共有4件、管理画面11件は今回の実行／再試行の合計で合格。吹き出し保存規則6件、Flutter解析・13件・署名なしiOSリリースビルド、Web build・lintが成功。重いビルドとブラウザの同時実行でタイムアウトした項目は順次再試行して合格を確認。既知の備品取り込み11件は今回の回帰から除外しており、アプリ全体の全件合格という意味ではない。シミュレーターのコールドビルドは負荷回避で中断し、実機表示・配信確認は未実施。TestFlightの署名／送信とWeb公開は行っていない。
+
+2026-10-28 / AI (Codex): IdeaTimelineの遅延構築ListViewで過去へスクロール。AppDataProviderは旧hiddenAtを履歴から除外しない。新規配信はせず、ソースの番号は既存0.1.15+22のまま。

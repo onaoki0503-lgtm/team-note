@@ -243,7 +243,7 @@ export default function App() {
     if (shared.enabled) return shared.like(ideaId, !bubbleIdeas.find(idea => idea.id === ideaId)?.likedUserIds?.includes(currentUser.id));
     return updateIdeas((prev) =>
       prev.map((item) => {
-        if (item.id === ideaId && !item.hiddenAt) {
+        if (item.id === ideaId) {
           const liked = item.likedUserIds?.includes(currentUser.id);
           const updatedLikedUsers = liked
             ? (item.likedUserIds || []).filter((uid) => uid !== currentUser.id)

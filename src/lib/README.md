@@ -1,6 +1,6 @@
 # lib
 
-> **最終更新日**: 2026-10-23
+> **最終更新日**: 2026-10-28
 > **更新者**: AI (Codex)
 
 ## 概要
@@ -60,3 +60,5 @@
 2026-10-23 / AI (Codex): teamnoteCloud.tsはdemo=1の場合に共有クライアントを作らず端末内デモを選択する。認証情報や所属RLSには変更なし。
 
 2026-10-26 / AI (Codex): `teamnoteReports.ts` に `tn_submit_monthly_report` 呼出しを追加。本文・対象月と応答を検証し、失敗を成功扱いしない。
+
+2026-10-28 / AI (Codex): ideaBoard.tsは保存済みの全投稿を安定した日時順に返し、旧capacity／inactiveフラグでは隠さない。useIdeaBoardSync.tsは件数・期限の自動処理を廃止。削除済み投稿はAPI／保存データから除かれ、復元対象外。

@@ -17,11 +17,11 @@ class IdeasService {
   Future<List<IdeaItem>> list() async {
     final c = client;
     if (c == null) {
-      return List.unmodifiable(_local.take(12));
+      return List.unmodifiable(_local);
     }
     try {
       final rows = await c.rpc('tn_list_ideas');
-      if (rows is! List) return List.unmodifiable(_local.take(12));
+      if (rows is! List) return List.unmodifiable(_local);
       return [
         for (final raw in rows)
           if (raw is Map)
@@ -30,12 +30,13 @@ class IdeasService {
               body: '${raw['body'] ?? ''}',
               likes: (raw['like_count'] as num?)?.toInt() ?? 0,
               likedByMe: raw['liked_by_me'] == true,
-              createdAt: DateTime.tryParse('${raw['created_at'] ?? ''}') ??
+              createdAt:
+                  DateTime.tryParse('${raw['created_at'] ?? ''}') ??
                   DateTime.now(),
             ),
       ];
     } catch (_) {
-      return List.unmodifiable(_local.take(12));
+      return List.unmodifiable(_local);
     }
   }
 
@@ -48,7 +49,6 @@ class IdeasService {
     if (c == null) {
       final item = IdeaItem(id: _uuid.v4(), body: text);
       _local.insert(0, item);
-      if (_local.length > 12) _local.removeLast();
       return item;
     }
     final row = await c.rpc('tn_post_idea', params: {'p_body': text});
