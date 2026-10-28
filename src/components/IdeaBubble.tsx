@@ -1,5 +1,5 @@
 import { checkIdeaSentenceValidity } from '../lib/ideaValidation';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Heart, MoreHorizontal, Trash2, ArrowRight, ArrowDown, X } from 'lucide-react';
 import { community } from '../lib/community';
 import { displayedIdeas, type IdeaItem } from '../lib/ideaBoard';
@@ -11,22 +11,15 @@ interface IdeaBubbleProps {
   isPaused: boolean; onPauseChange: (paused: boolean) => void; centerAction: ReactNode;
   onAddNewIdea: (text: string) => Promise<boolean>; onToggleLike: (id: string) => Promise<boolean>; onDeleteIdea: (id: string) => Promise<boolean>;
 }
-const dayLabel = (idea: IdeaItem) => {
-  const date = new Date(idea.createdAt || idea.activityTrackedFrom || '');
-  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }).format(date) : '以前の投稿';
-};
-const timeLabel = (idea: IdeaItem) => {
-  const date = new Date(idea.createdAt || idea.activityTrackedFrom || '');
-  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit' }).format(date) : '';
-};
-function Message({ idea, own, onOpen }: { idea: IdeaItem; own: boolean; onOpen: (trigger: HTMLButtonElement) => void }) {
-  return <article className={`idea-message ${own ? 'is-own' : ''}`} data-idea-id={idea.id}>
-    {!own && <span className="idea-message-avatar" aria-hidden="true">{Array.from(idea.authorName || '寮生')[0]}</span>}
-    <div className="idea-message-content">
-      {!own && <span className="idea-message-author">{idea.authorName || '寮生'}</span>}
-      <button type="button" className="idea-card idea-message-body" aria-label={idea.text} onClick={event => onOpen(event.currentTarget)}>{idea.text}</button>
-      <div className="idea-message-meta"><time dateTime={idea.createdAt}>{timeLabel(idea)}</time>{idea.likes > 0 && <span><Heart size={11} />{idea.likes}</span>}</div>
-    </div>
+const bubbleHash = (id: string) => [...id].reduce((h,c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+function Message({ idea, popping, onEnd, onOpen }: { idea: IdeaItem; popping: boolean; onEnd: () => void; onOpen: (trigger: HTMLButtonElement) => void }) {
+  const hash = bubbleHash(idea.id);
+  const corners = ['32px 42px 34px 24px', '42px 28px 40px 32px', '45% 38% 42% 36%', '30px 46px 28px 40px', '38px 30px 44px 26px', '40% 45% 34% 42%'];
+  const style = { '--bubble-corners': corners[hash % corners.length], '--drift': `${9 + hash % 5}s`, '--delay': `${-(hash % 100)/10}s`, '--bubble-tilt': `${(hash % 5 - 2)*.6}deg` } as CSSProperties;
+  return <article className="idea-bubble-slot" data-idea-id={idea.id} style={style}>
+    <button type="button" className={`idea-card idea-history-bubble ${popping ? 'is-popping' : ''}`} data-pop-active={popping} aria-label={idea.text} onClick={event => onOpen(event.currentTarget)} onPointerEnter={onEnd} onFocus={onEnd} onAnimationEnd={event => { if(event.animationName === 'bubble-pop') onEnd(); }}>
+      <span className="idea-bubble-excerpt">{idea.text}</span>
+    </button>
   </article>;
 }
 function IdeaPreview({ idea, userId, onClose, onOpen, onLike, onDelete }: { idea: IdeaItem; userId: string; onClose: () => void; onOpen: () => void; onLike: () => void; onDelete: () => void }) {
@@ -36,7 +29,7 @@ function IdeaPreview({ idea, userId, onClose, onOpen, onLike, onDelete }: { idea
   const finish = (action: () => void) => { ref.current?.close(); action(); };
   const liked = idea.likedUserIds?.includes(userId);
   return <dialog ref={ref} className="idea-preview glass-panel" aria-label="アイデアの詳細" onCancel={event => { event.preventDefault(); finish(onClose); }}>
-    <div className="idea-preview-heading"><span className="idea-preview-author">{idea.authorName || 'アイデア'}</span><button type="button" className="glass-icon-button" aria-label="アイデアの詳細を閉じる" onClick={() => finish(onClose)} autoFocus><X size={20} /></button></div>
+    <div className="idea-preview-heading"><span className="idea-preview-author">アイデア</span><button type="button" className="glass-icon-button" aria-label="アイデアの詳細を閉じる" onClick={() => finish(onClose)} autoFocus><X size={20} /></button></div>
     <p className="idea-preview-text">{idea.text}</p>
     <div className="idea-preview-actions"><button type="button" className={`glass-button idea-heart ${liked ? 'is-liked' : ''}`} aria-label={`いいね ${idea.likes}件`} aria-pressed={!!liked} onClick={onLike}><Heart size={18} fill={liked ? 'currentColor' : 'none'} />{idea.likes}</button>
       {idea.authorId === userId && <button type="button" className="glass-icon-button" aria-label="アイデアのメニュー" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><MoreHorizontal size={20} /></button>}</div>
@@ -44,7 +37,7 @@ function IdeaPreview({ idea, userId, onClose, onOpen, onLike, onDelete }: { idea
     {menuOpen && <div className="idea-preview-delete"><span>このアイデアを削除しますか</span><button type="button" className="glass-secondary" onClick={() => finish(onDelete)}><Trash2 size={14} />削除する</button><button type="button" className="glass-secondary" onClick={() => setMenuOpen(false)}>閉じる</button></div>}
   </dialog>;
 }
-export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUserId, onOpenIdeaInputWithText, onSelectProject, isPaused: _isPaused, onPauseChange, centerAction, onAddNewIdea, onToggleLike, onDeleteIdea }: IdeaBubbleProps) {
+export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUserId, onOpenIdeaInputWithText, onSelectProject, isPaused, onPauseChange, centerAction, onAddNewIdea, onToggleLike, onDeleteIdea }: IdeaBubbleProps) {
   const draftKey = `tn_draft:${community.id}:${currentUserId}`;
   const [comment, setComment] = useState(() => { try { return localStorage.getItem(draftKey) || ''; } catch { return ''; } });
   const [notice, setNotice] = useState('');
@@ -55,6 +48,10 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
   const [focused, setFocused] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const postTrigger = useRef<HTMLButtonElement>(null);
+  const [reducedMotion, setReducedMotion] = useState(matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [hidden, setHidden] = useState(document.hidden);
+  const [popping, setPopping] = useState<string | null>(null);
+  const lastPopped = useRef<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const visibleIdeas = useMemo(() => displayedIdeas(ideas), [ideas]);
   const selectedIdea = visibleIdeas.find(idea => idea.id === selected);
@@ -65,6 +62,28 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
   const initialized = useRef(false);
   const pendingOwn = useRef(false);
   const [unread, setUnread] = useState(0);
+  const motionPaused = isPaused || reducedMotion || hidden || composeOpen || focused || previewOpen;
+  useEffect(() => {
+    const media = matchMedia('(prefers-reduced-motion: reduce)');
+    const change = () => setReducedMotion(media.matches), visibility = () => setHidden(document.hidden);
+    media.addEventListener('change', change); document.addEventListener('visibilitychange', visibility);
+    return () => { media.removeEventListener('change', change); document.removeEventListener('visibilitychange', visibility); };
+  }, []);
+  useEffect(() => {
+    if (motionPaused) return;
+    const timer = window.setInterval(() => {
+      const node = timelineRef.current; if (!node) return;
+      const viewport = node.getBoundingClientRect();
+      const visible = [...node.querySelectorAll<HTMLElement>('.idea-bubble-slot')].filter(slot => {
+        const r = slot.getBoundingClientRect(); return r.bottom > viewport.top + 24 && r.top < viewport.bottom - 24 && !slot.matches(':hover,:focus-within');
+      });
+      const different = visible.filter(slot => slot.dataset.ideaId !== lastPopped.current);
+      const options = different.length ? different : visible;
+      if (!options.length) return;
+      const id = options[Math.floor(Math.random()*options.length)].dataset.ideaId!; lastPopped.current = id; setPopping(id);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [motionPaused]);
   const toLatest = () => {
     const node = timelineRef.current;
     if (node) node.scrollTop = node.scrollHeight;
@@ -108,7 +127,7 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
     toLatest(); setNotice('アイデアを投稿しました');
   };
   const length = Array.from(comment).length;
-  return <div ref={layerRef} className="idea-layer idea-chat" data-count={visibleIdeas.length}>
+  return <div ref={layerRef} className="idea-layer idea-bubble-history" data-count={visibleIdeas.length} data-floating-paused={motionPaused}>
     <div className="idea-home-heading"><h1>アイデア</h1>{connectionLabel && <span className="idea-connection" aria-live="polite">{connectionLabel}</span>}</div>
     <div className="idea-timeline-wrap">
       <div ref={timelineRef} className="idea-timeline" role="region" aria-label="アイデアの履歴" tabIndex={0} inert={composeOpen} onScroll={event => {
@@ -116,10 +135,7 @@ export function IdeaBubbleLayer({ ideas, syncError, connectionLabel, currentUser
         if (pinned.current) setUnread(0);
       }}>
         {visibleIdeas.length === 0 && <p className="idea-empty">まだアイデアはありません</p>}
-        {visibleIdeas.map((idea, index) => <div className="idea-chat-entry" key={idea.id}>
-          {(index === 0 || dayLabel(idea) !== dayLabel(visibleIdeas[index - 1])) && <div className="idea-date-divider"><span>{dayLabel(idea)}</span></div>}
-          <Message idea={idea} own={idea.authorId === currentUserId} onOpen={trigger => { opener.current = trigger; setSelected(idea.id); }} />
-        </div>)}
+        <div className="idea-bubble-grid">{visibleIdeas.map(idea => <Message key={idea.id} idea={idea} popping={!motionPaused && popping === idea.id} onEnd={() => setPopping(current => current === idea.id ? null : current)} onOpen={trigger => { opener.current = trigger; setSelected(idea.id); }} />)}</div>
       </div>
       {unread > 0 && <button type="button" className="idea-new-messages" onClick={toLatest}><ArrowDown size={15} />新しい投稿 {unread}件</button>}
     </div>

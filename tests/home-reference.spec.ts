@@ -6,7 +6,7 @@ const open=async(p:Page)=>{await p.getByRole('button',{name:'アイデアを投�
 const post=async(p:Page,text:string)=>{await open(p);await p.getByLabel('アイデアをつぶやく').fill(text);await p.getByRole('button',{name:'投稿する',exact:true}).click();await expect(p.getByRole('dialog',{name:'アイデアを投稿',exact:true})).toHaveCount(0)};
 test.beforeEach(async({page})=>{await page.emulateMedia({reducedMotion:'reduce'});await page.route(/^https:\/\//,r=>r.abort())});
 for(const [width,height]of [[320,568],[390,844],[430,932],[844,390],[768,900],[1440,900]])test(`履歴を${width}x${height}でスクロールでき、操作部が固定される`,async({page})=>{
- await page.setViewportSize({width,height});await seed(page,40);await boot(page);await expect(page.locator('.idea-message')).toHaveCount(40);
+ await page.setViewportSize({width,height});await seed(page,40);await boot(page);await expect(page.locator('.idea-bubble-slot')).toHaveCount(40);
  const timeline=page.getByRole('region',{name:'アイデアの履歴'});await expect(page.getByRole('button',{name:rows(40)[39].text,exact:true})).toBeInViewport();
  expect(await timeline.evaluate(e=>e.scrollHeight>e.clientHeight)).toBe(true);
  await timeline.evaluate(e=>{e.scrollTop=0});await expect(page.getByRole('button',{name:rows(40)[0].text,exact:true})).toBeInViewport();
@@ -15,17 +15,18 @@ for(const [width,height]of [[320,568],[390,844],[430,932],[844,390],[768,900],[1
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight+1)).toBe(true);
  await expect(button).toHaveCSS('background-color','rgb(24, 49, 129)');
 });
-test('自分は右、他の人は左、全文と日時を表示し古いマーカーでも復元',async({page})=>{
- await seed(page,6);await boot(page);await expect(page.locator('.idea-message.is-own')).toHaveCount(2);
+test('名前・時刻・自分の色分けを出さず白い吹き出しで過去を復元',async({page})=>{
+ await seed(page,6);await boot(page);await expect(page.locator('.is-own,.idea-date-divider,.idea-message-author,.idea-message-avatar,time')).toHaveCount(0);
+ await expect(page.getByText('寮生',{exact:true})).toHaveCount(0);
  await expect(page.locator('.idea-card').first()).toHaveCSS('animation-name','none');
  await page.getByRole('region',{name:'アイデアの履歴'}).evaluate(e=>{e.scrollTop=0});
- await page.screenshot({path:'/private/tmp/teamnote-chat-home-web.png',animations:'disabled'});
- await expect(page.locator('.idea-date-divider').first()).toContainText('年');
+ await page.screenshot({path:'/private/tmp/teamnote-floating-history-web.png',animations:'disabled'});
+ await expect(page.locator('.idea-history-bubble')).toHaveCount(6);
  await open(page);await expect(page.getByLabel('アイデアをつぶやく')).toBeFocused();await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'アイデアを投稿',exact:true})).toBeFocused();
 });
 test('投稿を追加しても過去を失わず、再訪・いいね・削除ができる',async({page})=>{
- await seed(page,40);await boot(page);const text='中庭で映画の上映会を実施したい';await post(page,text);await expect(page.locator('.idea-message')).toHaveCount(41);
- const card=page.getByRole('button',{name:text,exact:true});await expect(card).toBeInViewport();await card.click();const d=page.getByRole('dialog',{name:'アイデアの詳細'});await d.getByRole('button',{name:'いいね 0件'}).click();await expect(d.getByRole('button',{name:'いいね 1件'})).toHaveAttribute('aria-pressed','true');await page.keyboard.press('Escape');await page.reload();await card.click();await d.getByRole('button',{name:'アイデアのメニュー'}).click();await d.getByRole('button',{name:'削除する',exact:true}).click();await expect(card).toHaveCount(0);await expect(page.locator('.idea-message')).toHaveCount(40);
+ await seed(page,40);await boot(page);const text='中庭で映画の上映会を実施したい';await post(page,text);await expect(page.locator('.idea-bubble-slot')).toHaveCount(41);
+ const card=page.getByRole('button',{name:text,exact:true});await expect(card).toBeInViewport();await card.click();const d=page.getByRole('dialog',{name:'アイデアの詳細'});await d.getByRole('button',{name:'いいね 0件'}).click();await expect(d.getByRole('button',{name:'いいね 1件'})).toHaveAttribute('aria-pressed','true');await page.keyboard.press('Escape');await page.reload();await card.click();await d.getByRole('button',{name:'アイデアのメニュー'}).click();await d.getByRole('button',{name:'削除する',exact:true}).click();await expect(card).toHaveCount(0);await expect(page.locator('.idea-bubble-slot')).toHaveCount(40);
  await page.getByRole('region',{name:'アイデアの履歴'}).evaluate(e=>{e.scrollTop=0});await expect(page.getByRole('button',{name:rows(40)[0].text,exact:true})).toBeInViewport();
 });
 test('履歴を読んでいるときの新着は位置を変えず、ボタンで最新へ移動',async({page,context})=>{
@@ -51,4 +52,12 @@ test('高さの小さい画面でも投稿欄と送信操作が画面内に収�
   const d=page.getByRole('dialog',{name:'アイデアを投稿',exact:true}),r=await d.boundingBox();expect(r!.x).toBeGreaterThanOrEqual(0);expect(r!.y).toBeGreaterThanOrEqual(0);expect(r!.y+r!.height).toBeLessThanOrEqual(height);
   await page.getByLabel('アイデアをつぶやく').fill('小さい画面から投稿するアイデア');await d.getByRole('button',{name:'投稿する',exact:true}).scrollIntoViewIfNeeded();await expect(d.getByRole('button',{name:'投稿する',exact:true})).toBeInViewport();await page.keyboard.press('Escape');
  }
+});
+
+test('浮遊と4秒ごとの消失ポップを戻し、入力中と減動時には停止する',async({page})=>{
+ await seed(page,12);await boot(page);await page.emulateMedia({reducedMotion:'no-preference'});await page.mouse.move(0,0);
+ await expect(page.locator('.idea-history-bubble').first()).toHaveCSS('animation-name','history-float');
+ await expect.poll(()=>page.locator('[data-pop-active=true]').count(),{timeout:7000,intervals:[100]}).toBe(1);
+ const phases=await page.locator('[data-pop-active=true]').evaluate(el=>{const a=el.getAnimations().find(a=>(a as CSSAnimation).animationName==='bubble-pop')!;a.pause();a.currentTime=128;const hidden=Number(getComputedStyle(el).opacity);a.currentTime=336;return{hidden,appeared:Number(getComputedStyle(el).opacity)}});expect(phases).toEqual({hidden:0,appeared:1});
+ await open(page);await expect(page.locator('.idea-bubble-history')).toHaveAttribute('data-floating-paused','true');await expect(page.locator('[data-pop-active=true]')).toHaveCount(0);await page.keyboard.press('Escape');await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('.idea-history-bubble').first()).toHaveCSS('animation-name','none');
 });

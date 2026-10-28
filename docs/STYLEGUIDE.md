@@ -3,22 +3,18 @@
 > **Last updated**: 2026-10-28
 > **Updated by**: AI (Codex)
 
-## Home: chronological conversation
+## Home: original floating bubbles with scrolling
 
-The owner replaced the floating board with a LINE-like scrollable conversation. Keep the white glass shell, circular profile and text-only pill tabs. No slogans or prototype replay controls.
+Owner clarification: only add scrolling to the original bubble home. Do not turn it into a messaging UI.
 
-- Order: oldest to newest. Open at the latest message; scroll upwards for history. Show date separators, author names and local times. Never truncate the body.
-- Own messages: right aligned, deep blue #183181, white text. Other members: left aligned, white with dark text #17284E and a small author avatar/name.
-- Preserve every non-deleted post, including legacy capacity/inactivity markers. No twelve-item display cap, no seven-day display expiry. Explicitly deleted posts stay deleted.
-- Only the conversation scrolls. Keep the header, blue posting button and bottom tabs reachable. New messages follow when already near the bottom. While reading history, keep the position and show a new-message button.
-- Do not float, rotate, periodically hide or pop messages. Sheets and navigation retain short transitions, respecting reduced motion.
-- The posting button opens a sheet. Preserve drafts on closing/failure; close and clear only on confirmed success. Keep proposal creation and detail actions.
-- Skeletons match the conversation rather than the former floating board. Targets at least 44px; Web input font at least 16px; bodies 15px with generous line height.
+- All ideas use white glass bubbles with varied rounded shapes, gentle tilt, spacing and independent floating phases. No blue own-message bubbles, left/right ownership alignment, author name/avatar, date dividers or time labels. Details also show a generic idea heading.
+- Scroll the bubble canvas to revisit old posts. Keep all non-deleted history including legacy capacity/inactivity markers; no client twelve-post cap or seven-day expiry. Explicit deletion remains excluded.
+- Open at the latest bubbles. Keep the header, posting action and tabs fixed. Preserve the reader's history position on new Web posts and offer a new-post button.
+- Restore gentle drift and one visible bubble briefly disappearing/popping about every four seconds. Stop for input/detail, background/inactive screens, saved pause preference and OS reduced motion. Keep movement inside each padded slot so neighbouring bubbles remain readable.
+- Preserve the input sheet, saved drafts, failure/retry behaviour, existing detail actions and proposal conversion. The preview can abbreviate a long body; tapping opens the full body. Accessible names contain the complete text without author/time.
+- Primary #183181, text #17284E, muted #5B6E91, background #F5F8FF, glass tint #EEF3FF, white bubbles. Use code/CSS geometry. Retain the text-only pill tabs and bounded sheet/nav blur.
+- Targets at least 44px; Web inputs at least 16px. Skeletons use the same soft white shapes. The keyboard must not hide the submit action.
 
-## Shared appearance
+## Storage and release boundaries
 
-Primary #183181, text #17284E, muted #5B6E91, background #F5F8FF, tint #EEF3FF, white surface. Token source: shared/design-tokens.json. Web home: src/home-reference.css. Flutter: mobile/lib/widgets/home_scene.dart and mobile/lib/screens/ideas_screen.dart.
-
-## Boundaries
-
-Existing GitHub Pages / Flutter / Supabase / Workers remain. tn_get_board already includes non-deleted historical rows, so clients can show them without changing RLS or the database. Legacy hidden markers remain stored for compatibility; they no longer suppress history. This work does not upload a TestFlight build, alter authentication or publish the website. Existing server rules may still restrict reactions on legacy hidden posts; that is separate from history retrieval and must be coordinated before changing the shared database.
+Author IDs and creation times remain stored for ownership and chronological sorting; only their presentation is removed. Existing tn_get_board includes non-deleted historical rows. No DB, Auth or RLS changes in this correction. Existing server restrictions on reactions to legacy hidden posts remain a separate follow-up. Preserve GitHub Pages / Flutter / Supabase / Workers. Source changes do not imply a Pages publication or a TestFlight upload.

@@ -77,6 +77,7 @@ class IdeaHome extends StatefulWidget {
 class _IdeaHomeState extends State<IdeaHome> {
   final _controller = TextEditingController();
   Timer? _draftTimer;
+  bool _composerOpen = false, _previewOpen = false;
 
   String? _error;
   String get _draftKey =>
@@ -133,6 +134,7 @@ class _IdeaHomeState extends State<IdeaHome> {
   }
 
   Future<void> _compose() async {
+    setState(() => _composerOpen = true);
     final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -148,11 +150,13 @@ class _IdeaHomeState extends State<IdeaHome> {
       ),
     );
     if (!mounted) return;
+    setState(() => _composerOpen = false);
     if (action == 'proposal') widget.onCreate('');
   }
 
   Future<void> _open(IdeaItem idea) async {
     FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _previewOpen = true);
     try {
       await showModalBottomSheet<void>(
         context: context,
@@ -171,7 +175,7 @@ class _IdeaHomeState extends State<IdeaHome> {
         ),
       );
     } finally {
-      // The conversation stays at its current scroll offset when the sheet closes.
+      if (mounted) setState(() => _previewOpen = false);
     }
   }
 
@@ -199,6 +203,11 @@ class _IdeaHomeState extends State<IdeaHome> {
                 : IdeaTimeline(
                     ideas: widget.ideas,
                     userId: widget.userId,
+                    paused:
+                        widget.motionPaused ||
+                        !widget.active ||
+                        _composerOpen ||
+                        _previewOpen,
                     loading: widget.loading && widget.ideas.isEmpty,
                     onOpen: _open,
                   ),
@@ -451,9 +460,7 @@ class _IdeaDetailState extends State<_IdeaDetail> {
                   children: [
                     Expanded(
                       child: Text(
-                        widget.idea.authorName.isEmpty
-                            ? 'アイデア'
-                            : widget.idea.authorName,
+                        'アイデア',
                         style: const TextStyle(
                           fontSize: 12,
                           color: TnTokens.textMuted,

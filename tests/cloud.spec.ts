@@ -57,5 +57,5 @@ test('操作デモは共有DBや認証へ接続せず、端末内で全4タブ�
 test('共有DBの旧非表示マーカー付き投稿も履歴から遡って閲覧できる',async({browser})=>{
  const f=new CloudFixture();f.ideas=Array.from({length:30},(_,i)=>({id:`archived-${i}`,text:`過去の寮内イベントのアイデア${i}`,authorId:uidB,authorName:'試験用B',color:'cyan',likes:0,likedUserIds:[],createdAt:new Date(Date.now()-(30-i)*86400000).toISOString(),...(i<18?{hiddenAt:'2026-01-01',hiddenReason:i===0?'inactive':'capacity'}:{})}));
  const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});await f.install(context,uidA);const page=await context.newPage();await login(page);await ready(page);
- await expect(page.locator('.idea-message')).toHaveCount(30);await page.getByRole('region',{name:'アイデアの履歴'}).evaluate(e=>{e.scrollTop=0});await page.getByRole('button',{name:'過去の寮内イベントのアイデア0',exact:true}).click();await expect(page.getByRole('dialog',{name:'アイデアの詳細'})).toContainText('過去の寮内イベントのアイデア0');await context.close();
+ await expect(page.locator('.idea-bubble-slot')).toHaveCount(30);await page.getByRole('region',{name:'アイデアの履歴'}).evaluate(e=>{e.scrollTop=0});await page.getByRole('button',{name:'過去の寮内イベントのアイデア0',exact:true}).click();await expect(page.getByRole('dialog',{name:'アイデアの詳細'})).toContainText('過去の寮内イベントのアイデア0');await context.close();
 });

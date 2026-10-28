@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -229,7 +231,7 @@ class _AtmospherePainter extends CustomPainter {
       phase != oldDelegate.phase;
 }
 
-/// Full history, reversed for a natural latest-at-bottom conversation.
+/// Original floating bubbles with a scrollable, retained history.
 class IdeaTimeline extends StatefulWidget {
   const IdeaTimeline({
     super.key,
@@ -237,16 +239,75 @@ class IdeaTimeline extends StatefulWidget {
     required this.userId,
     required this.onOpen,
     this.loading = false,
+    this.paused = false,
   });
   final List<IdeaItem> ideas;
   final String userId;
   final ValueChanged<IdeaItem> onOpen;
-  final bool loading;
+  final bool loading, paused;
   @override
   State<IdeaTimeline> createState() => _IdeaTimelineState();
 }
 
-class _IdeaTimelineState extends State<IdeaTimeline> {
+class _IdeaTimelineState extends State<IdeaTimeline>
+    with WidgetsBindingObserver {
+  Timer? _popTimer, _resetPop;
+  String? _popping, _lastPopped;
+  bool _foreground = true;
+  bool get _paused =>
+      widget.paused ||
+      !_foreground ||
+      MediaQuery.disableAnimationsOf(context) ||
+      !TickerMode.valuesOf(context).enabled;
+  List<IdeaItem> _ordered() {
+    final indexed = widget.ideas.indexed.toList()
+      ..sort((a, b) {
+        final order = a.$2.createdAt.compareTo(b.$2.createdAt);
+        return order == 0 ? a.$1.compareTo(b.$1) : order;
+      });
+    return indexed.map((e) => e.$2).toList();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPop();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _syncPop();
+  }
+
+  void _syncPop() {
+    if (_paused || widget.ideas.isEmpty) {
+      _popTimer?.cancel();
+      _popTimer = null;
+      _resetPop?.cancel();
+      _popping = null;
+      return;
+    }
+    _popTimer ??= Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || _paused || !_scroll.hasClients) return;
+      final latest = _ordered().reversed.toList();
+      final start = (_scroll.offset / 216).floor() * 2;
+      final count = (_scroll.position.viewportDimension / 216).ceil() * 2;
+      final visible = latest.skip(start).take(count).toList();
+      final different = visible.where((i) => i.id != _lastPopped).toList();
+      final choices = different.isEmpty ? visible : different;
+      if (choices.isEmpty) return;
+      setState(
+        () => _popping = _lastPopped =
+            choices[math.Random().nextInt(choices.length)].id,
+      );
+      _resetPop?.cancel();
+      _resetPop = Timer(const Duration(milliseconds: 800), () {
+        if (mounted) setState(() => _popping = null);
+      });
+    });
+  }
+
   final _scroll = ScrollController();
   int _unread = 0;
   Set<String> _ids = {};
@@ -254,6 +315,7 @@ class _IdeaTimelineState extends State<IdeaTimeline> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ids = widget.ideas.map((idea) => idea.id).toSet();
     _initialized = _ids.isNotEmpty;
     _scroll.addListener(_onScroll);
@@ -268,6 +330,7 @@ class _IdeaTimelineState extends State<IdeaTimeline> {
   @override
   void didUpdateWidget(covariant IdeaTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncPop();
     final added = widget.ideas
         .where((idea) => !_ids.contains(idea.id))
         .toList();
@@ -301,6 +364,9 @@ class _IdeaTimelineState extends State<IdeaTimeline> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _popTimer?.cancel();
+    _resetPop?.cancel();
     _scroll.dispose();
     super.dispose();
   }
@@ -310,20 +376,14 @@ class _IdeaTimelineState extends State<IdeaTimeline> {
     if (widget.loading && widget.ideas.isEmpty) {
       return const IdeaTimelineSkeleton();
     }
-    final indexed = widget.ideas.indexed.toList()
-      ..sort((a, b) {
-        final order = a.$2.createdAt.compareTo(b.$2.createdAt);
-        return order == 0 ? a.$1.compareTo(b.$1) : order;
-      });
-    final ideas = indexed.map((e) => e.$2).toList().reversed.toList();
-    String day(IdeaItem idea) {
-      final d = idea.createdAt.toLocal();
-      return '${d.year}年${d.month}月${d.day}日';
-    }
-
+    final ordered = _ordered();
+    final rows = <List<IdeaItem>>[
+      for (var i = 0; i < ordered.length; i += 2)
+        ordered.sublist(i, math.min(i + 2, ordered.length)),
+    ].reversed.toList();
     return Stack(
       children: [
-        if (ideas.isEmpty)
+        if (ordered.isEmpty)
           const Center(
             child: Text(
               'まだアイデアはありません',
@@ -336,160 +396,40 @@ class _IdeaTimelineState extends State<IdeaTimeline> {
             key: const PageStorageKey('idea-history'),
             controller: _scroll,
             reverse: true,
-            padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
-            itemCount: ideas.length,
-            findChildIndexCallback: (key) {
-              final index = ideas.indexWhere(
-                (idea) => ValueKey(idea.id) == key,
-              );
-              return index < 0 ? null : index;
-            },
+            padding: const EdgeInsets.fromLTRB(0, 12, 0, 20),
+            itemCount: rows.length,
+            itemExtent: 216,
             itemBuilder: (context, index) {
-              final idea = ideas[index],
-                  own = ideas[index].isMine(widget.userId);
-              final date = idea.createdAt.toLocal();
-              final time =
-                  '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-              final divider =
-                  index == ideas.length - 1 ||
-                  day(idea) != day(ideas[index + 1]);
-              final radius = BorderRadius.only(
-                topLeft: Radius.circular(own ? 21 : 4),
-                topRight: Radius.circular(own ? 4 : 21),
-                bottomLeft: const Radius.circular(21),
-                bottomRight: const Radius.circular(21),
-              );
-              return Column(
-                key: ValueKey(idea.id),
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              return Row(
+                key: ValueKey('row-${rows[index].first.id}'),
                 children: [
-                  if (divider)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: const Color(0xB8E7EDFA),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 5,
-                            ),
-                            child: Text(
-                              day(idea),
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: TnTokens.textMuted,
+                  for (var column = 0; column < 2; column++)
+                    Expanded(
+                      child: column >= rows[index].length
+                          ? const SizedBox()
+                          : Padding(
+                              padding: EdgeInsets.only(
+                                top: (index + column).isOdd ? 28 : 0,
                               ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 18),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: own
-                          ? MainAxisAlignment.end
-                          : MainAxisAlignment.start,
-                      children: [
-                        if (!own) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 20),
-                            child: CircleAvatar(
-                              radius: 15,
-                              backgroundColor: Colors.white,
-                              child: Text(
-                                idea.authorName.isEmpty
-                                    ? '寮'
-                                    : idea.authorName.characters.first,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: TnTokens.textMuted,
+                              child: Center(
+                                child: FractionallySizedBox(
+                                  widthFactor: .85,
+                                  child: SizedBox(
+                                    height: 150,
+                                    child: _FloatingIdea(
+                                      idea: rows[index][column],
+                                      paused: _paused,
+                                      popping:
+                                          !_paused &&
+                                          _popping == rows[index][column].id,
+                                      onOpen: () =>
+                                          widget.onOpen(rows[index][column]),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Flexible(
-                          child: FractionallySizedBox(
-                            widthFactor: .88,
-                            alignment: own
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Column(
-                              crossAxisAlignment: own
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
-                              children: [
-                                if (!own)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 4,
-                                      bottom: 5,
-                                    ),
-                                    child: Text(
-                                      idea.authorName.isEmpty
-                                          ? '寮生'
-                                          : idea.authorName,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: TnTokens.textMuted,
-                                      ),
-                                    ),
-                                  ),
-                                Material(
-                                  key: ValueKey('message-${idea.id}'),
-                                  color: own
-                                      ? TnTokens.primary
-                                      : const Color(0xF2FFFFFF),
-                                  borderRadius: radius,
-                                  child: InkWell(
-                                    borderRadius: radius,
-                                    onTap: () => widget.onOpen(idea),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 13,
-                                      ),
-                                      child: Text(
-                                        idea.body,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          height: 1.7,
-                                          color: own
-                                              ? Colors.white
-                                              : TnTokens.textMain,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 5,
-                                    left: 4,
-                                    right: 4,
-                                  ),
-                                  child: Text(
-                                    '$time${idea.likes > 0 ? '  ♡ ${idea.likes}' : ''}',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: TnTokens.textMuted,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
-                  ),
                 ],
               );
             },
@@ -512,6 +452,165 @@ class _IdeaTimelineState extends State<IdeaTimeline> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _FloatingIdea extends StatefulWidget {
+  const _FloatingIdea({
+    required this.idea,
+    required this.paused,
+    required this.popping,
+    required this.onOpen,
+  });
+  final IdeaItem idea;
+  final bool paused, popping;
+  final VoidCallback onOpen;
+  @override
+  State<_FloatingIdea> createState() => _FloatingIdeaState();
+}
+
+class _FloatingIdeaState extends State<_FloatingIdea>
+    with TickerProviderStateMixin {
+  late final _float = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 360),
+  );
+  late final _pop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 800),
+  );
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  void _sync() {
+    if (widget.paused) {
+      _float.stop();
+      _pop.stop();
+    } else {
+      if (!_float.isAnimating) _float.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _FloatingIdea old) {
+    super.didUpdateWidget(old);
+    _sync();
+    if (widget.popping && !old.popping && !widget.paused) _pop.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _float.dispose();
+    _pop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hash = widget.idea.id.codeUnits.fold(
+      7,
+      (h, c) => (h * 31 + c) & 0x7fffffff,
+    );
+    final radii = [
+      const BorderRadius.only(
+        topLeft: Radius.circular(32),
+        topRight: Radius.circular(42),
+        bottomLeft: Radius.circular(24),
+        bottomRight: Radius.circular(34),
+      ),
+      BorderRadius.circular(45),
+      const BorderRadius.only(
+        topLeft: Radius.circular(45),
+        topRight: Radius.circular(28),
+        bottomLeft: Radius.circular(38),
+        bottomRight: Radius.circular(46),
+      ),
+    ];
+    final radius = radii[hash % radii.length];
+    return AnimatedBuilder(
+      animation: Listenable.merge([_float, _pop]),
+      builder: (context, child) {
+        final phase =
+            _float.value * 360 / (9 + hash % 5) * math.pi * 2 + hash % 100 / 10;
+        final drift = widget.paused
+            ? Offset.zero
+            : Offset(math.sin(phase) * 5, math.cos(phase) * 8);
+        var opacity = 1.0, scale = 1.0;
+        if (widget.popping && !widget.paused) {
+          final t = _pop.value;
+          if (t < .10) {
+            opacity = 1 - t / .10;
+            scale = 1 - t / .10 * .10;
+          } else if (t < .22) {
+            opacity = 0;
+            scale = .72;
+          } else if (t < .42) {
+            final v = (t - .22) / .20;
+            opacity = v;
+            scale = .72 + .36 * Curves.easeOutCubic.transform(v);
+          } else if (t < .72) {
+            scale = 1.08 + (.985 - 1.08) * (t - .42) / .30;
+          } else {
+            scale = .985 + .015 * (t - .72) / .28;
+          }
+        }
+        return Transform.translate(
+          offset: drift,
+          child: Transform.rotate(
+            angle: widget.paused ? 0 : (hash % 5 - 2) * .01,
+            child: Transform.scale(
+              scale: scale,
+              child: Opacity(opacity: opacity, child: child),
+            ),
+          ),
+        );
+      },
+      child: Semantics(
+        button: true,
+        label: widget.idea.body,
+        child: ExcludeSemantics(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12183181),
+                  blurRadius: 22,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Material(
+              key: ValueKey('message-${widget.idea.id}'),
+              color: const Color(0xEEFFFFFF),
+              borderRadius: radius,
+              child: InkWell(
+                borderRadius: radius,
+                onTap: widget.onOpen,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: Text(
+                      widget.idea.body,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.7,
+                        color: TnTokens.textMain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

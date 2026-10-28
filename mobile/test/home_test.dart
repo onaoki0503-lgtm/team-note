@@ -41,27 +41,27 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
-  testWidgets(
-    'text stays still after four seconds; own and other messages show in a conversation',
-    (tester) async {
-      await tester.pumpWidget(
-        const HomePreviewApp(ideaCount: 2, reducedMotion: true),
-      );
-      await tester.pumpAndSettle();
-      final first = tester.getRect(
-        find.byKey(const ValueKey('message-preview-0')),
-      );
-      await tester.pump(const Duration(seconds: 5));
-      expect(
-        tester.getRect(find.byKey(const ValueKey('message-preview-0'))),
-        first,
-      );
-      expect(find.textContaining('年'), findsWidgets);
-      expect(find.byType(IdeaTimeline), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+  testWidgets('reduced motion stops the original bubbles; metadata is absent', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const HomePreviewApp(ideaCount: 2, reducedMotion: true),
+    );
+    await tester.pumpAndSettle();
+    final first = tester.getRect(
+      find.byKey(const ValueKey('message-preview-0')),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    expect(
+      tester.getRect(find.byKey(const ValueKey('message-preview-0'))),
+      first,
+    );
+    expect(find.textContaining('年'), findsNothing);
+    expect(find.text('プレビュー'), findsNothing);
+    expect(find.byType(IdeaTimeline), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('history detail, likes, own deletion and proposal stay usable', (
     tester,
   ) async {
@@ -170,4 +170,29 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('floating bubbles briefly disappear and pop every four seconds', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const HomePreviewApp());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 130));
+    expect(
+      tester
+          .widgetList<Opacity>(find.byType(Opacity))
+          .where((o) => o.opacity == 0)
+          .length,
+      1,
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(
+      tester
+          .widgetList<Opacity>(find.byType(Opacity))
+          .where((o) => o.opacity == 0),
+      isEmpty,
+    );
+    expect(find.text('プレビュー'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
