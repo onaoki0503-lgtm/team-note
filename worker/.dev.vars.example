@@ -1,0 +1,4 @@
+# Local Wrangler secrets (copy to worker/.dev.vars — gitignored).
+# Publishable/anon key from Supabase → Settings → API.
+# Production: wrangler secret put SUPABASE_ANON_KEY --config worker/wrangler.jsonc
+SUPABASE_ANON_KEY=

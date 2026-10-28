@@ -1,3 +1,4 @@
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { PROPOSAL_FIELDS, MAX_DISTRIBUTION_INPUT, isAssignments } from '../../src/lib/proposalForm.ts';
 import { isProposal, isTopics, MAX_AI_INPUT, type AiTask } from '../../src/lib/aiContract.ts';
 
@@ -7,6 +8,13 @@ export interface Env {
   AI_RATE_LIMITER: { limit(options: { key: string }): Promise<{ success: boolean }> };
   ALLOWED_ORIGINS: string;
   AI_MODEL?: string;
+  /** Supabase project URL (https://….supabase.co). Required for JWT auth unless AI_AUTH_BYPASS=1. */
+  SUPABASE_URL?: string;
+  /** Publishable/anon key — used only to call PostgREST under the caller's JWT for membership. */
+  SUPABASE_ANON_KEY?: string;
+  COMMUNITY_ID?: string;
+  /** Test/dev only. Never set on the production Worker. */
+  AI_AUTH_BYPASS?: string;
 }
 const string = { type: 'string' };
 const strings = { type: 'array', items: string, maxItems: 12 };
@@ -18,6 +26,7 @@ const schemas = {
   proposal: { type: 'object', additionalProperties: false, properties: proposalProperties, required: Object.keys(proposalProperties) },
   topics: { type: 'object', additionalProperties: false, properties: { topics: { type: 'array', minItems: 1, maxItems: 3, items: { type: 'object', properties: { id: string, title: string, summary: string, projectType: { type: 'string', enum: ['event','operation'] }, keyPoints: strings }, required: ['id','title','summary','projectType','keyPoints'], additionalProperties: false } } }, required: ['topics'] }
 };
+const corsHeaders = 'Content-Type, Authorization';
 function json(value: unknown, status: number, origin?: string) {
   return Response.json(value, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Vary': 'Origin', ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}) } });
 }
@@ -32,6 +41,46 @@ async function readBody(request: Request) {
   const body = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.length; }
   return JSON.parse(new TextDecoder().decode(body)) as unknown;
 }
+function bearerToken(request: Request): string | null {
+  const header = request.headers.get('authorization') || '';
+  const match = /^Bearer\s+(\S+)$/i.exec(header);
+  return match?.[1] || null;
+}
+/** Verify Supabase Auth JWT and confirm the caller is an active H-Village member. */
+async function requireMember(request: Request, env: Env, origin: string): Promise<{ userId: string } | Response> {
+  if (env.AI_AUTH_BYPASS === '1') return { userId: 'auth-bypass' };
+  const token = bearerToken(request);
+  if (!token) return json({ error: 'auth_required' }, 401, origin);
+  const supabaseUrl = (env.SUPABASE_URL || '').replace(/\/$/, '');
+  const anon = env.SUPABASE_ANON_KEY || '';
+  if (!supabaseUrl || !anon) return json({ error: 'auth_unavailable' }, 503, origin);
+  const community = env.COMMUNITY_ID || 'h-village';
+  try {
+    const jwks = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: `${supabaseUrl}/auth/v1`,
+      audience: 'authenticated',
+      algorithms: ['ES256', 'RS256'],
+    });
+    const userId = typeof payload.sub === 'string' ? payload.sub : '';
+    if (!userId) return json({ error: 'auth_invalid' }, 401, origin);
+    const memberUrl = new URL(`${supabaseUrl}/rest/v1/tn_members`);
+    memberUrl.searchParams.set('select', 'user_id');
+    memberUrl.searchParams.set('community_id', `eq.${community}`);
+    memberUrl.searchParams.set('user_id', `eq.${userId}`);
+    memberUrl.searchParams.set('active', 'eq.true');
+    memberUrl.searchParams.set('limit', '1');
+    const memberRes = await fetch(memberUrl, {
+      headers: { apikey: anon, Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    if (!memberRes.ok) return json({ error: 'auth_invalid' }, 401, origin);
+    const rows: unknown = await memberRes.json();
+    if (!Array.isArray(rows) || rows.length === 0) return json({ error: 'not_a_member' }, 403, origin);
+    return { userId };
+  } catch {
+    return json({ error: 'auth_invalid' }, 401, origin);
+  }
+}
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -39,9 +88,11 @@ export default {
     const origin = request.headers.get('origin') || '';
     const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
     if (!origin || !allowed.includes(origin)) return json({ error: 'origin_denied' }, 403);
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600', 'Vary': 'Origin' } });
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': corsHeaders, 'Access-Control-Max-Age': '600', 'Vary': 'Origin' } });
     if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, origin);
     if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return json({ error: 'json_required' }, 415, origin);
+    const auth = await requireMember(request, env, origin);
+    if (auth instanceof Response) return auth;
     let body: unknown;
     try { body = await readBody(request); } catch (error) { return json({ error: error instanceof Error && error.message === 'too_large' ? 'input_too_large' : 'invalid_json' }, error instanceof Error && error.message === 'too_large' ? 413 : 400, origin); }
     if (!body || typeof body !== 'object' || !('task' in body) || !('text' in body) || typeof body.task !== 'string' || !['topics','proposal','distribute'].includes(body.task) || typeof body.text !== 'string' || !body.text.trim() || body.text.length > MAX_AI_INPUT) return json({ error: 'invalid_input' }, 400, origin);
@@ -50,7 +101,7 @@ export default {
     if (!env.AI || !env.AI_RATE_LIMITER) return json({ error: 'ai_unavailable' }, 503, origin);
     const task = body.task as AiTask;
     try {
-      const rate = await env.AI_RATE_LIMITER.limit({ key: request.headers.get('CF-Connecting-IP') || 'local' });
+      const rate = await env.AI_RATE_LIMITER.limit({ key: auth.userId || request.headers.get('CF-Connecting-IP') || 'local' });
       if (!rate.success) return json({ error: 'rate_limited' }, 429, origin);
       const output = await env.AI.run(env.AI_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', {
         messages: [

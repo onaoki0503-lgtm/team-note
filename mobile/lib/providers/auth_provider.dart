@@ -477,12 +477,15 @@ class AuthProvider extends ChangeNotifier {
       return '確認メールを開いてから、同じメールでGoogleやAppleでも入れます。';
     }
     if (m.contains('provider is not enabled') ||
-        m.contains('unsupported provider') ||
-        m.contains('apple') && m.contains('not enabled')) {
-      return 'Appleログインはまだ有効になっていません。管理者に連絡してください。';
+        (m.contains('unsupported provider') && m.contains('apple')) ||
+        (m.contains('apple') && m.contains('not enabled'))) {
+      return 'Supabaseの Apple プロバイダがオフです。'
+          'Dashboard → Authentication → Providers → Apple を ON にして保存してください。'
+          '（詳細: $raw）';
     }
-    if (m.contains('unacceptable audience') || m.contains('audience')) {
-      return 'Appleの設定（Client IDsに bundle ID）を確認してください。';
+    if (m.contains('unacceptable audience') ||
+        (m.contains('audience') && m.contains('apple'))) {
+      return 'Apple Client IDs に com.teamnote.teamNoteMobile が必要です。（詳細: $raw）';
     }
     if (raw.startsWith('Bad state: ')) return raw.substring(11);
     if (raw.startsWith('StateError: ')) return raw.substring(12);

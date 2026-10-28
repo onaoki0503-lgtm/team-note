@@ -13,12 +13,12 @@ Cloudflare Workersの`POST /api/ai`が議題抽出・企画書生成を受け、
 
 ## 接続設定
 
-- `wrangler.jsonc`: AIモデル、Workers AIバインディング、10回／60秒のIP別レート制限、許可Originを設定。
+- `wrangler.jsonc`: AIモデル、Workers AIバインディング、ユーザー別レート制限（10回／60秒）、許可Origin、`SUPABASE_URL` / `COMMUNITY_ID` を設定。
+- 本番では `Authorization: Bearer <Supabase access_token>` を必須とし、JWKSで署名検証したうえで `tn_members` の所属（H-Village）を確認する。publishableキーは `wrangler secret put SUPABASE_ANON_KEY`（ローカルは `worker/.dev.vars`）。
+- 回帰用テストWorkerのみ `AI_AUTH_BYPASS=1` を許可。本番Workerへは設定しない。
 - 本番URLを使う場合は、そのOriginを明示し、アプリ側の`VITE_AI_WORKER_URL`に`https://.../api/ai`を設定する。ワイルドカードOriginは使わない。
 - 本文は12,000文字、HTTP本文は65,536バイトまで。タスクは`distribute`（現在の企画フォーム用）、`topics`と`proposal`（旧互換）。AIのJSONはサーバー・クライアント両側で検証。
 - 生ログ・本文をログへ書かず、応答は`no-store`。入力にない予算・日付・承認を確認済みとして生成させない。
-- 現時点のOrigin制限・レート制限は団体別の本人認証ではない。多団体向け本番化で所属確認と利用上限を接続する。
-- 公開操作は今回未実施。`workers_dev: false`を維持し、今回の認証・開発サーバー起動を外部公開と混同しない。
 
 ## 参照
 

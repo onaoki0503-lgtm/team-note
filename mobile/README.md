@@ -76,6 +76,8 @@ One or two ideas use large staggered cards; up to 12 use adaptive non-overlappin
 
 2026-10-27 / AI (Codex): 検証結果 — ホーム16件、既存画面29件、共有4件、管理画面11件は今回の実行／再試行の合計で合格。吹き出し保存規則6件、Flutter解析・13件・署名なしiOSリリースビルド、Web build・lintが成功。重いビルドとブラウザの同時実行でタイムアウトした項目は順次再試行して合格を確認。既知の備品取り込み11件は今回の回帰から除外しており、アプリ全体の全件合格という意味ではない。シミュレーターのコールドビルドは負荷回避で中断し、実機表示・配信確認は未実施。TestFlightの署名／送信とWeb公開は行っていない。
 
+2026-10-28 / AI (Composer): 備品取り込み11件はWeb側で全件合格に復帰。モバイルは `AppDataProvider` で `tn_ideas` / `tn_reactions` / `tn_members` の Realtime 購読を開始（pull refresh の安全網は維持）。
+
 2026-10-28 / AI (Codex): IdeaTimelineの遅延構築ListViewで過去へスクロール。AppDataProviderは旧hiddenAtを履歴から除外しない。新規配信はせず、ソースの番号は既存0.1.15+22のまま。
 
 2026-10-28 / AI (Codex): 代表の訂正を反映し、LINE風の発言者・日時・左右色分けを撤去。元の白い吹き出しと浮遊・4秒の消失ポップを復元し、過去へのスクロールだけを継続。詳細にも投稿者を表示しない。投稿者IDや作成日時の保存・権限判定は維持。画面・入力・減動時の停止を維持。

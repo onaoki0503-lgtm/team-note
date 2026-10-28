@@ -172,6 +172,7 @@ grant execute on function public.tn_get_board(text),public.tn_join_community(tex
 do $$begin
  if not exists(select 1 from pg_publication where pubname='supabase_realtime') then create publication supabase_realtime; end if;
  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='tn_ideas') then alter publication supabase_realtime add table public.tn_ideas; end if;
+ if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='tn_reactions') then alter publication supabase_realtime add table public.tn_reactions; end if;
  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='tn_members') then alter publication supabase_realtime add table public.tn_members; end if;
 end$$;
 notify pgrst,'reload schema';

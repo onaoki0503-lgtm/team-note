@@ -4,7 +4,7 @@ import worker, { type Env } from '../worker/src/index.ts';
 import { fixtureAi, fixtureProposal } from './worker-fixtures.ts';
 import { isProposal, isTopics } from '../src/lib/aiContract.ts';
 const origin = 'http://127.0.0.1:5174';
-const baseEnv: Env = { AI: fixtureAi, AI_RATE_LIMITER: { async limit() { return { success: true }; } }, ALLOWED_ORIGINS: origin };
+const baseEnv: Env = { AI: fixtureAi, AI_RATE_LIMITER: { async limit() { return { success: true }; } }, ALLOWED_ORIGINS: origin, AI_AUTH_BYPASS: '1' };
 const request = (body: unknown = { task: 'proposal', text: '中庭で上映会を行いたい。' }, headers: Record<string, string> = {}) => new Request('http://worker/api/ai', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', ...headers }, body: typeof body === 'string' ? body : JSON.stringify(body) });
 test('議題抽出をWorker経由で実行し、検証済みJSONを返す', async () => { const res = await worker.fetch(request({ task: 'topics', text: '中庭の上映会' }), baseEnv); assert.equal(res.status, 200); assert.ok(isTopics((await res.json() as { data: unknown }).data)); });
 test('企画書の全フィールドを検証し、キャッシュ・CORSを限定する', async () => { const res = await worker.fetch(request(), baseEnv); assert.equal(res.status, 200); assert.ok(isProposal((await res.json() as { data: unknown }).data)); assert.equal(res.headers.get('cache-control'), 'no-store'); assert.equal(res.headers.get('access-control-allow-origin'), origin); });
@@ -16,7 +16,19 @@ test('bodyの実バイト数でも上限を検証する', async () => { assert.e
 test('レート制限後にモデルを実行しない', async () => { let calls = 0; const env = { ...baseEnv, AI_RATE_LIMITER: { async limit() { return { success: false }; } }, AI: { async run() { calls++; return {}; } } }; assert.equal((await worker.fetch(request(), env)).status, 429); assert.equal(calls, 0); });
 test('未設定・推論失敗ではローカルの偽生成に切り替えない', async () => { assert.equal((await worker.fetch(request(), { ...baseEnv, AI: undefined } as unknown as Env)).status, 503); assert.equal((await worker.fetch(request({ task: 'proposal', text: '接続失敗のテスト' }), baseEnv)).status, 503); });
 test('モデルから不完全な文書が返ったら成功として返さない', async () => { assert.equal((await worker.fetch(request({ task: 'proposal', text: '不正応答のテスト' }), baseEnv)).status, 502); });
-test('プリフライト・不明パス・未許可メソッドを処理する', async () => { const pre = await worker.fetch(new Request('http://worker/api/ai', { method: 'OPTIONS', headers: { Origin: origin } }), baseEnv); assert.equal(pre.status, 204); assert.equal(pre.headers.get('access-control-allow-methods'), 'POST, OPTIONS'); assert.equal((await worker.fetch(new Request('http://worker/unknown'), baseEnv)).status, 404); assert.equal((await worker.fetch(new Request('http://worker/api/ai', { headers: { Origin: origin } }), baseEnv)).status, 405); });
+test('プリフライト・不明パス・未許可メソッドを処理する', async () => { const pre = await worker.fetch(new Request('http://worker/api/ai', { method: 'OPTIONS', headers: { Origin: origin } }), baseEnv); assert.equal(pre.status, 204); assert.equal(pre.headers.get('access-control-allow-methods'), 'POST, OPTIONS'); assert.equal(pre.headers.get('access-control-allow-headers'), 'Content-Type, Authorization'); assert.equal((await worker.fetch(new Request('http://worker/unknown'), baseEnv)).status, 404); assert.equal((await worker.fetch(new Request('http://worker/api/ai', { headers: { Origin: origin } }), baseEnv)).status, 405); });
+test('JWTなしでは本番相当の認証設定で推論しない', async () => {
+  let calls = 0;
+  const env: Env = { ...baseEnv, AI_AUTH_BYPASS: undefined, SUPABASE_URL: 'https://example.supabase.co', SUPABASE_ANON_KEY: 'anon', AI: { async run() { calls++; return {}; } } };
+  assert.equal((await worker.fetch(request(), env)).status, 401);
+  assert.equal(calls, 0);
+});
+test('Bearer欠落をauth_requiredで拒否する', async () => {
+  const env: Env = { ...baseEnv, AI_AUTH_BYPASS: undefined, SUPABASE_URL: 'https://example.supabase.co', SUPABASE_ANON_KEY: 'anon' };
+  const res = await worker.fetch(request(), env);
+  assert.equal(res.status, 401);
+  assert.equal((await res.json() as { error: string }).error, 'auth_required');
+});
 test('構造が異なるAI出力を両側の契約で拒否する', () => { assert.equal(isProposal({ ...fixtureProposal(), budgetItems: [{ cost: 1 }] }), false); assert.equal(isTopics([{ title: '題名' }]), false); assert.equal(isProposal({ ...fixtureProposal(), title: '' }), false); });
 test('最大長の本文でも議題を別フィールドで指定できる', async () => { const res = await worker.fetch(request({ task: 'proposal', text: 'あ'.repeat(12000), topic: '中庭の上映会' }), baseEnv); assert.equal(res.status, 200); });
 test('タスク・選択議題の異常な型を拒否する', async () => { for (const body of [{ task: { toString: 1 }, text: '本文' }, { task: 'proposal', text: '本文', topic: [] }, { task: 'proposal', text: '本文', topic: 'あ'.repeat(201) }]) assert.equal((await worker.fetch(request(body), baseEnv)).status, 400); });

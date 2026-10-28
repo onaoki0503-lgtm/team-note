@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/environment.dart';
 import '../models/models.dart';
@@ -11,6 +12,8 @@ class AppDataProvider extends ChangeNotifier {
   AppDataProvider({TeamNoteApi? api}) : _api = api ?? TeamNoteApi();
 
   final TeamNoteApi _api;
+  RealtimeChannel? _boardChannel;
+  AuthProvider? _realtimeAuth;
 
   List<IdeaItem> ideas = [];
   List<MemberProfile> members = [];
@@ -21,6 +24,7 @@ class AppDataProvider extends ChangeNotifier {
   String projectFilter = 'すべて';
   bool loading = false;
   String? error;
+  bool boardLive = false;
 
   ProjectItem? projectById(String id) {
     for (final p in projects) {
@@ -57,6 +61,7 @@ class AppDataProvider extends ChangeNotifier {
         refreshArchives(),
         refreshReports(),
       ]);
+      _ensureBoardRealtime(auth);
     } catch (e) {
       error = '$e';
     } finally {
@@ -69,6 +74,96 @@ class AppDataProvider extends ChangeNotifier {
     if (!Environment.isConfigured || Environment.demoMode) {
       throw StateError('クラウド未接続です。ログインしてから操作してください。');
     }
+  }
+
+  /// Live bubbles & hearts: postgres_changes on tn_ideas / tn_reactions → board refresh.
+  void _ensureBoardRealtime(AuthProvider auth) {
+    if (!Environment.isConfigured || Environment.demoMode) return;
+    if (_boardChannel != null && identical(_realtimeAuth, auth)) return;
+    stopBoardRealtime();
+    _realtimeAuth = auth;
+    final community = Environment.communityId;
+    final client = Supabase.instance.client;
+    _boardChannel = client
+        .channel('teamnote:$community:board')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'tn_ideas',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'community_id',
+            value: community,
+          ),
+          callback: (_) {
+            final current = _realtimeAuth;
+            if (current != null && current.gate == AuthGate.ready) {
+              refreshIdeas(current);
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'tn_reactions',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'community_id',
+            value: community,
+          ),
+          callback: (_) {
+            final current = _realtimeAuth;
+            if (current != null && current.gate == AuthGate.ready) {
+              refreshIdeas(current);
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'tn_members',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'community_id',
+            value: community,
+          ),
+          callback: (_) {
+            final current = _realtimeAuth;
+            if (current != null && current.gate == AuthGate.ready) {
+              refreshMembers(current);
+            }
+          },
+        );
+    _boardChannel!.subscribe((status, error) {
+      boardLive = status == RealtimeSubscribeStatus.subscribed;
+      notifyListeners();
+      if (boardLive) {
+        final current = _realtimeAuth;
+        if (current != null && current.gate == AuthGate.ready) {
+          refreshIdeas(current);
+        }
+      }
+    });
+  }
+
+  void stopBoardRealtime() {
+    final channel = _boardChannel;
+    _boardChannel = null;
+    _realtimeAuth = null;
+    boardLive = false;
+    if (channel != null) {
+      try {
+        Supabase.instance.client.removeChannel(channel);
+      } catch (_) {
+        /* Channel may already be closed after sign-out. */
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    stopBoardRealtime();
+    super.dispose();
   }
 
   Future<void> refreshIdeas(AuthProvider auth) async {

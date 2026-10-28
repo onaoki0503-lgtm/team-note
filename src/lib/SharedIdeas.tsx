@@ -66,6 +66,7 @@ function CloudProvider({ children }: { children: ReactNode }) {
     if (!uid || status !== 'ready') return;
     const channel = client.channel(`teamnote:${community}:${uid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tn_ideas', filter: `community_id=eq.${community}` }, () => { void refresh(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tn_reactions', filter: `community_id=eq.${community}` }, () => { void refresh(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tn_members', filter: `community_id=eq.${community}` }, () => { void refresh(); })
       .subscribe(state => { setConnected(state === 'SUBSCRIBED'); if (state === 'SUBSCRIBED') void refresh(); });
     const visible = () => { if (!document.hidden) void refresh(); };

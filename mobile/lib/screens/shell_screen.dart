@@ -22,6 +22,7 @@ class _ShellScreenState extends State<ShellScreen> {
   late int _index;
   bool _motionPaused = false;
   bool _profileOpen = false;
+  AppDataProvider? _data;
   @override
   void initState() {
     super.initState();
@@ -29,9 +30,8 @@ class _ShellScreenState extends State<ShellScreen> {
     _readMotion();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<AppDataProvider>().refreshAll(
-          context.read<AuthProvider>(),
-        );
+        _data = context.read<AppDataProvider>();
+        _data!.refreshAll(context.read<AuthProvider>());
       }
     });
   }
@@ -47,6 +47,14 @@ class _ShellScreenState extends State<ShellScreen> {
     if (oldWidget.initialTab != widget.initialTab) {
       _index = widget.initialTab.clamp(0, 3);
     }
+  }
+
+  @override
+  @override
+  void dispose() {
+    // Soft-lock / logout leaves this route; drop the board channel with it.
+    _data?.stopBoardRealtime();
+    super.dispose();
   }
 
   @override

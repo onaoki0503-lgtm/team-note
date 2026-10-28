@@ -28,7 +28,7 @@ npm run build
 npm run lint
 ```
 
-React + TypeScript + Viteを使用。AIは専用Cloudflare Worker、プロフィール／名簿とアイデア・いいねはSupabaseへ接続する。通常入口はメール認証と初回プロフィール登録が必要。操作デモ（?demo=1）は共有DBへ接続せず、既存の端末内保存で操作感を確認できる。企画・報告・備品は引き続き端末内保存。`npm run worker:dev`と`npm run dev`でローカル起動し、`npm run test`で操作を検証する。公開URLの確認は実AI呼び出しを含む`npm run test:public`を使う。実認証／共有DBの複数端末通し確認と実マイクの試験は未完了。
+React + TypeScript + Viteを使用。AIは専用Cloudflare Worker（Supabase Auth JWT＋H-Village所属確認）、プロフィール／名簿・アイデア・いいね・企画（`tn_projects`）・業務報告（`tn_work_reports`）・備品（`tn_inventory_items`）はSupabaseへ接続する。アイデア板はRealtime（`tn_ideas` / `tn_reactions`）で他端末へ即時反映。通常入口はメール認証と初回プロフィール登録が必要。操作デモ（?demo=1）は共有DBへ接続せず端末内保存。企画フォームの下書きのみ端末内。`npm run worker:dev`と`npm run dev`でローカル起動し、`npm run test`で操作を検証する。公開URLの確認は実AI呼び出しを含む`npm run test:public`を使う。
 
 ### Flutter（iOS / Android）
 
@@ -203,6 +203,8 @@ Flutter版ホームを白いガラス調、スクロールしない最大12件�
 既存案件の表示改修としてGitHub Pages／Flutter／Supabase／Workersを維持。今回の外部Web公開とTestFlight配信は未実施。ローカル確認は http://127.0.0.1:5177/?demo=1 。新デザインは `src/home-reference.css`、共通定義は `shared/design-tokens.json` と [STYLEGUIDE](docs/STYLEGUIDE.md) を参照。
 
 2026-10-27 / AI (Codex): 検証結果 — ホーム16件、既存画面29件、共有4件、管理画面11件は今回の実行／再試行の合計で合格。吹き出し保存規則6件、Flutter解析・13件・署名なしiOSリリースビルド、Web build・lintが成功。重いビルドとブラウザの同時実行でタイムアウトした項目は順次再試行して合格を確認。既知の備品取り込み11件は今回の回帰から除外しており、アプリ全体の全件合格という意味ではない。シミュレーターのコールドビルドは負荷回避で中断し、実機表示・配信確認は未実施。TestFlightの署名／送信とWeb公開は行っていない。
+
+2026-10-28 / AI (Composer): 備品取り込み11件全件合格。AI WorkerにSupabase JWT＋H-Village所属確認。Web/Flutter Realtime（ideas/reactions）。共有モードの企画・報告・備品は既存の `tn_projects` / `tn_work_reports` / `tn_inventory_items` へ同期（下書きのみ端末内）。本番Workerへは `SUPABASE_ANON_KEY` secret 設定と再配備、DBへは `supabase/teamnote_realtime_reactions.sql` の適用が必要。
 
 2026-10-28 / AI (Codex): ホームをLINE風の日時順トークへ変更。自分は右・他の人は左、上へスクロールして過去を閲覧。画面側の12件／7日制限と浮遊・4秒ポップを廃止し、保存された旧非表示投稿も表示。本文・日時・投稿者、下書き、共有、詳細の既存操作を維持。Web／Flutterのソース更新で、公開PagesとTestFlightの新規配信は未実施。
 

@@ -5,10 +5,11 @@
 
 ## 適用順
 
-1. `teamnote_realtime.sql` — 初回（members / ideas / RLS / board RPCs）
-2. `teamnote_extend_v2.sql` — プロフィール拡張（bio・avatar）＋企画・報告・備品・資料
+1. `teamnote_realtime.sql` — 初回（members / ideas / reactions / RLS / board RPCs + Realtime publication）
+2. `teamnote_extend_v2.sql` — プロフィール拡張（bio・avatar）＋企画（`tn_projects`）・報告（`tn_work_reports`）・備品（`tn_inventory_items`）・資料
+3. 既存DBへ reactions の Realtime だけ追加する場合: `teamnote_realtime_reactions.sql`
 
-`schema.sql` / `seed.sql` は旧試作。共有restaurantへ実行しない。
+`schema.sql` / `seed.sql` は旧試作。共有restaurantへ実行しない。命名メモ: アプリが使うのは `tn_projects` / `tn_inventory_items`（`tn_proposals` / `tn_inventory` という別名テーブルはない）。
 
 ## Auth（web + モバイル）
 
