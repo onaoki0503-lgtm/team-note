@@ -18,9 +18,9 @@ Supabase Dashboard → Authentication → Providers:
 
 - Email（既存）
 - Google（有効化 + Web Client ID/Secret、Skip nonce checks ON）
-- Apple（任意）
+- Apple（ネイティブ iOS：Client IDs に `com.teamnote.teamNoteMobile`。Services ID / Secret は不要）
 
-**Manual linking = OFF**（同じ確認済みメールで email ↔ Google を自動リンク）
+**Manual linking = OFF**（同じ確認済みメールで email ↔ Google ↔ Apple を自動リンク）
 
 Redirect URLs: `teamnote://login-callback` + web origins
 

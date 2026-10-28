@@ -195,13 +195,13 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
       if (res.user != null && res.user!.identities != null && res.user!.identities!.isEmpty) {
-        error = 'このメールアドレスは既に登録されています。ログインするか、Googleで続けてください。';
+        error = 'このメールアドレスは既に登録されています。ログインするか、Google・Appleで続けてください。';
         gate = AuthGate.login;
         return;
       }
       user = res.user;
       if (res.session == null) {
-        error = '確認メールを開いた後、ログインしてください。同じメールならGoogleでも入れます。';
+        error = '確認メールを開いた後、ログインしてください。同じメールならGoogleやAppleでも入れます。';
         gate = AuthGate.login;
       } else {
         biometricLocked = false;
@@ -241,26 +241,85 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  /// Native Sign in with Apple → Supabase `signInWithIdToken`.
+  ///
+  /// Same nonce split as the working APS / TeamKaikei apps: Apple receives the
+  /// SHA-256 hash; Supabase receives the raw nonce and re-hashes to compare.
+  /// Do **not** pass Apple's authorization code as `accessToken` — it is not an
+  /// OAuth access token and breaks verification. iOS token audience is the
+  /// bundle ID `com.teamnote.teamNoteMobile` (must be listed in Supabase Apple
+  /// Client IDs). Name is only returned on the first authorization.
   Future<void> signInWithApple() async {
     await _run(() async {
+      if (defaultTargetPlatform != TargetPlatform.iOS) {
+        throw StateError('Appleで続けるはiPhoneでのみ使えます。');
+      }
+      if (!await SignInWithApple.isAvailable()) {
+        throw StateError('この端末ではAppleで続けるを使えません。');
+      }
+
       final rawNonce = _randomNonce();
-      final hashed = sha256.convert(utf8.encode(rawNonce)).toString();
-      final credential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-        nonce: hashed,
-      );
+      final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+      final AuthorizationCredentialAppleID credential;
+      try {
+        credential = await SignInWithApple.getAppleIDCredential(
+          scopes: [
+            AppleIDAuthorizationScopes.email,
+            AppleIDAuthorizationScopes.fullName,
+          ],
+          nonce: hashedNonce,
+        );
+      } on SignInWithAppleAuthorizationException catch (e) {
+        if (e.code == AuthorizationErrorCode.canceled) {
+          // User dismissed the sheet — not an error.
+          return;
+        }
+        throw StateError('Appleログインに失敗しました（${e.code}）。');
+      }
+
       final idToken = credential.identityToken;
-      if (idToken == null) throw StateError('Apple IDトークンなし');
+      if (idToken == null || idToken.isEmpty) {
+        throw StateError('Apple IDトークンなし。Apple Developerで Sign in with Apple を確認してください。');
+      }
+
       final res = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.apple,
         idToken: idToken,
         nonce: rawNonce,
       );
+      if (res.user == null) {
+        throw StateError('Appleログインに失敗しました。');
+      }
       user = res.user;
       biometricLocked = false;
+
+      // Apple only sends the name on the very first authorization.
+      final givenName = credential.givenName;
+      final familyName = credential.familyName;
+      if (givenName != null || familyName != null) {
+        final displayName = [givenName, familyName]
+            .where((part) => part != null && part.isNotEmpty)
+            .join(' ')
+            .trim();
+        if (displayName.isNotEmpty) {
+          try {
+            final updated = await Supabase.instance.client.auth.updateUser(
+              UserAttributes(
+                data: {
+                  'full_name': displayName,
+                  if (givenName != null && givenName.isNotEmpty) 'given_name': givenName,
+                  if (familyName != null && familyName.isNotEmpty) 'family_name': familyName,
+                },
+              ),
+            );
+            if (updated.user != null) user = updated.user;
+          } catch (_) {
+            // Successful sign-in must not fail if metadata write fails.
+          }
+        }
+      }
+
       final email = user?.email;
       if (email != null && email.isNotEmpty && await _credentials.isEnabled()) {
         await _credentials.enable(email: email);
@@ -275,7 +334,10 @@ class AuthProvider extends ChangeNotifier {
         throw StateError('参加コードを入力してください。');
       }
       final emailHint = user?.email?.split('@').first;
-      final normalized = draft.normalizedCopy(fallbackName: emailHint);
+      final metaName = '${user?.userMetadata?['full_name'] ?? ''}'.trim();
+      final normalized = draft.normalizedCopy(
+        fallbackName: metaName.isNotEmpty ? metaName : emailHint,
+      );
       final board = await _api.join(invite.trim(), normalized);
       await _applyBoard(board);
     });
@@ -403,10 +465,18 @@ class AuthProvider extends ChangeNotifier {
         m.contains('already been registered') ||
         m.contains('user already registered') ||
         m.contains('email address is already')) {
-      return 'このメールは既に登録されています。メールかGoogleのどちらかでログインしてください。';
+      return 'このメールは既に登録されています。メール・Google・Appleのいずれかでログインしてください。';
     }
     if (m.contains('email not confirmed')) {
-      return '確認メールを開いてから、同じメールでGoogleログインできます。';
+      return '確認メールを開いてから、同じメールでGoogleやAppleでも入れます。';
+    }
+    if (m.contains('provider is not enabled') ||
+        m.contains('unsupported provider') ||
+        m.contains('apple') && m.contains('not enabled')) {
+      return 'Appleログインはまだ有効になっていません。管理者に連絡してください。';
+    }
+    if (m.contains('unacceptable audience') || m.contains('audience')) {
+      return 'Appleの設定（Client IDsに bundle ID）を確認してください。';
     }
     if (raw.startsWith('Bad state: ')) return raw.substring(11);
     if (raw.startsWith('StateError: ')) return raw.substring(12);

@@ -123,13 +123,54 @@ VITE_TEAMNOTE_SUPABASE_PUBLISHABLE_KEY=
 
 If they try Google **before** confirming email, linking may fail; show them the confirmation mail first.
 
-## Apple (optional later)
+## Apple (native iOS — required if Google is offered on the App Store)
 
-Supabase → Providers → Apple, plus Apple Developer “Sign in with Apple” for App ID `com.teamnote.teamNoteMobile`. Code paths exist in Flutter; login UI for Apple is not shown yet.
+App Store guideline: if the iOS app offers a third-party login (Google), it must also offer **Sign in with Apple**. Team Note uses **native** Sign in with Apple only (not the web OAuth / Services ID flow). That avoids Apple’s 6‑month secret-key rotation.
+
+Follow the same nonce pattern as APS / TeamKaikei (worked after long debugging): Apple gets the SHA-256 nonce; Supabase `signInWithIdToken` gets the **raw** nonce. Never send Apple’s authorization code as an access token.
+
+### 1. Apple Developer
+
+1. [Identifiers → App IDs](https://developer.apple.com/account/resources/identifiers/list/bundleId) → App ID for **`com.teamnote.teamNoteMobile`**
+2. Capabilities → enable **Sign in with Apple** (leave Server-to-Server endpoint blank)
+3. Xcode already has `Runner/Runner.entitlements` with `com.apple.developer.applesignin = Default` and `CODE_SIGN_ENTITLEMENTS` wired. Confirm **Signing & Capabilities** still shows Sign in with Apple for team `T885499W8E`.
+
+No Services ID / `.p8` key is required for **native-only** Sign in with Apple.
+
+### 2. Supabase Apple provider
+
+Project **`yccdpqafbdhfjjkpiowo`** → **Authentication → Providers → Apple**
+
+| Setting | Value |
+|---------|--------|
+| Enable | **ON** |
+| Client IDs | `com.teamnote.teamNoteMobile` (bundle ID = token audience). If you later add web Apple OAuth, put the **Services ID first**, then the bundle ID. |
+| Secret Key / Team ID / Key ID | Leave empty for native-only |
+
+Save. Keep **Manual linking OFF** (same as Google) so a confirmed email can link Apple + Google + email into one user.
+
+### 3. What the app does
+
+- Login shows the black **Appleで続ける** button on iOS when `SignInWithApple.isAvailable()`
+- `signInWithIdToken(provider: apple, idToken, nonce: rawNonce)`
+- On first authorization only, given/family name → `user_metadata.full_name` via `updateUser`
+- Cancelled sheet is ignored (no error toast)
+
+### 4. Verify on device
+
+1. Real iPhone (simulator Apple ID can be flaky) with a build signed by team `T885499W8E`
+2. Tap **Appleで続ける** → complete Apple sheet → land on join or home
+3. Sign out → Apple again → should return without asking for name again
+4. Optional: same Apple email after email confirmation should link to the existing member
+
+If you see `unacceptable audience` / provider errors: Client IDs in Supabase must include `com.teamnote.teamNoteMobile`, and the App ID must have Sign in with Apple enabled.
+
+Web Apple login is **not** wired yet (would need Services ID + secret rotation). Residents use the Flutter app.
 
 ## Already in the codebase
 
 - Web: Google button on login + PKCE session detection
-- Flutter: Google button on login + `signInWithIdToken`
+- Flutter: Google + **Apple** buttons on login + `signInWithIdToken`
 - Deep link scheme: `teamnote://login-callback`
 - Env loading: `mobile/assets/config/.env.local`
+- iOS entitlements: Sign in with Apple (`Runner.entitlements`)

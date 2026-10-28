@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/environment.dart';
@@ -22,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _signup = false;
   bool _obscurePassword = true;
   bool _biometricAvailable = false;
+  bool _appleAvailable = false;
   bool _attemptingBiometric = false;
   bool _canBiometricUnlock = false;
   String _biometricLabel = '生体認証';
@@ -48,6 +51,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.read<AuthProvider>();
     final available = await _biometrics.isAvailable();
     final label = await _biometrics.methodLabel();
+    final appleOk = defaultTargetPlatform == TargetPlatform.iOS &&
+        await SignInWithApple.isAvailable();
     final enabled = await auth.credentials.isEnabled();
     final savedEmail = await auth.credentials.peekEmail();
     final session = Environment.isConfigured
@@ -61,6 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() {
       _biometricAvailable = available;
+      _appleAvailable = appleOk;
       _biometricLabel = label;
       _canBiometricUnlock =
           available && enabled && (locked || session != null || passwordFallback != null);
@@ -121,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() {
           _canBiometricUnlock = false;
-          _notice = 'セッションが切れています。パスワードまたは Google でログインしてください。';
+          _notice = 'セッションが切れています。パスワード・Google・Appleでログインしてください。';
         });
       }
     } finally {
@@ -272,6 +278,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+              if (_appleAvailable) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: Opacity(
+                    opacity: (auth.busy || _attemptingBiometric) ? 0.5 : 1,
+                    child: IgnorePointer(
+                      ignoring: auth.busy || _attemptingBiometric,
+                      child: SignInWithAppleButton(
+                        onPressed: () => auth.signInWithApple(),
+                        text: 'Appleで続ける',
+                        height: 48,
+                        borderRadius: const BorderRadius.all(Radius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               OutlinedButton(
                 onPressed: (auth.busy || _attemptingBiometric) ? null : () => auth.signInWithGoogle(),
                 style: OutlinedButton.styleFrom(
@@ -298,7 +323,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                '同じメールなら、メール登録後にGoogleでも入れます（確認メール完了後）。',
+                '同じメールなら、確認メール完了後にGoogleやAppleでも入れます。',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: TnTokens.textMuted),
               ),
             ] else ...[

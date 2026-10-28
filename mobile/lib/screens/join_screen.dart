@@ -22,6 +22,17 @@ class _JoinScreenState extends State<JoinScreen> {
   final _unit = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _name.text.isNotEmpty) return;
+      final auth = context.read<AuthProvider>();
+      final appleName = '${auth.user?.userMetadata?['full_name'] ?? ''}'.trim();
+      if (appleName.isNotEmpty) _name.text = appleName;
+    });
+  }
+
+  @override
   void dispose() {
     _invite.dispose();
     _name.dispose();
