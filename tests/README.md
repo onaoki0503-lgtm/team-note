@@ -1,6 +1,6 @@
 # チームノートの回帰テスト
 
-> **最終更新日**: 2026-10-28
+> **最終更新日**: 2026-10-29
 > **更新者**: AI (Codex)
 
 ## 実行
@@ -19,6 +19,7 @@ Workerの契約・失敗・入力制限・Origin・レート制限をNodeのテ�
 - `inventory-fixtures.ts` — 試験専用の架空Excel・Shift_JIS CSV
 - `app.spec.ts` — 実Chromeによる操作試験
 - `worker.test.ts` — Workerの契約・異常系試験
+- `worker-auth.test.ts` — 一時ES256鍵とローカルJWKS／所属APIによるJWT署名・期限・issuer・audience・所属拒否の試験
 - `worker-fixtures.ts` — 架空のAI応答。本番からは未参照
 - `worker-entry.ts` — 本番ハンドラーと試験用AIの接続
 - `wrangler.test.jsonc` — ローカル試験だけのworkerd設定
@@ -100,3 +101,7 @@ Workerの契約・失敗・入力制限・Origin・レート制限をNodeのテ�
 2026-10-28 / AI (Codex): 代表の訂正を反映し、LINE風の発言者・日時・左右色分けを撤去。元の白い吹き出しと浮遊・4秒の消失ポップを復元し、過去へのスクロールだけを継続。詳細にも投稿者を表示しない。投稿者IDや作成日時の保存・権限判定は維持。画面・入力・減動時の停止を維持。
 
 2026-10-28 / AI (Composer): 備品取り込み11件を全件合格。AI WorkerへSupabase JWT＋所属確認を追加（Worker 20件合格）。Web Realtimeに `tn_reactions` を追加し、Flutterへ ideas/reactions/members の Realtime 購読を接続。
+
+## 2026-10-29：Alan更新の検証
+
+`6312438`（0.1.17+26）のWeb回帰53件は、初回52件合格後、旧属性名を参照していた停止設定のテスト1件を`data-floating-paused`へ修正して再実行し合格。共有モック5件も合格。備品取り込み関連の既知不一致はAlanの更新で解消した。Workerは認証バイパスを使わない署名検証経路を追加し、既存20件＋親テストを含む追加8件が合格。実クラウドの権限・Workers設定・実機間同期を確認した結果ではない。Flutterは解析・既存13件・署名なしiOSビルド（35.4秒／31.5MB、Info.plist 0.1.17/26）成功。署名付き配信やTestFlight利用可能の確認とは区別する。

@@ -102,7 +102,7 @@ test('月次報告のダイアログを開き、Escapeで閉じる', async ({ pa
   await boot(page); await nav(page, 'はたらく'); await page.getByRole('button', { name: '西松地所レポート作成', exact: true }).click(); await expect(page.getByRole('dialog')).toBeVisible(); await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0); await expect(page.getByRole('heading', { name: '業務報告', exact: true })).toBeVisible();
 });
 test('右上の動き操作を削除し、既存の停止設定とOSの減動を保持', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('tn_motion_paused', 'true')); await boot(page); await expect(page.getByRole('button', { name: /アニメーションを停止|アニメーションを再開/ })).toHaveCount(0); await expect(page.locator('header').getByText('動き', { exact: true })).toHaveCount(0); await expect(page.locator('.app-shell')).toHaveAttribute('data-motion-paused', 'true'); await expect(page.locator('.idea-layer')).toHaveAttribute('data-rotation-paused', 'true');
+  await page.addInitScript(() => localStorage.setItem('tn_motion_paused', 'true')); await boot(page); await expect(page.getByRole('button', { name: /アニメーションを停止|アニメーションを再開/ })).toHaveCount(0); await expect(page.locator('header').getByText('動き', { exact: true })).toHaveCount(0); await expect(page.locator('.app-shell')).toHaveAttribute('data-motion-paused', 'true'); await expect(page.locator('.idea-layer')).toHaveAttribute('data-floating-paused', 'true');
   await page.emulateMedia({ reducedMotion: 'reduce' }); expect(await page.locator('.idea-card').first().evaluate(el => getComputedStyle(el).animationName)).toBe('none');
 });
 test('320・390・768・1440pxで全タブと企画詳細が画面内に収まる', async ({ page }) => {
