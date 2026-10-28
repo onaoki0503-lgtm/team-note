@@ -35,8 +35,9 @@ Google uses Supabase `signInWithIdToken`. Same confirmed email can use email or 
 
 See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each upload.
 
-## 最近のモバイル更新（0.1.17+25）
+## 最近のモバイル更新（0.1.17+26）
 
+- 進行中リストをWeb同様のテキストカードに（バナー画像を外す）
 - Realtime：`tn_ideas` / `tn_reactions` / `tn_members` 購読で吹き出し・いいねを他端末へ即時反映
 - Appleで続ける：Runner に Sign in with Apple entitlements を配線（TestFlightの unknown 修正）
 - ネイティブ Sign in with Apple → Supabase、初回名の保存
@@ -65,7 +66,7 @@ See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each uplo
 
 The existing Nishimatsu monthly sheet now has a “管理側に提出” action. It submits the full reviewed text via `tn_submit_monthly_report`; one author/community/month is stored and resubmission replaces that document. The monthly snapshot is separate from daily reports. Connection failures are shown without claiming success. The management Web view reads these monthly submissions only.
 
-Requires `../supabase/migrations/20261026044814_monthly_report_submissions.sql` (already applied to the existing shared project). No manager accounts have been added. Source version is 0.1.17+25 for this TestFlight upload.
+Requires `../supabase/migrations/20261026044814_monthly_report_submissions.sql` (already applied to the existing shared project). No manager accounts have been added. Source version is 0.1.17+26 for this TestFlight upload.
 
 Validation: Flutter analysis and the existing 12 tests pass after a small flexible-width fix for the home count/update row at 320px and 1.6x text. Daily reporting, existing sharing actions, and native navigation are retained.
 

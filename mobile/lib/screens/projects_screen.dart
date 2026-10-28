@@ -112,7 +112,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 }
 
-/// List card with left accent + optional top hero strip — mirrors web ProjectListView.
+/// Text-only list card with left accent — mirrors web ProjectListView (no banner image).
 class _ProjectCard extends StatelessWidget {
   const _ProjectCard({required this.project, required this.onTap});
 
@@ -121,16 +121,22 @@ class _ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final description = project.descriptionPreview.trim();
     return Material(
       color: TnTokens.bgSurface,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      shadowColor: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x08171A21), blurRadius: 6, offset: Offset(0, 2)),
+            ],
           ),
           child: IntrinsicHeight(
             child: Row(
@@ -138,107 +144,79 @@ class _ProjectCard extends StatelessWidget {
               children: [
                 Container(width: 5, color: project.accentColor),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        height: 88,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ColorFiltered(
-                              colorFilter: const ColorFilter.matrix(<double>[
-                                0.2126, 0.7152, 0.0722, 0, 0,
-                                0.2126, 0.7152, 0.0722, 0, 0,
-                                0.2126, 0.7152, 0.0722, 0, 0,
-                                0, 0, 0, 1, 0,
-                              ]),
-                              child: Image.asset(
-                                project.bannerAsset,
-                                fit: BoxFit.cover,
-                                alignment: Alignment.center,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(color: TnTokens.bgTint),
-                              ),
-                            ),
-                            Container(color: Colors.black.withValues(alpha: 0.1)),
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              child: Container(height: 3, color: project.accentColor),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 10, 14),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 16, 12, 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 4,
-                                    crossAxisAlignment: WrapCrossAlignment.center,
-                                    children: [
-                                      Text(
-                                        project.title,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: TnTokens.textMain,
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: TnTokens.bgTint,
-                                          borderRadius: BorderRadius.circular(7),
-                                          border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-                                        ),
-                                        child: Text(
-                                          project.statusLabel,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: TnTokens.textMuted,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
                                   Text(
-                                    project.descriptionPreview,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                    project.title,
                                     style: const TextStyle(
-                                      fontSize: 13,
-                                      color: TnTokens.textMuted,
-                                      height: 1.35,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: TnTokens.textMain,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${project.memberCount}人'
-                                    '${project.ownerName.isNotEmpty ? '  ·  発起人 ${project.ownerName}' : ''}',
-                                    style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: TnTokens.bgTint,
+                                      borderRadius: BorderRadius.circular(7),
+                                      border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+                                    ),
+                                    child: Text(
+                                      project.statusLabel,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: TnTokens.textMuted,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.only(top: 4),
-                              child: Icon(Icons.chevron_right, color: TnTokens.textMuted),
-                            ),
-                          ],
+                              if (description.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  description,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: TnTokens.textMuted,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.people_outline, size: 13, color: TnTokens.textMuted),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      '${project.memberCount} 人'
+                                      '${project.ownerName.isNotEmpty ? '    発起人 ${project.ownerName}' : ''}',
+                                      style: const TextStyle(fontSize: 12, color: TnTokens.textMuted),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                        const Icon(Icons.chevron_right, color: TnTokens.textMuted, size: 18),
+                      ],
+                    ),
                   ),
                 ),
               ],
