@@ -133,7 +133,15 @@ Follow the same nonce pattern as APS / TeamKaikei (worked after long debugging):
 
 1. [Identifiers → App IDs](https://developer.apple.com/account/resources/identifiers/list/bundleId) → App ID for **`com.teamnote.teamNoteMobile`**
 2. Capabilities → enable **Sign in with Apple** (leave Server-to-Server endpoint blank)
-3. Xcode already has `Runner/Runner.entitlements` with `com.apple.developer.applesignin = Default` and `CODE_SIGN_ENTITLEMENTS` wired. Confirm **Signing & Capabilities** still shows Sign in with Apple for team `T885499W8E`.
+3. Xcode: `Runner/Runner.entitlements` has `com.apple.developer.applesignin = Default`, and the **Runner** target (Debug/Release/Profile) must set `CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements`. Confirm **Signing & Capabilities** shows Sign in with Apple for team `T885499W8E`. After enabling the App ID capability, rebuild and verify the IPA includes the entitlement:
+
+```bash
+unzip -p build/ios/ipa/*.ipa Payload/Runner.app/embedded.mobileprovision | security cms -D | grep -A2 applesignin
+# or:
+codesign -d --entitlements :- Payload/Runner.app | grep -A2 applesignin
+```
+
+If `applesignin` is missing from the signed IPA, Apple returns `AuthorizationErrorCode.unknown` on device.
 
 No Services ID / `.p8` key is required for **native-only** Sign in with Apple.
 

@@ -275,6 +275,12 @@ class AuthProvider extends ChangeNotifier {
           // User dismissed the sheet — not an error.
           return;
         }
+        if (e.code == AuthorizationErrorCode.unknown) {
+          throw StateError(
+            'Appleログインに失敗しました。ビルドに Sign in with Apple 権限が無い、'
+            'または Apple Developer の App ID で未有効の可能性があります。',
+          );
+        }
         throw StateError('Appleログインに失敗しました（${e.code}）。');
       }
 

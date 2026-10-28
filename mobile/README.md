@@ -35,11 +35,11 @@ Google uses Supabase `signInWithIdToken`. Same confirmed email can use email or 
 
 See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each upload.
 
-## 最近のモバイル更新（0.1.15+22）
+## 最近のモバイル更新（0.1.16+23）
 
-- Appleで続ける（ネイティブ Sign in with Apple → Supabase、初回名の保存）
-- 承認済みの白いガラス調ホーム（大きなアプリ名・投稿シート・テキストのみナビ）
-- 西松地所月次レポートの管理側提出（`tn_submit_monthly_report`）
+- Appleで続ける：Runner に Sign in with Apple entitlements を配線（TestFlightの unknown 修正）
+- ネイティブ Sign in with Apple → Supabase、初回名の保存
+- 承認済みの白いガラス調ホーム／月次レポート管理側提出
 
 **配布用は `flutter build ipa --release -t lib/main.dart`**。`flutter build ipa`の終了コードだけで書出し成功とせず、IPA生成と署名を確認する。FlutterのビルドだけでTransporterへの送信やTestFlight配信は行われない。
 
@@ -64,7 +64,7 @@ See [TESTFLIGHT.md](TESTFLIGHT.md). Bump `pubspec.yaml` version before each uplo
 
 The existing Nishimatsu monthly sheet now has a “管理側に提出” action. It submits the full reviewed text via `tn_submit_monthly_report`; one author/community/month is stored and resubmission replaces that document. The monthly snapshot is separate from daily reports. Connection failures are shown without claiming success. The management Web view reads these monthly submissions only.
 
-Requires `../supabase/migrations/20261026044814_monthly_report_submissions.sql` (already applied to the existing shared project). No manager accounts have been added. Source version is 0.1.15+22 for this TestFlight upload.
+Requires `../supabase/migrations/20261026044814_monthly_report_submissions.sql` (already applied to the existing shared project). No manager accounts have been added. Source version is 0.1.16+23 for this TestFlight upload.
 
 Validation: Flutter analysis and the existing 12 tests pass after a small flexible-width fix for the home count/update row at 320px and 1.6x text. Daily reporting, existing sharing actions, and native navigation are retained.
 
@@ -72,7 +72,7 @@ Validation: Flutter analysis and the existing 12 tests pass after a small flexib
 
 The selected reference is now implemented in the Flutter source: a large app name, white circular profile, white translucent rounded idea cards, a wide #183181 posting action, and text-only pill navigation. The posting action opens a sheet with retained drafts and error handling. Direct proposal creation remains inside that sheet; converting an existing idea remains in its detail view. Settings are accessible from the profile sheet. Home motion pauses while a profile or composer is open.
 
-One or two ideas use large staggered cards; up to 12 use adaptive non-overlapping slots without page scrolling. Four-second disappear/pop motion and reduced-motion settings remain. Shared colors and typography are mirrored from `shared/design-tokens.json`. Shipped as native 0.1.15+22 (includes Apple Sign-In). Check the development record for validation and distribution status.
+One or two ideas use large staggered cards; up to 12 use adaptive non-overlapping slots without page scrolling. Four-second disappear/pop motion and reduced-motion settings remain. Shared colors and typography are mirrored from `shared/design-tokens.json`. Shipped as native 0.1.16+23 (Apple Sign-In entitlements on Runner). Check the development record for validation and distribution status.
 
 2026-10-27 / AI (Codex): 検証結果 — ホーム16件、既存画面29件、共有4件、管理画面11件は今回の実行／再試行の合計で合格。吹き出し保存規則6件、Flutter解析・13件・署名なしiOSリリースビルド、Web build・lintが成功。重いビルドとブラウザの同時実行でタイムアウトした項目は順次再試行して合格を確認。既知の備品取り込み11件は今回の回帰から除外しており、アプリ全体の全件合格という意味ではない。シミュレーターのコールドビルドは負荷回避で中断し、実機表示・配信確認は未実施。TestFlightの署名／送信とWeb公開は行っていない。
 
