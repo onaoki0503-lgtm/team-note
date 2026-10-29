@@ -6,7 +6,8 @@ import { managementContext } from './api';
 import { managementError } from './data';
 import { demoManager } from './demo';
 import type { ManagerContext } from './types';
-import { ManagementDashboard, ManagementSkeleton } from './ManagementDashboard';
+import { ManagementSkeleton } from './ManagementDashboard';
+import { OperationsDashboard } from './OperationsDashboard';
 import './management.css';
 
 export default function ManagementApp() {
@@ -68,7 +69,7 @@ export default function ManagementApp() {
     setBusy(false);
   };
   if (status === 'loading') return <ManagementSkeleton />;
-  if (status === 'ready' && manager) return <ManagementDashboard manager={manager} demo={demo} onLogout={logout} onAccessLost={loseAccess} logoutBusy={busy} logoutError={message} />;
+  if (status === 'ready' && manager) return <OperationsDashboard manager={manager} demo={demo} onLogout={logout} onAccessLost={loseAccess} logoutBusy={busy} logoutError={message} />;
   return <div className="management-app management-auth">
     <div className="management-atmosphere" aria-hidden="true"><i /><i /><i /></div>
     <section className="mg-glass mg-auth-card">
