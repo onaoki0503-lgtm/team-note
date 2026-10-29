@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Building2, ChevronLeft, ChevronRight, FileText, LogOut, X } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronLeft, ChevronRight, FileText, LogOut, X } from 'lucide-react';
 import { currentMonth, jstTime, managementError, monthLabel, monthRange, moveMonth } from './data';
 import { createDemoReports } from './demo';
 import { loadManagementReports } from './api';
@@ -12,7 +12,7 @@ export function ManagementSkeleton() {
   </div>;
 }
 
-export function ManagementDashboard({ manager, demo, onLogout, onAccessLost, logoutBusy = false, logoutError = '' }: { manager: ManagerContext; demo: boolean; onLogout: () => Promise<void>; onAccessLost: () => void; logoutBusy?: boolean; logoutError?: string }) {
+export function ManagementDashboard({ manager, demo, onLogout, onAccessLost, logoutBusy = false, logoutError = '', onBack }: { manager: ManagerContext; demo: boolean; onLogout: () => Promise<void>; onAccessLost: () => void; logoutBusy?: boolean; logoutError?: string; onBack?: () => void }) {
   const [month, setMonth] = useState(currentMonth);
   const [reports, setReports] = useState<ManagementReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +57,7 @@ export function ManagementDashboard({ manager, demo, onLogout, onAccessLost, log
     <a className="mg-skip" href="#management-content">本文へ移動</a>
     <header className="mg-topbar mg-glass"><div className="mg-brand"><Building2 size={23} /><strong>チームノート</strong><span>管理画面</span>{demo && <span className="mg-demo">デモ</span>}</div><div className="mg-account"><span>{manager.name}</span>{!demo && <button aria-label="ログアウト" disabled={logoutBusy} onClick={onLogout}><LogOut size={18} /></button>}</div></header>
     <main id="management-content" className="mg-container">
+      {onBack && <button className="mg-secondary ops-monthly-back" onClick={onBack}><ArrowLeft size={16}/>運営業務へ戻る</button>}
       <div className="mg-heading"><div><p className="mg-community">{manager.communityName}</p><h1 id="mg-title" tabIndex={-1}>月次報告書</h1></div><div className="mg-month-control mg-glass"><button aria-label="前の月" disabled={month === '2000-01'} onClick={() => changeMonth(moveMonth(month, -1))}><ChevronLeft size={18} /></button><input aria-label="対象月" type="month" min="2000-01" max="2100-12" value={month} onChange={e => changeMonth(e.target.value)} /><button aria-label="次の月" disabled={month === '2100-12'} onClick={() => changeMonth(moveMonth(month, 1))}><ChevronRight size={18} /></button></div></div>
       {logoutError && <p role="alert" className="mg-alert">{logoutError}</p>}
       {error && <div role="alert" className="mg-alert">{error}<button className="mg-primary" onClick={() => void load()}>再読み込み</button></div>}
