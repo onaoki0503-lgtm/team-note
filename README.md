@@ -1,20 +1,17 @@
-# public の案内
+# チームノート公開成果物
 
-> **最終更新日**: 2026-10-18
+> **最終更新日**: 2026-10-29
 > **更新者**: AI (Codex)
 
-アプリの関連ソース・資料を管理する。
+既存GitHub Pages用のビルド成果物。ソースはmain d1bcac14861cde6074c3bed002d7ba6a5e8988ac。GitHub Pages／Supabase／専用Workers構成を維持。JWTを送るWebとJWT所属確認Workerを同日に更新する。TestFlightは別配信。
 
 ## フォルダ構成
 
-- `commons_monochrome.png` — 関連実装・資料
-- `courtyard_monochrome.png` — 関連実装・資料
-- `crowd.jpg` — 関連実装・資料
-- `digital_dorm_metaverse.jpg` — 関連実装・資料
-- `digital_warehouse.jpg` — 関連実装・資料
-- `favicon.svg` — 関連実装・資料
-- `icons.svg` — 関連実装・資料
-- `manifest.json` — 関連実装・資料
-- `warehouse_sketch.png` — 関連実装・資料
+- `index.html` — アプリ入口
+- `assets/` — ハッシュ付きJS・CSS・Worker
+- `release.json` — ソース版・ビルド日時
+- `.nojekyll` — 静的成果物をそのまま配信
+- `README.md` — この案内
+- `manifest.json`、`favicon.svg`、`icons.svg`、各画像 — 既存の公開素材
 
-- 2026-10-18 / AI (Codex): Liquid Glass UI・全画面スケルトン・Workers接続と確認手順を反映。
+公開キーはブラウザ用publishableキーだけを使用。service_role・秘密鍵・個人セッションは含まない。
