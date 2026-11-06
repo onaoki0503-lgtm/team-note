@@ -4,18 +4,22 @@ import '../models/models.dart';
 import '../services/media_service.dart';
 import '../theme/tokens.dart';
 
-/// Compact camera / file / location actions shared by report & proposal flows.
+/// Compact attachment actions shared by report & proposal flows.
 class AttachBar extends StatelessWidget {
   const AttachBar({
     super.key,
     required this.attachments,
     required this.onChanged,
     this.media,
+    this.mode = AttachBarMode.full,
   });
 
   final List<AttachmentPin> attachments;
   final ValueChanged<List<AttachmentPin>> onChanged;
   final MediaService? media;
+
+  /// Officer reports: photo + photo library only. Proposals keep file + location.
+  final AttachBarMode mode;
 
   MediaService get _media => media ?? MediaService();
 
@@ -34,30 +38,39 @@ class AttachBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final chips = <Widget>[
+      _AttachChip(
+        icon: Icons.photo_camera_outlined,
+        label: '写真',
+        onTap: () => _add(context, _media.takePhoto),
+      ),
+      if (mode == AttachBarMode.report) ...[
+        const SizedBox(width: 8),
+        _AttachChip(
+          icon: Icons.folder_outlined,
+          label: 'フォルダ',
+          onTap: () => _add(context, _media.pickFromGallery),
+        ),
+      ] else ...[
+        const SizedBox(width: 8),
+        _AttachChip(
+          icon: Icons.attach_file,
+          label: 'ファイル',
+          onTap: () => _add(context, _media.pickFile),
+        ),
+        const SizedBox(width: 8),
+        _AttachChip(
+          icon: Icons.place_outlined,
+          label: '位置',
+          onTap: () => _add(context, _media.pinLocation),
+        ),
+      ],
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            _AttachChip(
-              icon: Icons.photo_camera_outlined,
-              label: '写真',
-              onTap: () => _add(context, _media.takePhoto),
-            ),
-            const SizedBox(width: 8),
-            _AttachChip(
-              icon: Icons.attach_file,
-              label: 'ファイル',
-              onTap: () => _add(context, _media.pickFile),
-            ),
-            const SizedBox(width: 8),
-            _AttachChip(
-              icon: Icons.place_outlined,
-              label: '位置',
-              onTap: () => _add(context, _media.pinLocation),
-            ),
-          ],
-        ),
+        Row(children: chips),
         if (attachments.isNotEmpty) ...[
           const SizedBox(height: 10),
           Wrap(
@@ -69,7 +82,9 @@ class AttachBar extends StatelessWidget {
                   avatar: Icon(
                     switch (attachments[i].kind) {
                       AttachmentKind.camera => Icons.photo_camera_outlined,
-                      AttachmentKind.file => Icons.insert_drive_file_outlined,
+                      AttachmentKind.file => mode == AttachBarMode.report
+                          ? Icons.folder_outlined
+                          : Icons.insert_drive_file_outlined,
                       AttachmentKind.location => Icons.place_outlined,
                     },
                     size: 16,
@@ -91,6 +106,8 @@ class AttachBar extends StatelessWidget {
     );
   }
 }
+
+enum AttachBarMode { report, full }
 
 class _AttachChip extends StatelessWidget {
   const _AttachChip({

@@ -32,7 +32,7 @@ class MediaService {
     );
     if (file == null) return null;
     return AttachmentPin(
-      kind: AttachmentKind.camera,
+      kind: AttachmentKind.file,
       label: file.name,
       path: file.path,
     );

@@ -9,6 +9,14 @@ import '../services/teamnote_api.dart';
 import '../config/environment.dart';
 import '../theme/tokens.dart';
 
+/// Officers often file the previous month on/before the 5th deadline.
+DateTime defaultOfficerReportMonth(DateTime now) {
+  if (now.day <= 5) {
+    return DateTime(now.year, now.month - 1);
+  }
+  return DateTime(now.year, now.month);
+}
+
 /// 西松地所向け月次提出レポート — mirrors web WorkStorageViews modal.
 class NishimatsuReportSheet extends StatefulWidget {
   const NishimatsuReportSheet({
@@ -48,15 +56,21 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
   final _extraTrouble = TextEditingController();
   final _extraEntry = TextEditingController();
 
+  late DateTime _reportMonth;
   var _copied = false;
   var _submitting = false;
   String? _submissionNotice;
   String? _submissionError;
 
+  @override
+  void initState() {
+    super.initState();
+    _reportMonth = defaultOfficerReportMonth(DateTime.now());
+  }
+
   Future<void> _submit() async {
     if (_submitting || !Environment.isConfigured) return;
-    final now = DateTime.now();
-    final month = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final month = DateFormat('yyyy-MM').format(_reportMonth);
     setState(() { _submitting = true; _submissionNotice = null; _submissionError = null; });
     try {
       await TeamNoteApi().submitMonthlyReport(month, _buildPlainText());
@@ -80,6 +94,9 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
     super.dispose();
   }
 
+  String get _monthKey => DateFormat('yyyy-MM').format(_reportMonth);
+  String get _monthLabel => '${_reportMonth.year}年${_reportMonth.month}月';
+
   String _activityKey(Map<String, dynamic> r) {
     final category = '${r['category'] ?? ''}';
     switch (category) {
@@ -99,17 +116,37 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
   }
 
   List<Map<String, dynamic>> get _monthReports {
-    final ym = DateFormat('yyyy-MM').format(DateTime.now());
-    return widget.reports
-        .where((r) => '${r['reportDate'] ?? ''}'.startsWith(ym))
-        .toList();
+    final ym = _monthKey;
+    final slash = '${_reportMonth.year}/${_reportMonth.month.toString().padLeft(2, '0')}';
+    return widget.reports.where((r) {
+      final date = '${r['reportDate'] ?? ''}';
+      return date.startsWith(ym) || date.startsWith(slash);
+    }).toList();
   }
 
   List<Map<String, dynamic>> _by(String key) =>
       _monthReports.where((r) => _activityKey(r) == key).toList();
 
-  String _buildPlainText() {
+  Future<void> _pickMonth() async {
     final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _reportMonth,
+      firstDate: DateTime(2000, 1),
+      lastDate: DateTime(now.year, now.month, 1),
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: '報告対象月を選択',
+      fieldLabelText: '対象月',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _reportMonth = DateTime(picked.year, picked.month);
+      _submissionNotice = null;
+      _submissionError = null;
+    });
+  }
+
+  String _buildPlainText() {
     final p = widget.profile;
     final inherent = _by('inherent');
     final coop = _by('cooperation');
@@ -139,7 +176,7 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
 
     return [
       '西松地所株式会社 御中',
-      'H ヴィレッジ 役職者活動報告書 ${now.year}年${now.month}月分',
+      'H ヴィレッジ 役職者活動報告書 $_monthLabel分',
       '',
       '【基本情報】',
       '役職: ${p.role}',
@@ -170,7 +207,6 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
   }
 
   String _buildMailBody() {
-    final now = DateTime.now();
     final p = widget.profile;
     final activity = _monthReports.where((r) {
       final k = _activityKey(r);
@@ -190,7 +226,7 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
       '西松地所株式会社 ご担当者様',
       '',
       'Hヴィレッジ ${p.buildingLabel}の${p.name}です。',
-      '${now.year}年${now.month}月分の役職者活動報告書を送付いたします。',
+      '$_monthLabel分の役職者活動報告書を送付いたします。',
       '',
       '【役職】${p.role} (担当フロア: ${p.floor}F)',
       '【学年・学籍番号・氏名】${_studentYear.text.trim().isEmpty ? '—' : _studentYear.text.trim()} / ${_studentId.text.trim().isEmpty ? '—' : _studentId.text.trim()} / ${p.name}',
@@ -243,8 +279,7 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
   }
 
   String _mailSubject() {
-    final now = DateTime.now();
-    return '【Hヴィレッジ役職者活動報告書】${now.year}年${now.month}月分_${widget.profile.name}';
+    return '【Hヴィレッジ役職者活動報告書】$_monthLabel分_${widget.profile.name}';
   }
 
   Future<void> _mail() async {
@@ -266,7 +301,6 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
     final p = widget.profile;
     final month = _monthReports;
     final inherent = _by('inherent');
@@ -300,7 +334,7 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
                         ),
                         Text(
-                          '対象月 ${now.year}年${now.month}月度 · 今月 ${month.length}件',
+                          '対象月 $_monthLabel度 · ${month.length}件',
                           style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
                         ),
                       ],
@@ -318,6 +352,17 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
                 controller: scrollController,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: ListTile(
+                      leading: const Icon(Icons.calendar_month_outlined, color: TnTokens.primary),
+                      title: const Text('報告対象月', style: TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text('$_monthLabel · 作成日ではなくこの月の記録を提出します'),
+                      trailing: const Icon(Icons.edit_calendar_outlined),
+                      onTap: _pickMonth,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -337,7 +382,7 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
                                 children: [
                                   const Text('H ヴィレッジ', style: TextStyle(letterSpacing: 2, fontSize: 12, color: TnTokens.textMuted)),
                                   Text(
-                                    '役職者活動報告書 ${now.year}年${now.month}月分',
+                                    '役職者活動報告書 $_monthLabel分',
                                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                                   ),
                                 ],

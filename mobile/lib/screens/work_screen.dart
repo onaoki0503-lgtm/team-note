@@ -132,17 +132,10 @@ class _WorkScreenState extends State<WorkScreen> {
     try {
       final unit = _entryUnit.text.trim();
       final purpose = _entryPurpose.text.trim();
-      String? locationLabel;
-      if (_activity == 'unit_entry') {
-        locationLabel = '$unit / $purpose';
-      } else {
-        for (final a in _attachments) {
-          if (a.kind == AttachmentKind.location) {
-            locationLabel = a.label;
-            break;
-          }
-        }
-      }
+      final locationLabel = _activity == 'unit_entry' ? '$unit / $purpose' : null;
+      final attachments = _attachments
+          .where((a) => a.kind != AttachmentKind.location)
+          .toList(growable: false);
 
       // Do not stuff a fake activityType attachment — category already carries the type.
       await context.read<AppDataProvider>().saveReport(
@@ -150,7 +143,7 @@ class _WorkScreenState extends State<WorkScreen> {
             category: _type.label,
             body: _body.text.trim(),
             date: _date,
-            attachments: List<AttachmentPin>.from(_attachments),
+            attachments: attachments,
             locationLabel: locationLabel,
           );
       if (!mounted) return;
@@ -583,6 +576,7 @@ class _WorkScreenState extends State<WorkScreen> {
               child: Opacity(
                 opacity: _listening ? 0.45 : 1,
                 child: AttachBar(
+                  mode: AttachBarMode.report,
                   attachments: _attachments,
                   onChanged: (next) => setState(() {
                     _attachments

@@ -17,7 +17,7 @@
     "test:cloud": "playwright test --config playwright.cloud.config.ts",
     "test:public": "playwright test --config playwright.public.config.ts",
     "test:management": "playwright test --config playwright.management.config.ts",
-    "test:management:data": "node --experimental-strip-types --test tests/management-data.test.ts"
+    "test:management:data": "node --experimental-strip-types --test tests/management-data.test.ts tests/officer-report-month.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
