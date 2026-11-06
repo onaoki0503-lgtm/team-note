@@ -3,7 +3,7 @@ import { VoiceWorkReport } from './VoiceWorkReport';
 import { spokenReportDate } from '../lib/workReportVoice';
 import { useScreenState } from '../lib/navigation';
 import React, { useRef, useState } from 'react';
-import { Send, Users, Package, Archive, ChevronRight, Calendar, Check, FileText, Printer, Copy, Mail, X, Lock, Paperclip, MapPin, Camera } from 'lucide-react';
+import { Send, Users, Package, Archive, ChevronRight, Calendar, Check, FileText, Printer, Copy, Mail, X, Lock, FolderOpen, Camera } from 'lucide-react';
 import type { CurrentUser } from '../lib/db';
 import { useSharedIdeas } from '../lib/sharedIdeasContext';
 import { uploadTeamnoteFile } from '../lib/teamnoteFiles';
@@ -147,26 +147,6 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
       setPinBusy(false);
     }
   };
-  const addLocationPin = () => {
-    if (!navigator.geolocation) { setSaveError('この端末では位置情報を取得できません。'); return; }
-    setPinBusy(true); setSaveError('');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setAttachments((prev) => [
-          ...prev,
-          {
-            kind: 'location',
-            label: `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          },
-        ]);
-        setPinBusy(false);
-      },
-      () => { setSaveError('位置情報の取得に失敗しました。'); setPinBusy(false); },
-      { enableHighAccuracy: true, timeout: 12000 }
-    );
-  };
   const confirmReport = async () => {
     if (saving || voiceBusy) return;
     if (!reportTitle.trim() || !actionResult.trim() || !reportDate || dateNotice ||
@@ -216,9 +196,19 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
   const displayedReports = filterPeriod === 'current_month' ? currentMonthReports : reports;
 
+  // The reporting month is independent of the creation/submission date.
+  const [reportMonth, setReportMonth] = useScreenState<string>(
+    `monthly-report:${currentUser.id}:month`, () => todayStr().slice(0, 7), false
+  );
+  const reportYear = Number(reportMonth.slice(0, 4));
+  const reportMonthNumber = Number(reportMonth.slice(5, 7));
+  const selectedMonthReports = reports.filter((r) =>
+    r.date?.replace(/\//g, '-').startsWith(`${reportMonth}-`)
+  );
+
   const monthlyReportText = () => {
-    const troubleReports = currentMonthReports.filter((r) => r.activityType === 'trouble');
-    const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
+    const troubleReports = selectedMonthReports.filter((r) => r.activityType === 'trouble');
+    const unitEntryReports = selectedMonthReports.filter((r) => r.activityType === 'unit_entry');
 
     const troubleLines = [
       ...troubleReports.map((r, i) => `${i + 1}. 日時: ${r.date} | 内容: ${r.title} - ${r.actionResult || r.content}`),
@@ -232,7 +222,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
     const textLines = [
       `西松地所株式会社 御中`,
-      `H ヴィレッジ 役職者活動報告書 ${now.getFullYear()}年${now.getMonth() + 1}月分`,
+      `H ヴィレッジ 役職者活動報告書 ${reportYear}年${reportMonthNumber}月分`,
       ``,
       `【基本情報】`,
       `役職: ${currentUser.role}`,
@@ -243,17 +233,17 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
       ``,
       `1. 活動報告:`,
       `■ 役職固有業務:`,
-      ...currentMonthReports
+      ...selectedMonthReports
         .filter((r) => r.activityType === 'inherent')
         .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
       ``,
       `■ 役職連携業務:`,
-      ...currentMonthReports
+      ...selectedMonthReports
         .filter((r) => r.activityType === 'cooperation')
         .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
       ``,
       `■ 役職共通業務:`,
-      ...currentMonthReports
+      ...selectedMonthReports
         .filter((r) => r.activityType === 'common')
         .map((r, i) => `${i + 1}. 日時: ${r.date} | 業務: ${r.title}\n   アクションと結果: ${r.actionResult || r.content}`),
       ``,
@@ -541,10 +531,10 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 placeholder={activityType === 'trouble' ? 'トラブルの経緯・対応・結果' : activityType === 'unit_entry' ? '立ち入り時の状況・対応・結果' : 'いつ・どこで・何をした・結果・申し送り'} />
             </div>
 
-            {/* 添付・位置 */}
+            {/* 写真撮影・保存済み写真 */}
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--glass-ink)', marginBottom: 6 }}>
-                添付・位置情報
+                添付
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 <button type="button" className="glass-button" disabled={pinBusy || voiceBusy} onClick={() => cameraInput.current?.click()}
@@ -553,15 +543,11 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                 </button>
                 <button type="button" className="glass-button" disabled={pinBusy || voiceBusy} onClick={() => fileInput.current?.click()}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--glass-border)', background: 'var(--glass-inset)', fontSize: 12, fontWeight: 700 }}>
-                  <Paperclip size={14} />ファイル
-                </button>
-                <button type="button" className="glass-button" disabled={pinBusy || voiceBusy} onClick={addLocationPin}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--glass-border)', background: 'var(--glass-inset)', fontSize: 12, fontWeight: 700 }}>
-                  <MapPin size={14} />現在地
+                  <FolderOpen size={14} />フォルダ
                 </button>
               </div>
               <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addFilePin(f, 'camera'); }} />
-              <input ref={fileInput} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addFilePin(f, 'file'); }} />
+              <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void addFilePin(f, 'file'); }} />
               {attachments.length > 0 && (
                 <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {attachments.map((a, i) => (
@@ -801,7 +787,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       西松地所 提出用業務報告レポート
                     </h3>
                     <span style={{ fontSize: 11, color: '#94A3B8' }}>
-                      対象月 {now.getFullYear()}年{now.getMonth() + 1}月度
+                      対象月 {reportYear}年{reportMonthNumber}月度
                     </span>
                   </div>
                 </div>
@@ -821,6 +807,19 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   <X size={20} />
                 </button>
               </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 16px', fontSize: 13, fontWeight: 700 }}>
+                報告対象月
+                <input type="month" aria-label="報告対象月" value={reportMonth} disabled={monthlyBusy}
+                  onChange={(e) => {
+                    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value)) {
+                      setReportMonth(e.target.value);
+                      setCopiedNotice(false);
+                    }
+                  }}
+                  style={{ padding: '8px 10px', minWidth: 160, borderRadius: 8, border: '1px solid var(--glass-border)', background: 'var(--glass-inset)', color: 'var(--glass-ink)', font: 'inherit' }} />
+                <span style={{ color: 'var(--glass-muted)', fontWeight: 400 }}>{selectedMonthReports.length}件の報告</span>
+              </label>
 
               {/* モーダル本文 レポートプレビュー */}
               <div
@@ -856,7 +855,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                         H ヴィレッジ
                       </span>
                       <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--glass-ink)", margin: 0 }}>
-                        役職者活動報告書 {now.getFullYear()}年{now.getMonth() + 1}月分
+                        役職者活動報告書 {reportYear}年{reportMonthNumber}月分
                       </h2>
                     </div>
 
@@ -989,7 +988,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       <tbody>
                         {/* 役職固有業務 */}
                         {(() => {
-                          const inherentList = currentMonthReports.filter((r) => r.activityType === 'inherent' || (!r.activityType && r.category !== '緊急対応' && r.category !== '会議・協議'));
+                          const inherentList = selectedMonthReports.filter((r) => r.activityType === 'inherent' || (!r.activityType && r.category !== '緊急対応' && r.category !== '会議・協議'));
                           if (inherentList.length === 0) {
                             return (
                               <tr>
@@ -1025,7 +1024,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
                         {/* 役職連携業務 */}
                         {(() => {
-                          const coopList = currentMonthReports.filter((r) => r.activityType === 'cooperation' || (!r.activityType && r.category === '会議・協議'));
+                          const coopList = selectedMonthReports.filter((r) => r.activityType === 'cooperation' || (!r.activityType && r.category === '会議・協議'));
                           if (coopList.length === 0) {
                             return (
                               <tr>
@@ -1061,7 +1060,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
 
                         {/* 役職共通業務 */}
                         {(() => {
-                          const commonList = currentMonthReports.filter((r) => r.activityType === 'common' || (!r.activityType && r.category === '緊急対応'));
+                          const commonList = selectedMonthReports.filter((r) => r.activityType === 'common' || (!r.activityType && r.category === '緊急対応'));
                           if (commonList.length === 0) {
                             return (
                               <tr>
@@ -1112,7 +1111,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       </thead>
                       <tbody>
                         {/* 業務報告ログから自動抽出されたトラブル対応一覧 */}
-                        {currentMonthReports
+                        {selectedMonthReports
                           .filter((r) => r.activityType === 'trouble')
                           .map((item) => (
                             <tr key={item.id} style={{ backgroundColor: '#FFFDFD' }}>
@@ -1169,7 +1168,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                       </thead>
                       <tbody>
                         {/* 業務報告ログから自動抽出されたユニット立ち入り記録一覧 */}
-                        {currentMonthReports
+                        {selectedMonthReports
                           .filter((r) => r.activityType === 'unit_entry')
                           .map((item) => (
                             <tr key={item.id} style={{ backgroundColor: "var(--glass-inset)" }}>
@@ -1278,7 +1277,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                     const submittedRevision = monthlyRevision.current;
                     setMonthlyBusy(true); setMonthlyNotice(''); setMonthlyError('');
                     try {
-                      await submitTeamnoteMonthlyReport(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, monthlyReportText());
+                      await submitTeamnoteMonthlyReport(reportMonth, monthlyReportText());
                       setMonthlyNotice(submittedRevision === monthlyRevision.current ? '月次報告書を管理側に提出しました。同じ月に再提出すると最新の内容に置き換わります。' : '提出しました。送信中に編集した内容は再提出してください。');
                     } catch { setMonthlyError('提出できませんでした。接続を確認して再度お試しください。'); }
                     finally { setMonthlyBusy(false); }
@@ -1337,11 +1336,11 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                   {/* メールで西松地所に送信 */}
                   <a
                     href={`mailto:nishimatsu-info@example.com?subject=${encodeURIComponent(
-                      `【Hヴィレッジ役職者活動報告書】${now.getFullYear()}年${now.getMonth() + 1}月分_${currentUser.name}`
+                      `【Hヴィレッジ役職者活動報告書】${reportYear}年${reportMonthNumber}月分_${currentUser.name}`
                     )}&body=${encodeURIComponent(
                       (() => {
-                        const troubleReports = currentMonthReports.filter((r) => r.activityType === 'trouble');
-                        const unitEntryReports = currentMonthReports.filter((r) => r.activityType === 'unit_entry');
+                        const troubleReports = selectedMonthReports.filter((r) => r.activityType === 'trouble');
+                        const unitEntryReports = selectedMonthReports.filter((r) => r.activityType === 'unit_entry');
 
                         const troubleLines = [
                           ...troubleReports.map((r) => `・${r.date} ${r.title}: ${r.actionResult || r.content}`),
@@ -1353,7 +1352,7 @@ export const WorkStorageViews: React.FC<WorkStorageViewsProps> = ({
                           entryDateTime || entryUnit || entryPurpose ? `・${entryDateTime} ${entryUnit}: ${entryPurpose}` : ''
                         ].filter(Boolean);
 
-                        return `西松地所株式会社 ご担当者様\n\nHヴィレッジ ${currentUser.building}棟の${currentUser.name}です。\n${now.getFullYear()}年${now.getMonth() + 1}月分の役職者活動報告書を送付いたします。\n\n【役職】${currentUser.role} (担当フロア: ${currentUser.floor}F)\n【学年・学籍番号・氏名】${studentYear} / ${studentId} / ${currentUser.name}\n【不在期間】${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})\n\n【1. 活動報告】\n${currentMonthReports
+                        return `西松地所株式会社 ご担当者様\n\nHヴィレッジ ${currentUser.building}棟の${currentUser.name}です。\n${reportYear}年${reportMonthNumber}月分の役職者活動報告書を送付いたします。\n\n【役職】${currentUser.role} (担当フロア: ${currentUser.floor}F)\n【学年・学籍番号・氏名】${studentYear} / ${studentId} / ${currentUser.name}\n【不在期間】${absencePeriod || 'なし'} (理由: ${absenceReason || 'なし'})\n\n【1. 活動報告】\n${selectedMonthReports
                           .filter((r) => r.activityType === 'inherent' || r.activityType === 'cooperation' || r.activityType === 'common')
                           .map((r) => `・[${r.activityType === 'inherent' ? '固有' : r.activityType === 'cooperation' ? '連携' : '共通'}] ${r.date} ${r.title}\n  アクションと結果: ${r.actionResult || r.content}`)
                           .join('\n\n')}\n\n【2. トラブル対応】\n${troubleLines.length > 0 ? troubleLines.join('\n') : '該当なし'}\n\n【3. ユニット立ち入り記録】\n${entryLines.length > 0 ? entryLines.join('\n') : '該当なし'}\n\n【4. 気づいたこと・要望・意見】\n${noticeFeedback || '特になし'}\n\nご確認のほどよろしくお願い申し上げます。`;

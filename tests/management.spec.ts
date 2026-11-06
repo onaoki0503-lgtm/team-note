@@ -2,6 +2,7 @@ import { test, expect, type BrowserContext } from '@playwright/test';
 import { createDemoReports, demoManager } from '../src/management/demo';
 const uid = '00000000-0000-4000-8000-000000000001';
 class Fixture {
+  workReports: Record<string, unknown>[] = [];
   submissionFailure = false; submitted: ReturnType<typeof createDemoReports> = [];
   rows = createDemoReports('2026-10'); allowed = true; fail = false; malformed = false;
   calls: Record<string,string>[] = []; otherCalls: string[] = []; hold?: Promise<void>;
@@ -18,7 +19,8 @@ class Fixture {
       if(url.pathname.includes('/auth/v1/'))return reply({id:uid,aud:'authenticated'});
       const rpc=url.pathname.split('/').at(-1),args=req.postDataJSON()||{};
       if(rpc==='tn_get_board')return reply({community:'h-village',revision:1,userId:uid,members:[{id:uid,name:'提出者A',role:'HL',roleType:'member',building:'rosemary',floor:3,unit:'301-A'}],ideas:[]});
-      if(['tn_list_projects','tn_list_reports','tn_list_archives'].includes(rpc||''))return reply([]);
+      if(rpc==='tn_list_reports')return reply(this.workReports);
+      if(['tn_list_projects','tn_list_archives'].includes(rpc||''))return reply([]);
       if(rpc==='tn_submit_monthly_report'){
         if(this.submissionFailure)return reply({code:'XX000'},503);
         const report={id:'submitted-1',month:args.p_month.slice(0,7),body:args.p_body,submittedAt:'2026-10-26T03:00:00Z',author:{id:uid,name:'提出者A',role:'HL',building:'rosemary',unit:'301-A'}};
@@ -107,4 +109,63 @@ test('寮生が月次文書を提出・修正再提出すると管理側に一�
   await expect(d.getByRole('status')).toContainText('管理側に提出しました');expect(f.submitted).toHaveLength(1);
   const manager=await context.newPage();await manager.goto('/?view=management');await expect(manager.locator('.mg-report-row')).toHaveCount(1);
   await manager.getByRole('button',{name:'提出者Aの月次報告書を開く'}).click();await expect(manager.getByRole('dialog')).toContainText('補充済みです');await expect(manager.getByRole('dialog')).not.toContainText('月次で清掃用品の補充を依頼します');
+});
+
+for (const width of [375, 1440]) test(`翌月に前月の報告書を作成し、表示・出力・提出月が一致する（${width}px）`, async ({ page, context }) => {
+  await page.clock.setFixedTime(new Date('2026-11-05T03:00:00Z'));
+  await page.setViewportSize({ width, height: 1000 });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text: string) => { (window as any).__copiedReport = text; } } });
+    window.print = () => { (window as any).__printedReport = document.getElementById('nishimatsu-report-print-area')?.innerText; };
+  });
+  const f = new Fixture();
+  f.workReports = [
+    { id: 'oct1', title: '十月の清掃', category: '役職固有業務', body: '十月の清掃完了', reportDate: '2026-10-31' },
+    { id: 'oct2', title: '十月の連携', category: '役職連携業務', body: '連携完了', reportDate: '2026/10/15' },
+    { id: 'oct3', title: '十月の共通業務', category: '役職共通業務', body: '共通完了', reportDate: '2026-10-01' },
+    { id: 'oct4', title: '十月のトラブル', category: 'トラブル対応', body: '修理完了', reportDate: '2026-10-20' },
+    { id: 'oct5', title: '十月の立ち入り', category: 'ユニット立ち入り', body: '点検完了', reportDate: '2026-10-21', locationLabel: '301' },
+    { id: 'nov', title: '十一月だけの業務', category: '役職固有業務', body: '翌月の記録', reportDate: '2026-11-05' },
+    { id: 'dec', title: '昨年十二月の業務', category: '役職固有業務', body: '昨年の記録', reportDate: '2025-12-01' },
+  ];
+  await f.install(context); await page.goto('/');
+  await page.getByRole('navigation', { name: 'メインメニュー' }).getByRole('button', { name: 'はたらく', exact: true }).click();
+  await expect(page.getByText('十一月だけの業務', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '西松地所レポート作成', exact: true }).click();
+  const d = page.getByRole('dialog'); const month = d.getByLabel('報告対象月');
+  await month.fill('2026-10');
+  await expect(d).toContainText('役職者活動報告書 2026年10月分');
+  for (const r of f.workReports.slice(0, 5)) await expect(d).toContainText(String(r.title));
+  await expect(d).not.toContainText('十一月だけの業務');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  expect(await d.evaluate(e => e.scrollWidth <= e.clientWidth)).toBeTruthy();
+  await d.getByRole('button', { name: 'テキストコピー', exact: true }).click();
+  const copied = await page.evaluate(() => (window as any).__copiedReport);
+  expect(copied).toContain('2026年10月分'); expect(copied).toContain('十月の立ち入り'); expect(copied).not.toContain('十一月だけの業務');
+  await d.getByRole('button', { name: 'PDF保存 / 印刷', exact: true }).click();
+  const printed = await page.evaluate(() => (window as any).__printedReport);
+  expect(printed).toContain('2026年10月分'); expect(printed).not.toContain('十一月だけの業務');
+  const mail = new URL((await d.getByRole('link', { name: 'メールで送信' }).getAttribute('href'))!);
+  expect(mail.searchParams.get('subject')).toContain('2026年10月分');
+  expect(mail.searchParams.get('body')).toContain('十月の清掃'); expect(mail.searchParams.get('body')).not.toContain('十一月だけの業務');
+  await d.getByRole('button', { name: '管理側に提出', exact: true }).click();
+  await expect(d.getByRole('status')).toContainText('管理側に提出しました');
+  expect(f.submitted[0].month).toBe('2026-10'); expect(f.submitted[0].body).toContain('2026年10月分');
+  await month.fill('2026-09'); await expect(d.getByRole('status')).toHaveCount(0); await expect(d).toContainText('0件の報告'); await expect(d).not.toContainText('十月の清掃');
+  await month.fill('2025-12'); await expect(d).toContainText('昨年十二月の業務');
+  await d.getByRole('button', { name: '管理側に提出', exact: true }).click(); await expect(d.getByRole('status')).toContainText('管理側に提出しました'); expect(f.submitted[0].month).toBe('2025-12');
+  await month.fill('2026-10');
+  await page.screenshot({ path: `/private/tmp/teamnote-report-month-${width}.png`, fullPage: true });
+});
+
+test('報告の添付は写真撮影とスマホ写真選択の二つ', async ({ page, context }) => {
+  const f = new Fixture(); await f.install(context); await page.goto('/');
+  await page.getByRole('navigation', { name: 'メインメニュー' }).getByRole('button', { name: 'はたらく', exact: true }).click();
+  await expect(page.getByRole('button', { name: '現在地', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'ファイル', exact: true })).toHaveCount(0);
+  for (const [label, capture] of [['写真', 'environment'], ['フォルダ', null]] as const) {
+    const chooser = page.waitForEvent('filechooser'); await page.getByRole('button', { name: label, exact: true }).click();
+    const file = await chooser; expect(await file.element().getAttribute('accept')).toBe('image/*');
+    expect(await file.element().getAttribute('capture')).toBe(capture); await file.setFiles([]);
+  }
 });
