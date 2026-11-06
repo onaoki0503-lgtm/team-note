@@ -71,10 +71,16 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
   Future<void> _submit() async {
     if (_submitting || !Environment.isConfigured) return;
     final month = DateFormat('yyyy-MM').format(_reportMonth);
+    final monthLabel = _monthLabel;
+    final body = _buildPlainText();
     setState(() { _submitting = true; _submissionNotice = null; _submissionError = null; });
     try {
-      await TeamNoteApi().submitMonthlyReport(month, _buildPlainText());
-      if (mounted) { setState(() { _submissionNotice = '月次報告書を管理側に提出しました。同じ月の再提出は最新の内容に置き換わります。'; }); }
+      await TeamNoteApi().submitMonthlyReport(month, body);
+      if (!mounted) return;
+      // Success text names the month frozen at submit start (selector stays locked while busy).
+      setState(() {
+        _submissionNotice = '$monthLabel分の月次報告書を管理側に提出しました。同じ月の再提出は最新の内容に置き換わります。';
+      });
     } catch (_) {
       if (mounted) { setState(() { _submissionError = '提出できませんでした。接続を確認して再度お試しください。'; }); }
     } finally {
@@ -128,6 +134,7 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
       _monthReports.where((r) => _activityKey(r) == key).toList();
 
   Future<void> _pickMonth() async {
+    if (_submitting) return;
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -138,7 +145,7 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
       helpText: '報告対象月を選択',
       fieldLabelText: '対象月',
     );
-    if (picked == null || !mounted) return;
+    if (picked == null || !mounted || _submitting) return;
     setState(() {
       _reportMonth = DateTime(picked.year, picked.month);
       _submissionNotice = null;
@@ -355,11 +362,22 @@ class _NishimatsuReportSheetState extends State<NishimatsuReportSheet> {
                   Card(
                     margin: EdgeInsets.zero,
                     child: ListTile(
-                      leading: const Icon(Icons.calendar_month_outlined, color: TnTokens.primary),
+                      enabled: !_submitting,
+                      leading: Icon(
+                        Icons.calendar_month_outlined,
+                        color: _submitting ? TnTokens.textMuted : TnTokens.primary,
+                      ),
                       title: const Text('報告対象月', style: TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: Text('$_monthLabel · 作成日ではなくこの月の記録を提出します'),
-                      trailing: const Icon(Icons.edit_calendar_outlined),
-                      onTap: _pickMonth,
+                      subtitle: Text(
+                        _submitting
+                            ? '$_monthLabel · 提出中は変更できません'
+                            : '$_monthLabel · 作成日ではなくこの月の記録を提出します',
+                      ),
+                      trailing: Icon(
+                        Icons.edit_calendar_outlined,
+                        color: _submitting ? TnTokens.textMuted : null,
+                      ),
+                      onTap: _submitting ? null : _pickMonth,
                     ),
                   ),
                   const SizedBox(height: 12),
