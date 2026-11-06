@@ -1,12 +1,12 @@
 # Dorm operations: workflows and dashboard extension contract
 
-Updated: 2026-10-29 by AI (Codex). Product direction from Naoki; workflow details below are proposals for stakeholder review, not a completed rollout.
+Updated: 2026-10-29. Product direction from Naoki; slice/work-split notes from Alan review. Workflow details below are proposals for stakeholder review, not a completed rollout.
 
 ## Outcome
 
 Reduce time spent on reporting, checking, approvals, looking up contacts and chasing outstanding actions. Accumulate records through normal work, then use recurring issues and delays to improve dorm operations and handovers. Naoki's 2026-10-30 discussion with the management company is exploratory; a later detailed workflow meeting is the intended next step.
 
-## Current implementation in this branch
+## Current implementation
 
 `?view=management` opens the operations dashboard. The existing monthly-document reader remains available at `?view=management&section=monthly`. Existing manager authentication and server-side allowlist checks remain. The overview reads only the existing monthly-report RPC; it does not infer missing reporters without a target roster.
 
@@ -53,6 +53,41 @@ Photo files need private storage with authorized reads and a defined retention p
 - UI shows saving/error/retry; a failed remote save is not presented as saved locally to the shared service.
 - Measure actual handling time separately from calendar elapsed time. Track additional clarification and missed actions alongside time saved.
 
+## Smallest practical end-to-end slice
+
+1. **Ship this dashboard shell** (already in tree): overview + planned module cards + existing monthly reader. No production DB / Pages / TestFlight change required for that shell alone.
+2. **Officer reports are already E2E on main** (resident submit → `teamnote_private.monthly_reports` → manager read). Do not rebuild that loop. Optional next additions only after operators confirm: target roster / missing submitters, clarification thread, confirmation status.
+3. **First new workflow: repairs.** Closest reuse of existing pieces (photo upload via `tn-files`, location fields, member RPCs, manager allowlist). Bedding and training need greenfield cycle/QR/reminder design and should wait until those operator decisions exist.
+
+Recommended repairs MVP (one dorm, one reviewer role, no company system integration yet):
+
+| Step | Owner | Reuse |
+|------|--------|--------|
+| Private table + append-only status events + SECURITY DEFINER RPCs | Backend | Same pattern as `monthly_reports` / `management_reviewers` |
+| Resident create/submit (photo, place, description) | Flutter + Web resident forms | `uploadTeamnoteFile` / mobile media path used by daily reports |
+| Reviewer approve / needs-information / close | Web management module (`section=repairs`) | Existing `?view=management` gate |
+| Company handoff | Manual or mailto/export from approved queue first | Keep emergency contact path unchanged |
+
+Defer for later slices: Nishimatsu system API, push/inbox reminders, bedding QR, training RSVP, officer-report clarification UI.
+
+## Work split (avoid overlap)
+
+| Area | Owner | Boundary |
+|------|--------|----------|
+| Supabase migrations, RPCs, RLS, storage policies, SQL fixture tests | Alan / backend | Stable RPC names + row shapes before UI writes |
+| Management Web module views + Playwright | Naoki | Call only documented RPCs; keep adapters out of `OperationsDashboard` |
+| Resident Web forms (if needed for parity) | Naoki | Same RPC contracts as Flutter |
+| Flutter resident screens + version bump | Alan / mobile | Bump `mobile/pubspec.yaml` only when a TestFlight build includes new native UX; shell-only Web work does **not** bump |
+| Reminder delivery (inbox / push) | Backend first | Idempotency key + eligibility recheck; neither capability exists today |
+
+Contract freeze rule: agree RPC signatures and status enum in this doc (or a short follow-up) before parallel Web and Flutter form work. `operations.ts` `available: true` only after server auth for that module exists.
+
+## Version / release coordination
+
+- Web dashboard shell: no mobile version change.
+- First repairs resident screen on Flutter: bump build number in `mobile/pubspec.yaml` (currently `0.1.18+29`) per `mobile/TESTFLIGHT.md` when cutting TestFlight.
+- Do not apply production migrations or Pages deploy from exploratory meeting demos unless explicitly agreed.
+
 ## Coordination
 
-Naoki's side has prepared the workflow catalog, Web dashboard shell and browser regression tests. Please review API boundaries and propose the smallest end-to-end slice before we split Web/Flutter/backend implementation. Backend workflows, migrations, reminder delivery and native screens remain to implement. The branch does not change production DB, auth settings, Web hosting or TestFlight version numbers.
+Naoki prepared the workflow catalog, Web dashboard shell and browser regression tests. Backend workflows, migrations, reminder delivery and native screens remain to implement for new modules. Merging the shell does not by itself change production DB, auth settings, Web hosting or TestFlight version numbers.
